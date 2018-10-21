@@ -1,0 +1,80 @@
+# Define one or more charts, each with their own indicators you can use.
+# Information about the structure of this document can be found in the README.md
+# NOTE: all values are CASE SENSITIVE and put text into double quotation marks (") unless you know what you are doing.
+charts:
+- url: https://www.tradingview.com/chart/<your_chart>/
+  timeframes: [1 day]
+  watchlists: [<your_watchlist_name>, <your_second_watchlist_name>]
+  # Alert listed under alerts must be available from the chart which is loaded through the 'url' parameter.
+  alerts:
+  # The name is like to be used with a future update to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts.
+  # Make sure the name is unique.
+  - name: "Example 1"
+    # Conditions need to be listed in order of TV's Create Alert dialog form, i.e. from left to right and from top to bottom.
+    # Values need to be EXACT (unless specified differently in your kairos.cfg under section TradingView, setting exact_conditions) and are CASE SENSITIVE.
+    conditions: ["BTCUSD", "Outside channel", "Value", "6826.28", "Value", "5880.00"]
+    options: "Only Once"
+    # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
+    # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
+    # Expiration: 2019-05-19 13:42, or delta in minutes (max 86400, or 60 days), or leave empty to use TradingView's default of 30 days (somewhat improves performance).
+    expiration: 2
+    # It is recommended to not use popups as they can break this script. Use at your own risk.
+    show_popup: no
+    sound:
+      play: yes
+      # For a full list of options please open the alert dialog manually.
+      ringtone: "Chirpy"
+      # Possible values for duration are "Once", "5 seconds", "10 seconds", "30 seconds", "Minute".
+      durarion: "10 seconds"
+    send:
+      email: yes
+      email-to-sms: no
+      # SMS is only for premium members.
+      # If you set this to yes and don't have a premium subscription this will break the script as it will produce a pop-up denying the script from accessing the Create Alert dialog underneath.
+      sms: no
+      # You'll need to have the iOS app installed and enabled push notifications for it on your iOS device.
+      # Also, make sure to have manually set this checkbox first in TradingView and check the 'Do not show this message again' checkbox when it generates a popup (if there is no popup you are all good).
+      notify-on-app: no
+    message:
+      # If prepend is set to yes, the text will be prepended before the generated message instead of replacing it.
+      # Note that the name of the alert will always prepend the message. So, [name] [message] [optional TV generated message]
+      prepend: yes
+      text: "BTC went outside it's channel. "
+  - name: "Example 2"
+    conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
+    options: "Once Per Bar Close"
+    expiration: 86400
+    show_popup: no
+    sound:
+      play: yes
+      ringtone: "Hand Bell"
+      durarion: "10 seconds"
+    send:
+      email: yes
+      email-to-sms: no
+      sms: no
+      notify-on-app: no
+    message:
+      prepend: yes
+      text: ""
+- url: https://www.tradingview.com/chart/<your_second_chart>/
+  timeframes: [2 minutes]
+  watchlists: [<your_watchlist-name>]
+  alerts:
+  - name: "BTCUSD"
+    conditions: ["BTCUSD", "Crossing", "MA (200, close)"]
+    options: "Once Per Bar Close"
+    expiration: 86400
+    show_popup: no
+    sound:
+      play: yes
+      ringtone: "Hand Bell"
+      durarion: "10 seconds"
+    send:
+      email: yes
+      email-to-sms: no
+      sms: no
+      notify-on-app: no
+    message:
+      prepend: no
+      text: "200 SMA crossed!"
