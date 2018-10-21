@@ -117,10 +117,11 @@ except Exception as e:
     log.exception(e)
 
 options = Options()
+options.add_argument("--disable-extensions")
+options.add_argument('--window-size=1920,1080')
+options.add_argument('--disable-notifications')
 if config.getboolean('chromedriver', 'run_in_background'):
     options.add_argument('headless')  # this will hide the browser window i.e. run chrome in the background
-options.add_argument('--disable-notifications')
-options.add_argument('window-size=1920,1080')
 
 
 def close_all_popups(browser):
@@ -624,8 +625,9 @@ def run():
                 try:
                     tv = yaml.safe_load(stream)
                     for file, charts in tv.items():
-                        for i in range(len(charts)):
-                            [counter_alerts, total_alerts] = open_chart(browser, charts[i], counter_alerts, total_alerts)
+                        if type(charts) is list:
+                            for i in range(len(charts)):
+                                [counter_alerts, total_alerts] = open_chart(browser, charts[i], counter_alerts, total_alerts)
                 except yaml.YAMLError as err_yaml:
                     log.exception(err_yaml)
         except FileNotFoundError as err_file:
