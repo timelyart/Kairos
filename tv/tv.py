@@ -183,9 +183,10 @@ def wait_and_get(browser, css, wait_time=WAIT_TIME_CHECK):
 
 
 def set_timeframe(browser, timeframe):
-    log.debug('Setting timeframe to ' + timeframe)
+    log.info('Setting timeframe to ' + timeframe)
     wait_and_click(browser, '#header-toolbar-intervals > div:last-child')
-    css = '#tooltip-root-element + div + div > div > div > div > div > div > div > div'
+    # css = '#tooltip-root-element + div + div > div > div > div > div > div > div > div'
+    css = '#__outside-render-0 > div > div > div > div > div > div > div'
     el_options = browser.find_elements_by_css_selector(css)
     index = 0
     found = False
@@ -213,35 +214,37 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
         wait_and_click(browser, css_selectors['btn_calendar'])
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
-
+        time.sleep(WAIT_TIME_BREAK_MINI)
         # scrape the symbols for each watchlist
         dict_watchlist = dict()
         for i in range(len(chart['watchlists'])):
             # open list of watchlists element
             watchlist = chart['watchlists'][i]
             log.info("Collecting symbols from watchlist " + watchlist)
-            if not element_exists(browser, 'div.charts-popup-list > a.item.special'):
-                css = 'input.wl-symbol-edit + a.button'
-                wait_and_click(browser, css)
+            wait_and_click(browser, 'input.wl-symbol-edit + a.button')
+            # time.sleep(WAIT_TIME_BREAK_MINI)
             # load watchlist
+            watchlist_exists = False
             el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first')
             for j in range(len(el_options)):
                 if el_options[j].text == watchlist:
                     el_options[j].click()
+                    watchlist_exists = True
+                    log.debug('Watchlist \'' + watchlist + '\' found')
                     time.sleep(WAIT_TIME_BREAK_MINI)
                     break
-            log.debug('Watchlist \'' + watchlist + '\' found')
 
-            # extract symbols from watchlist
-            dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
-            symbols = dict()
-            for j in range(len(dict_symbols)):
-                symbol = dict_symbols[j]
-                symbols[j] = symbol.get_attribute('data-symbol-full')
-                if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
-                    break
-            log.debug(str(len(dict_symbols)) + ' names found for watchlist \'' + watchlist + '\'')
-            dict_watchlist[chart['watchlists'][i]] = symbols
+            if watchlist_exists:
+                # extract symbols from watchlist
+                dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
+                symbols = dict()
+                for j in range(len(dict_symbols)):
+                    symbol = dict_symbols[j]
+                    symbols[j] = symbol.get_attribute('data-symbol-full')
+                    if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
+                        break
+                log.debug(str(len(dict_symbols)) + ' names found for watchlist \'' + watchlist + '\'')
+                dict_watchlist[chart['watchlists'][i]] = symbols
 
         # open alerts tab
         # wait_and_click(browser, css_selectors['btn_calendar'])
@@ -426,9 +429,11 @@ def add_alert(browser, alert_config):
 
         # Options (i.e. frequency)
         wait_and_click(alert_dialog, 'div[data-title="{0}"]'.format(str(alert_config['options']).strip()))
-        time.sleep(WAIT_TIME_BREAK_MINI)
         # Expiration
         set_expiration(alert_dialog, alert_config)
+        time.sleep(WAIT_TIME_BREAK_MINI)
+        time.sleep(WAIT_TIME_BREAK_MINI)
+        time.sleep(WAIT_TIME_BREAK_MINI)
 
         # Show popup
         checkbox = alert_dialog.find_element_by_name('show-popup')
@@ -439,7 +444,7 @@ def add_alert(browser, alert_config):
         checkbox = alert_dialog.find_element_by_name('play-sound')
         if is_checkbox_checked(checkbox) != alert_config['sound']['play']:
             wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(2) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
-        if str(alert_config['sound']['play']).strip().lower().startswith('y'):
+        if is_checkbox_checked(checkbox):
             # set ringtone
             css = 'div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span'
             wait_and_click(alert_dialog, css)
