@@ -15,5 +15,7 @@ setup(
     description='Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.',
     long_description=long_description,
     long_description_content_type='text/markdown',
+    use_scm_version=True,
+    setup_requires=['setuptools_scm'],
     install_requires=['pyyaml', 'beautifulsoup4', 'urllib3', 'selenium', 'configparser', 'tools'],
 )
