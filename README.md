@@ -72,7 +72,7 @@ Steps:
     sound:
       play: no
       ringtone: Hand Bell
-      durarion: 10 seconds
+      duration: 10 seconds
     send:
       email: yes
       email-to-sms: no
@@ -101,7 +101,7 @@ charts:
     sound:
       play: no
       ringtone: Hand Bell
-      durarion: 10 seconds
+      duration: 10 seconds
     send:
       email: yes
       email-to-sms: no
@@ -118,7 +118,7 @@ charts:
     sound:
       play: no
       ringtone: Hand Bell
-      durarion: 10 seconds
+      duration: 10 seconds
     send:
       email: yes
       email-to-sms: no
@@ -139,7 +139,7 @@ charts:
     sound:
       play: no
       ringtone: Hand Bell
-      durarion: 10 seconds
+      duration: 10 seconds
     send:
       email: yes
       email-to-sms: no

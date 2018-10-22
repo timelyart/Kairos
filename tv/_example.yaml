@@ -25,7 +25,7 @@ charts:
       # For a full list of options please open the alert dialog manually.
       ringtone: "Chirpy"
       # Possible values for duration are "Once", "5 seconds", "10 seconds", "30 seconds", "Minute".
-      durarion: "10 seconds"
+      duration: "10 seconds"
     send:
       email: yes
       email-to-sms: no
@@ -48,7 +48,7 @@ charts:
     sound:
       play: yes
       ringtone: "Hand Bell"
-      durarion: "10 seconds"
+      duration: "10 seconds"
     send:
       email: yes
       email-to-sms: no
@@ -69,7 +69,7 @@ charts:
     sound:
       play: yes
       ringtone: "Hand Bell"
-      durarion: "10 seconds"
+      duration: "10 seconds"
     send:
       email: yes
       email-to-sms: no
