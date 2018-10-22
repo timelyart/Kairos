@@ -36,10 +36,13 @@ charts:
       # Also, make sure to have manually set this checkbox first in TradingView and check the 'Do not show this message again' checkbox when it generates a popup (if there is no popup you are all good).
       notify-on-app: no
     message:
-      # If prepend is set to yes, the text will be prepended before the generated message instead of replacing it.
-      # Note that the name of the alert will always prepend the message. So, [name] [message] [optional TV generated message]
-      prepend: yes
-      text: "BTC went outside it's channel. "
+      # Use `\n` to add and an ENTER
+      # Use keywords to add dynamic information in your text.
+      # %TIMEFRAME, is self-explanatory
+      # %SYMBOL is <exchange>:<ticker symbol>
+      # %NAME is the name of the alert
+      # %GENERATED is the text that TradingView generates
+      text: "%TIMEFRAME, %NAME\n%SYMBOL lorem ipsum"
   - name: "Example 2"
     conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
     options: "Once Per Bar Close"
@@ -55,8 +58,7 @@ charts:
       sms: no
       notify-on-app: no
     message:
-      prepend: yes
-      text: ""
+      text: "%TIMEFRAME, %NAME\n%SYMBOL lorem ipsum"
 - url: https://www.tradingview.com/chart/<your_second_chart>/
   timeframes: [2 minutes]
   watchlists: [<your_watchlist-name>]
@@ -76,5 +78,4 @@ charts:
       sms: no
       notify-on-app: no
     message:
-      prepend: no
-      text: "200 SMA crossed!"
+      text: "%TIMEFRAME, %NAME\n%SYMBOL lorem ipsum"
