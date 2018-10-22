@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 0.0.0
+Version: 0.1.dev5+gaf5e41b.d20181022
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 Home-page: https://github.com/timelyart/Kairos/
 Author: timelyart
@@ -80,7 +80,7 @@ Description: # Kairos #
             sound:
               play: no
               ringtone: Hand Bell
-              durarion: 10 seconds
+              duration: 10 seconds
             send:
               email: yes
               email-to-sms: no
@@ -109,7 +109,7 @@ Description: # Kairos #
             sound:
               play: no
               ringtone: Hand Bell
-              durarion: 10 seconds
+              duration: 10 seconds
             send:
               email: yes
               email-to-sms: no
@@ -126,7 +126,7 @@ Description: # Kairos #
             sound:
               play: no
               ringtone: Hand Bell
-              durarion: 10 seconds
+              duration: 10 seconds
             send:
               email: yes
               email-to-sms: no
@@ -147,7 +147,7 @@ Description: # Kairos #
             sound:
               play: no
               ringtone: Hand Bell
-              durarion: 10 seconds
+              duration: 10 seconds
             send:
               email: yes
               email-to-sms: no
