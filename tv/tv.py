@@ -294,7 +294,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
                             return [counter_alerts, total_alerts]
                         try:
-                            add_alert(browser, chart['alerts'][l])
+                            add_alert(browser, chart['alerts'][l], chart['timeframes'][i], symbols[k])
                             counter_alerts += 1
                             total_alerts += 1
                         except Exception as err:
@@ -306,7 +306,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def add_alert(browser, alert_config):
+def add_alert(browser, alert_config, timeframe, ticker_id):
     global alert_dialog
     log.debug(alert_config['name'])
 
@@ -483,6 +483,16 @@ def add_alert(browser, alert_config):
         # Construct message
         textarea = alert_dialog.find_element_by_name('description')
         time.sleep(WAIT_TIME_BREAK_MINI)
+        generated = textarea.text
+        text = str(alert_config['message']['text'])
+        text = text.replace('%TIMEFRAME', timeframe)
+        text = text.replace('%SYMBOL', ticker_id)
+        text = text.replace('%NAME', alert_config['name'])
+        text = text.replace('%GENERATED', generated)
+        textarea.send_keys(Keys.CONTROL + 'a')
+        textarea.send_keys(text)
+
+        """
         if alert_config['message']['prepend']:
             # prepend text to a new line
             textarea.send_keys(Keys.CONTROL + Keys.HOME)
@@ -496,6 +506,7 @@ def add_alert(browser, alert_config):
         textarea.send_keys(Keys.CONTROL + Keys.HOME)
         textarea.send_keys(alert_config['name'])
         textarea.send_keys(Keys.ENTER)
+        """
 
         # Submit the form
         element = browser.find_element_by_css_selector('div[data-name="submit"] > span.tv-button__loader')
