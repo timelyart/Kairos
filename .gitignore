@@ -6,7 +6,9 @@ img/Ethereum_QR_code.png
 img/ZCASH_QR_code.png
 kairos.cfg
 *.pyc
-tv/daily.yaml
+dist/*.gz
+dist/*.exe
+yaml/*.yaml
 build/lib/kairos/__init__.py
 build/lib/kairos/debug.py
 build/lib/kairos/timing.py
