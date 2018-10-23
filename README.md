@@ -24,6 +24,11 @@ An advantage of using the Windows installer is that you can uninstall it easily 
 * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
 * [Download](dist) and extract the Kairos archive
+* Open a terminal, or - on Windows - CMD as Administrator
+* If you don't have setuptools installed, run:
+```
+pip install setuptools
+```
 * Run the following command from the Kairos directory: 
 ```
 python setup.py install
@@ -31,6 +36,11 @@ python setup.py install
 * Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
 ### From source ###
+* If you don't have setuptools installed, please run:
+```
+pip install setuptools
+```
+* Clone archive and install:
 ```
 git clone --recursive https://github.com/timelyart/kairos.git
 cd python
