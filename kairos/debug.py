@@ -5,9 +5,12 @@ import sys
 log_path = '.'  # project dir
 file_name = 'debug.log'
 
+
 # empty the content of the file
-with open(file_name, 'w'):
-    pass
+def clear_log():
+    with open(file_name, 'w'):
+        pass
+
 
 logging.basicConfig(
     level=logging.DEBUG,
