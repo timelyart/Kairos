@@ -18,9 +18,12 @@ charts:
     # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
     # Expiration: 2019-05-19 13:42, or delta in minutes (max 86400, or 60 days), or leave empty to use TradingView's default of 30 days (somewhat improves performance).
     expiration: 2
-    # It is recommended to not use popups as they can break this script. Use at your own risk.
+    # Note: pop-ups may hinder Kairos to continue it's process faultless.
+    # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete it's run.
     show_popup: no
     sound:
+      # Note: as with pop-ups, sounds may hinder Kairos to continue it's process faultless.
+      # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete it's run.
       play: yes
       # For a full list of options please open the alert dialog manually.
       ringtone: "Chirpy"
@@ -36,7 +39,7 @@ charts:
       # Also, make sure to have manually set this checkbox first in TradingView and check the 'Do not show this message again' checkbox when it generates a popup (if there is no popup you are all good).
       notify-on-app: no
     message:
-      # Use `\n` to add and an ENTER
+      # Use `\n` to add an ENTER
       # Use keywords to add dynamic information in your text.
       # %TIMEFRAME, is self-explanatory
       # %SYMBOL is <exchange>:<ticker symbol>
