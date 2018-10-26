@@ -10,18 +10,19 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import numbers
+
 from kairos import timing
-import configparser
+from configparser import RawConfigParser
 import datetime
 import sys
 from selenium.webdriver.common.keys import Keys
 import re
 import time
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from kairos import debug
 import yaml
 from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
@@ -36,14 +37,14 @@ SELECTBOX = 'selectbox'
 DATE = 'date'
 TIME = 'time'
 
-WAIT_TIME_IMPLICIT = 30
-PAGE_LOAD_TIMEOUT = 15
-WAIT_TIME_CHECK = 15
-WAIT_TIME_BREAK_MINI = 0.2
-WAIT_TIME_BREAK = 0.5
-WAIT_TIME_SUBMIT_ALERT = 3.5
-DELAY_CLEAR_INACTIVE_ALERTS = 0
-
+WAIT_TIME_IMPLICIT_DEF = 30
+PAGE_LOAD_TIMEOUT_DEF = 15
+CHECK_IF_EXISTS_TIMEOUT_DEF = 15
+DELAY_BREAK_MINI_DEF = 0.2
+DELAY_BREAK_DEF = 0.5
+DELAY_SUBMIT_ALERT_DEF = 3.5
+DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
+DELAY_CHANGE_SYMBOL_DEF = 0.2
 
 ALERT_NUMBER = 0
 
@@ -70,7 +71,9 @@ css_selectors = dict(
     div_watchlist_item='div.symbol-list > div.symbol-list-item.success',
     form_create_alert='body > div.tv-dialog.js-dialog.tv-dialog--popup.ui-draggable.i-focused > div.tv-dialog__scroll-wrap.i-with-actions.wrapper-2KWBfDVB-.touch-E6yQTRo_- > div > div > div > p > form',
     signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
-            'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a')
+            'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a'
+)
+
 xpath_selectors = dict(
     btn_watchlist_menu='//div[@data-name=right-toolbar]/div[@data-name=base]'
 )
@@ -78,16 +81,19 @@ class_selectors = dict(
     form_create_alert='js-alert-form',
     input='tv-control-input',
     selectbox='tv-control-select',
-    selectbox_options='selectbox_options'
+    selectbox_options='selectbox_options',
+    popup='tv-text'
 )
 
 log = debug.log
 log.setLevel(20)
 
-config = configparser.RawConfigParser(allow_no_value=True)
+config = RawConfigParser(allow_no_value=True)
 config_file = os.path.join(CURRENT_DIR, "kairos.cfg")
 if os.path.exists(config_file):
     config.read(config_file)
+    if config.getboolean('logging', 'clear_on_start_up'):
+        debug.clear_log()
     log.setLevel(config.getint('logging', 'level'))
 else:
     log.error("File " + config_file + " does not exist")
@@ -95,7 +101,7 @@ else:
     exit(0)
 log.setLevel(config.getint('logging', 'level'))
 
-path_to_chromedriver = r"" + config.get('chromedriver', 'path')
+path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
     path_to_chromedriver = path_to_chromedriver.replace('.exe', '')
     path_to_chromedriver = re.sub(r"^[a-zA-Z]:", "", path_to_chromedriver)
@@ -104,24 +110,24 @@ else:
     log.exception(FileNotFoundError)
     exit(0)
 
-try:
-    WAIT_TIME_IMPLICIT = config.getfloat('chromedriver', 'wait_time_implicit')
-    PAGE_LOAD_TIMEOUT = config.getfloat('chromedriver', 'page_load_timeout')
-    WAIT_TIME_CHECK = config.getfloat('chromedriver', 'wait_time_check')
-    WAIT_TIME_BREAK_MINI = config.getfloat('chromedriver', 'wait_time_break_mini')
-    WAIT_TIME_BREAK = config.getfloat('chromedriver', 'wait_time_break')
-    WAIT_TIME_SUBMIT_ALERT = config.getfloat('chromedriver', 'wait_time_submit_alert')
-    DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('tradingview', 'delay_clear_inactive_alerts')
-    EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
-except Exception as e:
-    log.exception(e)
+WAIT_TIME_IMPLICIT = config.getfloat('webdriver', 'wait_time_implicit')
+PAGE_LOAD_TIMEOUT = config.getfloat('webdriver', 'page_load_timeout')
+CHECK_IF_EXISTS_TIMEOUT = config.getfloat('webdriver', 'check_if_exists_timeout')
+DELAY_BREAK_MINI = config.getfloat('delays', 'break_mini')
+DELAY_BREAK = config.getfloat('delays', 'break')
+DELAY_SUBMIT_ALERT = config.getfloat('delays', 'submit_alert')
+DELAY_CHANGE_SYMBOL = config.getfloat('delays', 'change_symbol')
+DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
+EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 
-options = Options()
+options = webdriver.ChromeOptions()
 options.add_argument("--disable-extensions")
 options.add_argument('--window-size=1920,1080')
 options.add_argument('--disable-notifications')
-if config.getboolean('chromedriver', 'run_in_background'):
+if config.getboolean('webdriver', 'run_in_background'):
     options.add_argument('headless')  # this will hide the browser window i.e. run chrome in the background
+prefs = {"profile.default_content_setting_values.notifications": 2}
+options.add_experimental_option("prefs", prefs)
 
 
 def close_all_popups(browser):
@@ -134,7 +140,7 @@ def close_all_popups(browser):
 def element_exists_by_xpath(browser, xpath):
     try:
         log.debug(xpath + ': \n')
-        browser.implicitly_wait(WAIT_TIME_CHECK)
+        browser.implicitly_wait(CHECK_IF_EXISTS_TIMEOUT)
         elements = browser.find_element_by_xpath(xpath)
         log.debug('\t' + str(elements))
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
@@ -147,7 +153,7 @@ def element_exists_by_xpath(browser, xpath):
 def element_exists(browser, css_selector):
     try:
         log.debug(css_selector + ': ')
-        browser.implicitly_wait(WAIT_TIME_CHECK)
+        browser.implicitly_wait(CHECK_IF_EXISTS_TIMEOUT)
         elements = browser.find_element_by_css_selector(css_selector)
         log.debug('\t' + str(elements))
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
@@ -157,27 +163,27 @@ def element_exists(browser, css_selector):
     return True
 
 
-def wait_and_click(browser, css_selector, wait_time=WAIT_TIME_CHECK):
-    WebDriverWait(browser, wait_time).until(
+def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
+    WebDriverWait(browser, delay).until(
         ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
 
 
-def wait_and_click_by_xpath(browser, xpath, wait_time=WAIT_TIME_CHECK):
-    WebDriverWait(browser, wait_time).until(
+def wait_and_click_by_xpath(browser, xpath, delay=CHECK_IF_EXISTS_TIMEOUT):
+    WebDriverWait(browser, delay).until(
         ec.element_to_be_clickable((By.XPATH, xpath))).click()
 
 
-def wait_and_click_by_text(browser, tag, search_text, css_class='', wait_time=WAIT_TIME_CHECK):
+def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT):
     if type(css_class) is str and len(css_class) > 0:
         xpath = '//{0}[contains(text(), "{1}") and @class="{2}"]'.format(tag, search_text, css_class)
     else:
         xpath = '//{0}[contains(text(), "{1}")]'.format(tag, search_text)
-    WebDriverWait(browser, wait_time).until(
+    WebDriverWait(browser, delay).until(
         ec.element_to_be_clickable((By.XPATH, xpath))).click()
 
 
-def wait_and_get(browser, css, wait_time=WAIT_TIME_CHECK):
-    element = WebDriverWait(browser, wait_time).until(
+def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
+    element = WebDriverWait(browser, delay).until(
         ec.element_to_be_clickable((By.CSS_SELECTOR, css)))
     return element
 
@@ -203,18 +209,91 @@ def set_timeframe(browser, timeframe):
     return found
 
 
+def set_delays(chart):
+    global WAIT_TIME_IMPLICIT
+    global PAGE_LOAD_TIMEOUT
+    global CHECK_IF_EXISTS_TIMEOUT
+    global DELAY_BREAK_MINI
+    global DELAY_BREAK
+    global DELAY_SUBMIT_ALERT
+    global DELAY_CLEAR_INACTIVE_ALERTS
+    global DELAY_CHANGE_SYMBOL
+
+    # set delays as defined within the chart with a fallback to the config file
+    if 'wait_time_implicit' in chart and isinstance(chart['wait_time_implicit'], numbers.Real):
+        WAIT_TIME_IMPLICIT = chart['wait_time_implicit']
+    elif config.has_option('webdriver', 'wait_time_implicit'):
+        WAIT_TIME_IMPLICIT = config.getfloat('webdriver', 'wait_time_implicit')
+
+    if 'page_load_timeout' in chart and isinstance(chart['page_load_timeout'], numbers.Real):
+        PAGE_LOAD_TIMEOUT = chart['page_load_timeout']
+    elif config.has_option('webdriver', 'page_load_timeout'):
+        PAGE_LOAD_TIMEOUT = config.getfloat('webdriver', 'page_load_timeout')
+
+    if 'check_if_exists_timeout' in chart and isinstance(chart['check_if_exists_timeout'], numbers.Real):
+        CHECK_IF_EXISTS_TIMEOUT = chart['check_if_exists_timeout']
+    elif config.has_option('webdriver', 'check_if_exists_timeout'):
+        CHECK_IF_EXISTS_TIMEOUT = config.getfloat('webdriver', 'check_if_exists_timeout')
+
+    if 'delays' in chart and isinstance(chart['delays'], dict):
+        delays = chart['delays']
+
+        if 'change_symbol' in delays and isinstance(delays['change_symbol'], numbers.Real):
+            DELAY_CHANGE_SYMBOL = delays['change_symbol']
+        elif config.has_option('delays', 'change_symbol'):
+            DELAY_CHANGE_SYMBOL = config.getfloat('delays', 'change_symbol')
+        if 'submit_alert' in delays and isinstance(delays['submit_alert'], numbers.Real):
+            DELAY_SUBMIT_ALERT = delays['submit_alert']
+        elif config.has_option('delays', 'submit_alert'):
+            DELAY_SUBMIT_ALERT = config.getfloat('delays', 'submit_alert')
+        if 'break' in delays and isinstance(delays['break'], numbers.Real):
+            DELAY_BREAK = delays['break']
+        elif config.has_option('delays', 'break'):
+            DELAY_BREAK = config.getfloat('delays', 'break')
+        if 'break_mini' in delays and isinstance(delays['break_mini'], numbers.Real):
+            DELAY_BREAK_MINI = delays['break_mini']
+        elif config.has_option('delays', 'break_mini'):
+            DELAY_BREAK_MINI = config.getfloat('delays', 'break_mini')
+        if 'clear_inactive_alerts' in delays and isinstance(delays['clear_inactive_alerts'], numbers.Real):
+            DELAY_CLEAR_INACTIVE_ALERTS = delays['clear_inactive_alerts']
+        elif config.has_option('delays', 'clear_inactive_alerts'):
+            DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
+
+
 def open_chart(browser, chart, counter_alerts, total_alerts):
+    """
+    :param browser:
+    :param chart:
+    :param counter_alerts:
+    :param total_alerts:
+    :return:
+
+    TODO:   remember original setting of opened chart, and place them back when finished
+    """
+
     try:
         # load the chart
         close_all_popups(browser)
         log.info("Opening chart " + chart['url'])
+
+        # set wait times defined in chart
+        set_delays(chart)
+        log.info("WAIT_TIME_IMPLICIT = " + str(WAIT_TIME_IMPLICIT))
+        log.info("PAGE_LOAD_TIMEOUT = " + str(PAGE_LOAD_TIMEOUT))
+        log.info("CHECK_IF_EXISTS_TIMEOUT = " + str(CHECK_IF_EXISTS_TIMEOUT))
+        log.info("DELAY_BREAK_MINI = " + str(DELAY_BREAK_MINI))
+        log.info("DELAY_BREAK = " + str(DELAY_BREAK))
+        log.info("DELAY_SUBMIT_ALERT = " + str(DELAY_SUBMIT_ALERT))
+        log.info("DELAY_CHANGE_SYMBOL = " + str(DELAY_CHANGE_SYMBOL))
+        log.info("DELAY_CLEAR_INACTIVE_ALERTS = " + str(DELAY_CLEAR_INACTIVE_ALERTS))
+
         browser.execute_script("window.open('" + chart['url'] + "');")
         for handle in browser.window_handles[1:]:
             browser.switch_to.window(handle)
 
         wait_and_click(browser, css_selectors['btn_calendar'])
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
-        time.sleep(WAIT_TIME_BREAK_MINI)
+        time.sleep(DELAY_BREAK_MINI)
         # scrape the symbols for each watchlist
         dict_watchlist = dict()
         for i in range(len(chart['watchlists'])):
@@ -222,7 +301,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             watchlist = chart['watchlists'][i]
             log.info("Collecting symbols from watchlist " + watchlist)
             wait_and_click(browser, 'input.wl-symbol-edit + a.button')
-            # time.sleep(WAIT_TIME_BREAK_MINI)
+            # time.sleep(DELAY_BREAK_MINI)
             # load watchlist
             watchlist_exists = False
             el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first')
@@ -231,7 +310,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     el_options[j].click()
                     watchlist_exists = True
                     log.debug('Watchlist \'' + watchlist + '\' found')
-                    time.sleep(WAIT_TIME_BREAK_MINI)
+                    time.sleep(DELAY_BREAK_MINI)
                     break
 
             if watchlist_exists:
@@ -253,7 +332,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         # set the time frame
         for i in range(len(chart['timeframes'])):
             set_timeframe(browser, chart['timeframes'][i])
-            time.sleep(WAIT_TIME_BREAK_MINI)
+            time.sleep(DELAY_BREAK_MINI)
 
             # iterate over each symbol per watchlist
             for j in range(len(chart['watchlists'])):
@@ -263,16 +342,18 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 # open each symbol within the watchlist
                 for k in range(len(symbols)):
                     log.info(symbols[k])
-                    input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
-                    input_symbol.send_keys(Keys.CONTROL + 'a')
+
+                    # change symbol
                     try:
+                        input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
+                        input_symbol.send_keys(Keys.CONTROL + 'a')
                         input_symbol.send_keys(symbols[k])
+                        input_symbol.send_keys(Keys.ENTER)
+                        time.sleep(DELAY_CHANGE_SYMBOL)
                     except Exception as err:
-                        log.debug('Can\'t find ' + str(k) + ' in list of symbols:')
+                        log.debug('Unable to change to symbol at index ' + str(k) + ' in list of symbols:')
                         log.debug(str(symbols))
                         log.exception(err)
-                    input_symbol.send_keys(Keys.ENTER)
-                    time.sleep(WAIT_TIME_BREAK_MINI)
 
                     for l in range(len(chart['alerts'])):
                         if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
@@ -281,10 +362,10 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
                             wait_and_click(browser, 'div.charts-popup-list > a.item:nth-child(8)')
                             wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
-                            time.sleep(WAIT_TIME_BREAK)
-                            time.sleep(WAIT_TIME_BREAK)
-                            time.sleep(WAIT_TIME_BREAK)
-                            time.sleep(WAIT_TIME_BREAK)
+                            time.sleep(DELAY_BREAK)
+                            time.sleep(DELAY_BREAK)
+                            time.sleep(DELAY_BREAK)
+                            time.sleep(DELAY_BREAK)
                             # update counter
                             alerts = browser.find_elements_by_css_selector('table.alert-list > tbody > tr.alert-item')
                             if type(alerts) is list:
@@ -294,7 +375,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
                             return [counter_alerts, total_alerts]
                         try:
-                            add_alert(browser, chart['alerts'][l], chart['timeframes'][i], symbols[k])
+                            create_alert(browser, chart['alerts'][l], chart['timeframes'][i], symbols[k], 0)
                             counter_alerts += 1
                             total_alerts += 1
                         except Exception as err:
@@ -306,28 +387,37 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def add_alert(browser, alert_config, timeframe, ticker_id):
+def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
+    """
+    :param browser:
+    :param alert_config:
+    :param timeframe:
+    :param ticker_id:
+    :param retry_number:
+    :return: true, if successful
+    """
     global alert_dialog
     log.debug(alert_config['name'])
 
     try:
+        time.sleep(DELAY_BREAK)
         wait_and_click(browser, '#header-toolbar-alerts')
-        time.sleep(WAIT_TIME_BREAK)
 
-        try:
-            alert_dialog = browser.find_elements_by_class_name(class_selectors['form_create_alert'])[0]
-        except Exception as err:
-            log.error('Alert dialog not found.')
-            log.exception(err)
-
+        alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
+        time.sleep(DELAY_BREAK_MINI)
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
 
         # 1st row, 1st condition
         current_condition = 0
         css_1st_row_left = 'fieldset > div:nth-child(1) > span > div:nth-child(1)'
-        wait_and_click(alert_dialog, css_1st_row_left)
-        time.sleep(WAIT_TIME_BREAK)
+        # css_1st_row_left = 'fieldset > div.js-condition-first-operand-placeholder > span > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left.js-main-series-select-wrap'
+        try:
+            wait_and_click(alert_dialog, css_1st_row_left)
+        except Exception as alert_err:
+            log.exception(alert_err)
+            return retry(browser, alert_config, timeframe, ticker_id, retry_number)
 
+        time.sleep(DELAY_BREAK_MINI)
         log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
         found = False
         el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_left + " span.tv-control-select__option-wrap")
@@ -336,6 +426,7 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
             option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
             if option_tv == condition_yaml or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
                 el_options[i].click()
+                time.sleep(DELAY_BREAK_MINI)
                 found = True
                 break
         if not found:
@@ -349,7 +440,6 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
         if element_exists(browser, css_1st_row_right):
             current_condition += 1
             wait_and_click(alert_dialog, css_1st_row_right)
-
             log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
             el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_right + " span.tv-control-select__option-wrap")
             condition_yaml = str(alert_config['conditions'][current_condition])
@@ -357,6 +447,7 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
                 option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
                 if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
                     el_options[i].click()
+                    time.sleep(DELAY_BREAK_MINI)
                     found = True
                     break
         if not found:
@@ -367,7 +458,6 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
         current_condition += 1
         css_2nd_row = 'fieldset > div:nth-child(2) > span'
         wait_and_click(alert_dialog, css_2nd_row)
-
         log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
         el_options = alert_dialog.find_elements_by_css_selector(css_2nd_row + " span.tv-control-select__option-wrap")
         found = False
@@ -381,12 +471,12 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
         if not found:
             log.error("Invalid condition: '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
             return False
-        time.sleep(WAIT_TIME_BREAK_MINI)
 
         # 3rd+ rows, remaining conditions
         current_condition += 1
         i = 0
         while current_condition < len(alert_config['conditions']):
+            time.sleep(DELAY_BREAK_MINI)
             log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
             found = False
             # we need to get the inputs again for every iteration as the number may change
@@ -423,7 +513,6 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
                 inputs[i].send_keys(str(alert_config['conditions'][current_condition]).strip())
 
             # give some time
-            time.sleep(WAIT_TIME_BREAK_MINI)
             current_condition += 1
             i += 1
 
@@ -431,9 +520,9 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
         wait_and_click(alert_dialog, 'div[data-title="{0}"]'.format(str(alert_config['options']).strip()))
         # Expiration
         set_expiration(alert_dialog, alert_config)
-        time.sleep(WAIT_TIME_BREAK_MINI)
-        time.sleep(WAIT_TIME_BREAK_MINI)
-        time.sleep(WAIT_TIME_BREAK_MINI)
+        time.sleep(DELAY_BREAK_MINI)
+        time.sleep(DELAY_BREAK_MINI)
+        time.sleep(DELAY_BREAK_MINI)
 
         # Show popup
         checkbox = alert_dialog.find_element_by_name('show-popup')
@@ -464,57 +553,73 @@ def add_alert(browser, alert_config, timeframe, ticker_id):
 
         # Communication options
         # Send Email
-        checkbox = alert_dialog.find_element_by_name('send-email')
-        if is_checkbox_checked(checkbox) != alert_config['send']['email']:
-            wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(4) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
-        # Send Email-to-SMS (the checkbox is indeed called 'send-sms'!)
-        checkbox = alert_dialog.find_element_by_name('send-sms')
-        if is_checkbox_checked(checkbox) != alert_config['send']['email-to-sms']:
-            wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(5) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
-        # Send SMS (only for premium members)
-        checkbox = alert_dialog.find_element_by_name('send-true-sms')
-        if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
-            wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(6) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
-        # Notify on App
-        checkbox = alert_dialog.find_element_by_name('send-push')
-        if is_checkbox_checked(checkbox) != alert_config['send']['notify-on-app']:
-            wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(7) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+        try:
+            checkbox = alert_dialog.find_element_by_name('send-email')
+            if is_checkbox_checked(checkbox) != alert_config['send']['email']:
+                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(4) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+            # Send Email-to-SMS (the checkbox is indeed called 'send-sms'!)
+            checkbox = alert_dialog.find_element_by_name('send-sms')
+            if is_checkbox_checked(checkbox) != alert_config['send']['email-to-sms']:
+                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(5) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+            # Send SMS (only for premium members)
+            checkbox = alert_dialog.find_element_by_name('send-true-sms')
+            if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
+                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(6) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+            # Notify on App
+            checkbox = alert_dialog.find_element_by_name('send-push')
+            if is_checkbox_checked(checkbox) != alert_config['send']['notify-on-app']:
+                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(7) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
 
-        # Construct message
-        textarea = alert_dialog.find_element_by_name('description')
-        time.sleep(WAIT_TIME_BREAK_MINI)
-        generated = textarea.text
-        text = str(alert_config['message']['text'])
-        text = text.replace('%TIMEFRAME', timeframe)
-        text = text.replace('%SYMBOL', ticker_id)
-        text = text.replace('%NAME', alert_config['name'])
-        text = text.replace('%GENERATED', generated)
-        textarea.send_keys(Keys.CONTROL + 'a')
-        textarea.send_keys(text)
-
-        """
-        if alert_config['message']['prepend']:
-            # prepend text to a new line
-            textarea.send_keys(Keys.CONTROL + Keys.HOME)
-            textarea.send_keys(alert_config['message']['text'])
-            textarea.send_keys(Keys.ENTER)
-        else:
+            # Construct message
+            textarea = alert_dialog.find_element_by_name('description')
+            time.sleep(DELAY_BREAK_MINI)
+            generated = textarea.text
+            text = str(alert_config['message']['text'])
+            text = text.replace('%TIMEFRAME', timeframe)
+            text = text.replace('%SYMBOL', ticker_id)
+            text = text.replace('%NAME', alert_config['name'])
+            text = text.replace('%GENERATED', generated)
             textarea.send_keys(Keys.CONTROL + 'a')
-            textarea.send_keys('\n', alert_config['message']['text'])
-
-        # prepend name the text
-        textarea.send_keys(Keys.CONTROL + Keys.HOME)
-        textarea.send_keys(alert_config['name'])
-        textarea.send_keys(Keys.ENTER)
-        """
+            textarea.send_keys(text)
+        except Exception as alert_err:
+            log.exception(alert_err)
+            return retry(browser, alert_config, timeframe, ticker_id, retry_number)
 
         # Submit the form
         element = browser.find_element_by_css_selector('div[data-name="submit"] > span.tv-button__loader')
         element.click()
-        time.sleep(WAIT_TIME_SUBMIT_ALERT)
+        time.sleep(DELAY_SUBMIT_ALERT)
 
     except Exception as exc:
         log.exception(exc)
+        # on except, refresh and try again
+        return retry(browser, alert_config, timeframe, ticker_id, retry_number)
+
+    return True
+
+
+def retry(browser, alert_config, timeframe, ticker_id, retry_number):
+    if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+        log.info('Trying again (' + str(retry_number+1) + ')')
+        browser.refresh()
+        # Switching to Alert
+        alert = browser.switch_to_alert()
+        alert.accept()
+        time.sleep(5)
+        # change symbol
+        input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
+        input_symbol.send_keys(Keys.CONTROL + 'a')
+        try:
+            input_symbol.send_keys(ticker_id)
+        except Exception as err:
+            log.debug('Can\'t find ' + str(ticker_id) + ' in list of symbols:')
+            log.exception(err)
+        input_symbol.send_keys(Keys.ENTER)
+        time.sleep(DELAY_CHANGE_SYMBOL)
+        return create_alert(browser, alert_config, timeframe, ticker_id, retry_number + 1)
+    else:
+        log.error('Max retries reached.')
+        return False
 
 
 def is_checkbox_checked(checkbox):
@@ -543,7 +648,7 @@ def set_expiration(_alert_dialog, alert_config):
         target_date = max_expiration
     date_value = target_date.strftime('%Y-%m-%d')
     time_value = target_date.strftime('%H:%M')
-    # time.sleep(WAIT_TIME_BREAK_MINI)
+    # time.sleep(DELAY_BREAK_MINI)
 
     input_date = _alert_dialog.find_element_by_name('alert_exp_date')
     input_date.send_keys(Keys.CONTROL + 'a')
@@ -551,7 +656,7 @@ def set_expiration(_alert_dialog, alert_config):
     input_time = _alert_dialog.find_element_by_name('alert_exp_time')
     input_time.send_keys(Keys.CONTROL + 'a')
     input_time.send_keys(time_value)
-    # time.sleep(WAIT_TIME_BREAK_MINI)
+    # time.sleep(DELAY_BREAK_MINI)
 
 
 def login(browser):
@@ -573,13 +678,16 @@ def login(browser):
     input_password.send_keys(config.get('tradingview', 'password'))
     wait_and_click(browser, css_selectors['btn_login'])
 
-    time.sleep(WAIT_TIME_BREAK)
-    time.sleep(WAIT_TIME_BREAK)
-    time.sleep(WAIT_TIME_BREAK)
-    time.sleep(WAIT_TIME_BREAK)
+    time.sleep(DELAY_BREAK)
+    time.sleep(DELAY_BREAK)
+    time.sleep(DELAY_BREAK)
+    time.sleep(DELAY_BREAK)
 
 
 def run():
+    """
+        TODO:   multi threading
+    """
     counter_alerts = 0
     total_alerts = 0
     browser = None
@@ -593,15 +701,20 @@ def run():
             log.error("File " + str(file) + " does not exist. Did you setup your kairos.cfg and yaml file correctly?")
             raise FileNotFoundError
 
-        chromedriver_file = r"" + str(config.get('chromedriver', 'path'))
+        chromedriver_file = r"" + str(config.get('webdriver', 'path'))
         if not os.path.exists(chromedriver_file):
             log.error("File " + chromedriver_file + " does not exist. Did setup your kairos.cfg correctly?")
             raise FileNotFoundError
         chromedriver_file.replace('.exe', '')
 
-        browser = webdriver.Chrome(executable_path=chromedriver_file, options=options)
-        browser.implicitly_wait(WAIT_TIME_IMPLICIT)
-        login(browser)
+        try:
+            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options)
+            browser.implicitly_wait(WAIT_TIME_IMPLICIT)
+            login(browser)
+        except WebDriverException as web_err:
+            log.exception(web_err)
+            browser.close()
+            login(browser)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
 
         # do some maintenance on the alert list (removing or restarting)
@@ -611,8 +724,8 @@ def run():
             wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
             wait_and_click(browser, 'div.charts-popup-list > a.item:last-child')
             wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
-            time.sleep(WAIT_TIME_BREAK)
-            time.sleep(WAIT_TIME_BREAK)
+            time.sleep(DELAY_BREAK)
+            time.sleep(DELAY_BREAK)
         else:
             if config.getboolean('tradingview', 'restart_inactive_alerts'):
                 wait_and_click(browser, css_selectors['btn_calendar'])
@@ -620,16 +733,16 @@ def run():
                 wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
                 wait_and_click(browser, 'div.charts-popup-list > a.item:nth-child(6)')
                 wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
-                time.sleep(WAIT_TIME_BREAK)
-                time.sleep(WAIT_TIME_BREAK)
+                time.sleep(DELAY_BREAK)
+                time.sleep(DELAY_BREAK)
             elif config.getboolean('tradingview', 'clear_inactive_alerts'):
                 wait_and_click(browser, css_selectors['btn_calendar'])
                 wait_and_click(browser, css_selectors['btn_alerts'])
                 wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
                 wait_and_click(browser, 'div.charts-popup-list > a.item:nth-child(8)')
                 wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
-                time.sleep(WAIT_TIME_BREAK)
-                time.sleep(WAIT_TIME_BREAK)
+                time.sleep(DELAY_BREAK)
+                time.sleep(DELAY_BREAK)
             # count the number of existing alerts
             alerts = browser.find_elements_by_css_selector('table.alert-list > tbody > tr.alert-item')
             if type(alerts) is not None:
@@ -658,14 +771,12 @@ def run():
 
 
 def close(browser, total_alerts):
-    print()
     if total_alerts > 0:
         elapsed = timing.clock() - timing.start
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
-        print(str(total_alerts) + " alerts set with an average process time of " + avg + " seconds")
+        log.info(str(total_alerts) + " alerts set with an average process time of " + avg + " seconds")
     else:
-        print("No alerts set")
-    print()
+        log.info("No alerts set")
     if type(browser) is webdriver.Chrome:
         close_all_popups(browser)
         browser.close()
