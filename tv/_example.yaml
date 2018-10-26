@@ -5,6 +5,17 @@ charts:
 - url: https://www.tradingview.com/chart/<your_chart>/
   timeframes: [1 day]
   watchlists: [<your_watchlist_name>, <your_second_watchlist_name>]
+  # Optional. Defines how long chromedriver should wait for a page to load (seconds).
+  page_load_timeout: 30
+  # Optional. Defines how long chromedriver should wait for finding elements (seconds).
+  # This is on a lower level than check_if_exists_timeout (below) and should be an equal or higher number than said option.
+  # 30 seconds should be ample and - unless you have serious issues running the script - you should not change this.
+  wait_time_implicit: 30
+  # Optional. Defines how long the script should wait finding elements (seconds).
+  check_if_exists_timeout: 30
+  # Optional. Defines delays in seconds. If a particular delay isn't set, it will fall back to that particular delay in the config file
+  # Options are: change_symbol, submit_alert, break, break_mini and clear_inactive_alerts
+  delays: {change_symbol: 1, submit_alert: 2.5}
   # Alert listed under alerts must be available from the chart which is loaded through the 'url' parameter.
   alerts:
   # The name is like to be used with a future update to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts.
