@@ -48,6 +48,7 @@ kairos/debug.py
 kairos/timing.py
 kairos/tools.py
 tv/__init__.py
+tv/_browse.yaml
 tv/_example.yaml
 tv/refresh.yaml
 tv/tv.py
