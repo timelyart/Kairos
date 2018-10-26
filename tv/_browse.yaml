@@ -6,4 +6,4 @@ charts:
   timeframes: [1 week, 1 day]
   watchlists: [<your_watchlist_name>, <your_second_watchlist_name>]
   delays: {change_symbol: 5}
-  alerts:
+  alerts: {}
