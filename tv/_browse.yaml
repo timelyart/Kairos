@@ -1,0 +1,9 @@
+# Browse through charts giving you approximately 5 seconds to view the chart before the script moves on
+# The following options must be set in the config file:
+# - run_in_background = false
+charts:
+- url: https://www.tradingview.com/chart/<your_chart>/
+  timeframes: [1 week, 1 day]
+  watchlists: [<your_watchlist_name>, <your_second_watchlist_name>]
+  delays: {change_symbol: 5}
+  alerts:
