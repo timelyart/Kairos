@@ -12,6 +12,7 @@ dist/*.gz
 dist/*.exe
 tv/*.yaml
 !tv/_example.yaml
+!tv/_browse.yaml
 !tv/refresh.yaml
 build/
 .idea/
