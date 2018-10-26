@@ -177,7 +177,7 @@ If you are running Kairos for the first time, then Chrome hasn't cached anything
 Of course, clearing the cache will, in all likelihood, spawn the same issues again.
 
 #### Increase delays ###
-If you have run Kairos five times or so, and still encounter issues try to increase the **_wait_time_break_mini_**, **_wait_time_break_** and / or **_wait_time_submit_alert_** in the [kairos.cfg](_kairos.cfg).
+If you have run Kairos five times or so, and still encounter issues try to increase the **_break_mini_**, **_break_** and / or **_submit_alert_** in the [kairos.cfg](_kairos.cfg).
 
 #### Check existing issues ###
 If, after increasing wait times, you still get errors then the markup of the web page may have changed.
