@@ -1,1 +1,4 @@
+# Re-activates inactive alerts when the following options are set in the ocnfig file:
+# - restart_inactive_alerts = true
+# - clear_alerts = false
 charts:
