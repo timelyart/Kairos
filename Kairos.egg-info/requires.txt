@@ -4,4 +4,3 @@ urllib3
 selenium
 configparser
 tools
-setuptools

@@ -1,4 +1,3 @@
-.bumpversion.cfg
 .gitignore
 DONATE.md
 LICENSE.md
@@ -37,8 +36,6 @@ Kairos.egg-info/SOURCES.txt
 Kairos.egg-info/dependency_links.txt
 Kairos.egg-info/requires.txt
 Kairos.egg-info/top_level.txt
-dist/Kairos-0.0.0.tar.gz
-dist/Kairos-0.0.0.win-amd64.exe
 img/300_Bitcoin_QR_code.png
 img/300_Dash_QR_code.png
 img/300_Ethereum_QR_code.png
