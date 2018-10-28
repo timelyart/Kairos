@@ -150,18 +150,19 @@ def element_exists_by_xpath(browser, xpath):
     return True
 
 
-def element_exists(browser, css_selector):
+def element_exists(browser, dom, css_selector, delay):
     result = False
     try:
-        log.debug(css_selector + ': ')
-        browser.implicitly_wait(CHECK_IF_EXISTS_TIMEOUT)
-        element = browser.find_element_by_css_selector(css_selector)
-        log.debug(str(element))
-        element.click()
+        browser.implicitly_wait(delay)
+        element = dom.find_element_by_css_selector(css_selector)
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
+        result = type(element) is WebElement
     except NoSuchElementException:
         log.debug('No such element. CSS SELECTOR=' + css_selector)
+    except Exception as e:
+        log.error(e)
     finally:
+        log.debug(str(result) + "(" + css_selector + ")")
         return result
 
 
@@ -428,11 +429,12 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
         if not select(alert_config, current_condition, el_options, ticker_id):
             return False
 
-        css_1st_row_right = 'fieldset > div:nth-child(1) > span > div:nth-child(2) > span > input, fieldset > div:nth-child(1) > span > div:nth-child(2) > span > select'
-        if element_exists(browser, css_1st_row_right):
+        # 1st row, 2nd condition (if applicable)
+        css_1st_row_right = 'div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span > span'
+        if element_exists(browser, alert_dialog, css_1st_row_right, 0.5):
             current_condition += 1
-            wait_and_click(alert_dialog, css_1st_row_right)
-            el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_right + " span.tv-control-select__option-wrap")
+            wait_and_click(alert_dialog, 'div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span')
+            el_options = alert_dialog.find_elements_by_css_selector("div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right span.tv-control-select__option-wrap")
             if not select(alert_config, current_condition, el_options, ticker_id):
                 return False
 
@@ -581,6 +583,7 @@ def select(alert_config, current_condition, el_options, ticker_id):
     found = False
     for i in range(len(el_options)):
         option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
+        # log.debug(option_tv)
         if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
             el_options[i].click()
             found = True
