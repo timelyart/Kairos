@@ -151,16 +151,18 @@ def element_exists_by_xpath(browser, xpath):
 
 
 def element_exists(browser, css_selector):
+    result = False
     try:
         log.debug(css_selector + ': ')
         browser.implicitly_wait(CHECK_IF_EXISTS_TIMEOUT)
-        elements = browser.find_element_by_css_selector(css_selector)
-        log.debug('\t' + str(elements))
+        element = browser.find_element_by_css_selector(css_selector)
+        log.debug(str(element))
+        element.click()
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
     except NoSuchElementException:
         log.debug('No such element. CSS SELECTOR=' + css_selector)
-        return False
-    return True
+    finally:
+        return result
 
 
 def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -315,8 +317,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
             if watchlist_exists:
                 # extract symbols from watchlist
-                dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
                 symbols = dict()
+                dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
                 for j in range(len(dict_symbols)):
                     symbol = dict_symbols[j]
                     symbols[j] = symbol.get_attribute('data-symbol-full')
@@ -335,9 +337,14 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             time.sleep(DELAY_BREAK_MINI)
 
             # iterate over each symbol per watchlist
+            # for j in range(len(chart['watchlists'])):
             for j in range(len(chart['watchlists'])):
                 log.info("Opening watchlist " + chart['watchlists'][j])
-                symbols = dict_watchlist[chart['watchlists'][j]]
+                try:
+                    symbols = dict_watchlist[chart['watchlists'][j]]
+                except Exception as e:
+                    log.error(chart['watchlists'][j] + " doesn't exist")
+                    break
 
                 # open each symbol within the watchlist
                 for k in range(len(symbols)):
@@ -346,7 +353,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     # change symbol
                     try:
                         input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
-                        input_symbol.send_keys(Keys.CONTROL + 'a')
                         input_symbol.send_keys(symbols[k])
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
@@ -418,58 +424,24 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
             return retry(browser, alert_config, timeframe, ticker_id, retry_number)
 
         time.sleep(DELAY_BREAK_MINI)
-        log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
-        found = False
         el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_left + " span.tv-control-select__option-wrap")
-        condition_yaml = str(alert_config['conditions'][current_condition])
-        for i in range(len(el_options)):
-            option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
-            if option_tv == condition_yaml or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
-                el_options[i].click()
-                time.sleep(DELAY_BREAK_MINI)
-                found = True
-                break
-        if not found:
-            log.error("Invalid condition: '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+        if not select(alert_config, current_condition, el_options, ticker_id):
             return False
 
-        # 1st row, 2nd condition?
-        # Check if a second div has come up
-        css_1st_row_right = 'fieldset > div:nth-child(1) > span > div:nth-child(2)'
-        found = False
+        css_1st_row_right = 'fieldset > div:nth-child(1) > span > div:nth-child(2) > span > input, fieldset > div:nth-child(1) > span > div:nth-child(2) > span > select'
         if element_exists(browser, css_1st_row_right):
             current_condition += 1
             wait_and_click(alert_dialog, css_1st_row_right)
-            log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
             el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_right + " span.tv-control-select__option-wrap")
-            condition_yaml = str(alert_config['conditions'][current_condition])
-            for i in range(len(el_options)):
-                option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
-                if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
-                    el_options[i].click()
-                    time.sleep(DELAY_BREAK_MINI)
-                    found = True
-                    break
-        if not found:
-            log.error("Invalid condition: '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
-            return False
+            if not select(alert_config, current_condition, el_options, ticker_id):
+                return False
 
         # 2nd row, 1st condition
         current_condition += 1
         css_2nd_row = 'fieldset > div:nth-child(2) > span'
         wait_and_click(alert_dialog, css_2nd_row)
-        log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
         el_options = alert_dialog.find_elements_by_css_selector(css_2nd_row + " span.tv-control-select__option-wrap")
-        found = False
-        condition_yaml = str(alert_config['conditions'][current_condition])
-        for i in range(len(el_options)):
-            option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
-            if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
-                el_options[i].click()
-                found = True
-                break
-        if not found:
-            log.error("Invalid condition: '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+        if not select(alert_config, current_condition, el_options, ticker_id):
             return False
 
         # 3rd+ rows, remaining conditions
@@ -478,10 +450,9 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
         while current_condition < len(alert_config['conditions']):
             time.sleep(DELAY_BREAK_MINI)
             log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
-            found = False
             # we need to get the inputs again for every iteration as the number may change
             inputs = alert_dialog.find_elements_by_css_selector('div.js-condition-second-operand-placeholder select, div.js-condition-second-operand-placeholder input')
-            condition_yaml = str(alert_config['conditions'][current_condition])
+            # condition_yaml = str(alert_config['conditions'][current_condition])
             while True:
                 if inputs[i].get_attribute('type') == 'hidden':
                     i += 1
@@ -490,25 +461,27 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
 
             if inputs[i].tag_name == 'select':
                 elements = alert_dialog.find_elements_by_css_selector('div.js-condition-second-operand-placeholder div.tv-alert-dialog__group-item')
-                if elements[i].text != alert_config['conditions'][current_condition]:
+                if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
                     elements[i].click()
-
-                    css = 'div.js-condition-second-operand-placeholder > span:nth-child(2) > div.tv-alert-dialog__group-item > span > span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span > span'
-                    el_options = alert_dialog.find_elements_by_css_selector(css)
+                    # time.sleep(DELAY_BREAK_MINI)
+                    css = 'span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap'
+                    el_options = elements[i].find_elements_by_css_selector(css)
+                    condition_yaml = str(alert_config['conditions'][current_condition])
+                    found = False
                     for j in range(len(el_options)):
-                        option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
+                        option_tv = str(el_options[j].get_attribute("innerHTML")).strip()
                         if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
                             css = 'span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span'.format(j + 1)
                             wait_and_click(alert_dialog, css)
                             found = True
                             break
                     if not found:
-                        log.error("Invalid condition: '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+                        log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                # set focus
                 # clear input of any previous value (note that input[0].clear() does NOT work
-                inputs[i].send_keys(Keys.CONTROL + 'a')
+                # inputs[i].send_keys(Keys.HOME)
+                inputs[i].send_keys(Keys.LEFT_CONTROL + "a")
                 # set the new value
                 inputs[i].send_keys(str(alert_config['conditions'][current_condition]).strip())
 
@@ -598,6 +571,25 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
     return True
 
 
+def select(alert_config, current_condition, el_options, ticker_id):
+    log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
+    value = str(alert_config['conditions'][current_condition])
+
+    if value == "%SYMBOL":
+        value = ticker_id.split(':')[1]
+
+    found = False
+    for i in range(len(el_options)):
+        option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
+        if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
+            el_options[i].click()
+            found = True
+            break
+    if not found:
+        log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+    return found
+
+
 def retry(browser, alert_config, timeframe, ticker_id, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('Trying again (' + str(retry_number+1) + ')')
@@ -674,11 +666,11 @@ def login(browser):
     input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
     input_username.clear()
     input_username.send_keys(config.get('tradingview', 'username'))
+    time.sleep(DELAY_BREAK)
     input_password.clear()
     input_password.send_keys(config.get('tradingview', 'password'))
     wait_and_click(browser, css_selectors['btn_login'])
 
-    time.sleep(DELAY_BREAK)
     time.sleep(DELAY_BREAK)
     time.sleep(DELAY_BREAK)
     time.sleep(DELAY_BREAK)
