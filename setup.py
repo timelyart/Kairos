@@ -1,5 +1,11 @@
+"""
+    Create a tag with a version number
+    SCM will add 1 to the last number when using python setyp.pu sdist
+    If you want to create version 1.1.5 going from version 1.1.4 create tag 1.1.4
+    If you want to create version 1.2 going from version 1.1.4 create tag 1.1
+    If you want to create version 2 going from version 1.1.4 create tag 1
+"""
 from setuptools import setup, find_packages
-
 from os import path
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md')) as f:
@@ -15,7 +21,10 @@ setup(
     description='Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.',
     long_description=long_description,
     long_description_content_type='text/markdown',
-    use_scm_version=True,
+    use_scm_version={
+        'write_to': 'version.txt',
+        'tag_regex': r'^(?P<prefix>v)?(?P<version>[^\+]+)(?P<suffix>.*)?$',
+    },
     setup_requires=['setuptools_scm'],
     install_requires=['pyyaml', 'beautifulsoup4', 'urllib3', 'selenium', 'configparser', 'tools'],
 )
