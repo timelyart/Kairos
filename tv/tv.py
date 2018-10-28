@@ -70,7 +70,7 @@ css_selectors = dict(
     div_watchlist_symbols='body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetbody > div.symbol-list-container.wrapper-2KWBfDVB-.touch-E6yQTRo_- > div',
     div_watchlist_item='div.symbol-list > div.symbol-list-item.success',
     form_create_alert='body > div.tv-dialog.js-dialog.tv-dialog--popup.ui-draggable.i-focused > div.tv-dialog__scroll-wrap.i-with-actions.wrapper-2KWBfDVB-.touch-E6yQTRo_- > div > div > div > p > form',
-    signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
+    signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
             'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a'
 )
 
