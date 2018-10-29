@@ -5,6 +5,7 @@ README.md
 _kairos.cfg
 main.py
 setup.py
+version.txt
 .eggs/README.txt
 .eggs/setuptools_scm-3.1.0-py3.7.egg/EGG-INFO/LICENSE.txt
 .eggs/setuptools_scm-3.1.0-py3.7.egg/EGG-INFO/PKG-INFO
