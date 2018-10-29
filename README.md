@@ -163,6 +163,22 @@ charts:
       prepend: no
       text:      
 ```
+## Command line examples ##
+* Refresh your existing alerts (depends on the settings in your kairos.cfg so proceed with caution).
+```
+python main.py refresh.yaml
+```
+* Browse through your watchlist going from symbol to symbol at a regular interval. 
+  1. Rename _browse.yaml to browse.yaml
+  2. Fill in the blanks
+  3. Run:
+  ```
+  python main.py browse.yaml
+  ```
+* Generate a summary mail from unread TradingView Alert mails
+```
+python main.py -s
+```
 ## Troubleshooting ##
 A lot can go wrong running web automation tools like Kairos. These are the most common ones:
 * The web page / server hasn't handled the interaction (a click or some input) yet before the next interaction is tried   
