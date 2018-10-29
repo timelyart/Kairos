@@ -1,9 +1,12 @@
 # noinspection PyUnresolvedReferences
 from kairos import timing
 from tv import tv
+from tv import mail
+import sys
 
 
 def print_disclaimer():
+    print("DISCLAIMER")
     print("This program is free software: you can redistribute it and/or modify")
     print("it under the terms of the GNU General Public License as published by")
     print("the Free Software Foundation, either version 3 of the License, or")
@@ -16,10 +19,50 @@ def print_disclaimer():
     print("along with this program. If not, see <http://www.gnu.org/licenses/>.\n\n")
 
 
+def print_help():
+    print("HELP")
+    print("usage: python main.py [<file>] [-s|-s <minutes>] [-h] [-d]\n")
+    print("<file>\t\t YAML file with alert definitions")
+    print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
+    print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
+    print("-h\t\t Flag. Show this help.")
+    print("-h\t\t Flag. Show disclaimer.\n")
+
+
 def main():
     try:
         print_disclaimer()
-        tv.run()
+        print("USAGE:\npython main.py [<file>] [-s|-s <minutes>] [-h] [-d]")
+        print("For help, type: python main.py -h\n\n")
+
+        yaml = ""
+        send_summary = False
+        delay_summary = 0
+        i = 0
+        while i < len(sys.argv):
+            if str(sys.argv[i]).endswith('.yaml'):
+                yaml = sys.argv[i]
+            elif str(sys.argv[i]) == '-s':
+                send_summary = True
+            elif str(sys.argv[i]) == '-h':
+                print_help()
+            elif str(sys.argv[i]) == '-d':
+                print_disclaimer()
+            elif str(sys.argv[i-1]) == '-s':
+                delay_summary = int(sys.argv[i])
+            elif not str(sys.argv[i]).endswith('main.py'):
+                print("No such argument: " + str(sys.argv[i]))
+            i += 1
+
+        # print(str(sys.argv))
+        if len(yaml) > 0:
+            tv.run(yaml)
+            if send_summary:
+                mail.run(delay_summary)
+        elif send_summary:
+            mail.run(delay_summary)
+    except Exception as e:
+        print(e)
     finally:
         exit(0)
 
