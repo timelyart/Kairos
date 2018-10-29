@@ -2,6 +2,20 @@
 Web automation tool using Python, Selenium and Chrome's Web Driver.
 Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 
+## Table of contents ##
+* [Features](#features)
+* [Prerequisites](#prerequisites)
+* [Installing](#installing)
+* [Post installation](#post-installation)
+* [Defining TradingView alerts](#defining-tradingview-alerts)
+* [Troubleshooting](#troubleshooting)
+* [Feedback](md#feedback)
+* [Acknowledgements](#acknowledgements)
+* [Author](#author)
+* [Donate](#donate)
+* [License](#license)
+* [Command line examples](#command-line-examples)
+
 ## Features ##
 * Set alerts automatically on TradingView through web automation. 
 * Define multiple charts with multiple alerts per chart on multiple time frames in one file.
@@ -16,15 +30,8 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
 ## Installing ##
-### Windows Installer ###
-An advantage of using the Windows installer is that you can uninstall it easily through Windows own 'Add or remove programs' dialogue, but the installer will install Kairos under your Python installation and you cannot change this. Use the install method [Archive](https://github.com/timelyart/Kairos#archive-linux--macos--windows) listed below if you want more control over where files are installed.  
 
-* [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
-* [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
-* [Download](dist) and run the installer as an Administrator.
-* Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
-
-### Archive Linux / macOS / Windows ###
+### From archive (Linux, macOS and Windows) ###
 * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
 * [Download](dist) and extract the Kairos archive
@@ -52,7 +59,7 @@ python setup.py install
 ```
 * Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
-## Post installation process ##
+## Post installation ##
 * Open the Kairos directory
 * Rename [_kairos.cfg](_kairos.cfg) to **kairos.cfg** and open it.
 * Take good notice of the options that are available to you in the [kairos.cfg](kairos.cfg). Fill in the blanks and adjust to your preference and limitations.
@@ -62,11 +69,9 @@ python setup.py install
 ```
 python main.py example.yaml
 ```           
-**_TIP 1: Run Kairos periodically. Use a separate file for each interval you wish to run, e.g. weekly.yaml, daily.yaml and 4hourly.yaml._**
+**_TIP: Run Kairos periodically using s scheduler. Use a separate file for each interval you wish to run, e.g. weekly.yaml, daily.yaml and 4hourly.yaml._**
 
-**_TIP 2: If all you want to do is 'refresh' existing alerts, run a yaml with no watchlist defined._**
-
-## Defining TradingView alerts
+## Defining TradingView alerts ##
 Use the [example.yaml](tv/_example.yaml) as a base for your own [yaml](https://en.wikipedia.org/wiki/YAML) file.
 NOTE: all values are case sensitive and should be exactly the same as when you manually create an alert. 
 
@@ -169,7 +174,7 @@ charts:
 python main.py refresh.yaml
 ```
 * Browse through your watchlist going from symbol to symbol at a regular interval. 
-  1. Rename _browse.yaml to browse.yaml
+  1. Rename [_browse.yaml](tv/_browse_yaml) to **browse.yaml** and open it
   2. Fill in the blanks
   3. Run:
   ```
@@ -206,9 +211,6 @@ Check if it is an [existing issue](https://github.com/timelyart/Kairos/issues), 
 ## Feedback ##
 Feedback is invaluable. Please, take the time to give constructive feedback by opening an [issue](https://github.com/timelyart/Kairos/issues) so that this project may be improved on code and documentation.
 
-## Donate ##
-If you find value in this project and you would like to donate, please do so [here](DONATE.md)  
-
 ## Author ##
 [timelyart](https://github.com/timelyart)
 
@@ -216,6 +218,9 @@ If you find value in this project and you would like to donate, please do so [he
 [DorukKorkmaz](https://github.com/dorukkorkmaz), for providing a starting point with his [TradingView scraper](https://github.com/DorukKorkmaz/tradingview-scraper).
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
+
+## Donate ##
+If you find value in this project and you would like to donate, please do so [here](DONATE.md)  
 
 ## License ##
 This project is licensed under the GNU GPLv3 License - see the [LICENSE.md](LICENSE.md) file for details. 
