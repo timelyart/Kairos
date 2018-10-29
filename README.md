@@ -8,13 +8,13 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 * [Installing](#installing)
 * [Post installation](#post-installation)
 * [Defining TradingView alerts](#defining-tradingview-alerts)
+* [Command line examples](#command-line-examples)
 * [Troubleshooting](#troubleshooting)
 * [Feedback](#feedback)
 * [Acknowledgements](#acknowledgements)
 * [Author](#author)
 * [Donate](#donate)
 * [License](#license)
-* [Command line examples](#command-line-examples)
 
 ## Features ##
 * Set alerts automatically on TradingView through web automation. 
@@ -211,13 +211,13 @@ Check if it is an [existing issue](https://github.com/timelyart/Kairos/issues), 
 ## Feedback ##
 Feedback is invaluable. Please, take the time to give constructive feedback by opening an [issue](https://github.com/timelyart/Kairos/issues) so that this project may be improved on code and documentation.
 
-## Author ##
-[timelyart](https://github.com/timelyart)
-
-## Acknowledgments ##   
+## Acknowledgements ##   
 [DorukKorkmaz](https://github.com/dorukkorkmaz), for providing a starting point with his [TradingView scraper](https://github.com/DorukKorkmaz/tradingview-scraper).
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
+
+## Author ##
+[timelyart](https://github.com/timelyart)
 
 ## Donate ##
 If you find value in this project and you would like to donate, please do so [here](DONATE.md)  
