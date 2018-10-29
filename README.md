@@ -55,7 +55,7 @@ python setup.py install
 ## Post installation process ##
 * Open the Kairos directory
 * Rename [_kairos.cfg](_kairos.cfg) to **kairos.cfg** and open it.
-* Take good notice of the options that are available to you in the [kairos.cfg](kairos.cfg).Fill in the blanks and adjust to your preference and limitations.
+* Take good notice of the options that are available to you in the [kairos.cfg](kairos.cfg). Fill in the blanks and adjust to your preference and limitations.
 * Rename [tv/_example.yaml](tv/_example.yaml) to **example.yaml** and open it.
 * Edit the [example.yaml](tv/_example.yaml) to your liking. Study the section [Defining TradingView alerts](https://github.com/timelyart/Kairos#defining-tradingview-alerts) to get a feeling for the structure of the document. Together with the inline documentation within the YAML file, it should give you a good idea on how to cater it to your preferences. If you have questions please contact me.
 * Finally, run the following command from the Kairos directory:
