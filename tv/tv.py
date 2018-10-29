@@ -212,6 +212,28 @@ def set_timeframe(browser, timeframe):
     return found
 
 
+def get_interval(timeframe):
+    """
+    Get TV's short timeframe notation
+    :param timeframe: String.
+    :return: interval: Short timeframe notation if found, empty string otherwise.
+    """
+    match = re.search("(\d+)\s(\w\w\w)", timeframe)
+    interval = ""
+    if type(match) is re.Match:
+        interval = match.group(1)
+        unit = match.group(2)
+        if unit == 'day':
+            interval += 'D'
+        elif unit == 'wee':
+            interval += 'W'
+        elif unit == 'hou':
+            interval += 'H'
+        elif unit == 'min':
+            interval += 'M'
+    return interval
+
+
 def set_delays(chart):
     global WAIT_TIME_IMPLICIT
     global PAGE_LOAD_TIMEOUT
@@ -334,7 +356,9 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
         # set the time frame
         for i in range(len(chart['timeframes'])):
-            set_timeframe(browser, chart['timeframes'][i])
+            timeframe = chart['timeframes'][i]
+            interval = get_interval(timeframe)
+            set_timeframe(browser, timeframe)
             time.sleep(DELAY_BREAK_MINI)
 
             # iterate over each symbol per watchlist
@@ -343,7 +367,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 log.info("Opening watchlist " + chart['watchlists'][j])
                 try:
                     symbols = dict_watchlist[chart['watchlists'][j]]
-                except Exception as e:
+                except KeyError:
                     log.error(chart['watchlists'][j] + " doesn't exist")
                     break
 
@@ -353,7 +377,10 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
                     # change symbol
                     try:
+                        # might be useful for multi threading set the symbol by going to different url like this:
+                        # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
+                        input_symbol.clear()
                         input_symbol.send_keys(symbols[k])
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
@@ -382,7 +409,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
                             return [counter_alerts, total_alerts]
                         try:
-                            create_alert(browser, chart['alerts'][l], chart['timeframes'][i], symbols[k], 0)
+                            create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], 0)
                             counter_alerts += 1
                             total_alerts += 1
                         except Exception as err:
@@ -394,13 +421,15 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
+def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_number=0):
     """
-    :param browser:
-    :param alert_config:
-    :param timeframe:
-    :param ticker_id:
-    :param retry_number:
+    Create an alert based upon user specified yaml configuration.
+    :param browser:         The webdriver.
+    :param alert_config:    The config for this specific alert.
+    :param timeframe:       Timeframe, e.g. 1 day, 2 days, 4 hours, etc.
+    :param interval:    TV's short format, e.g. 2 weeks = 2W, 1 day = 1D, 4 hours =4H, 5 minutes = 5M.
+    :param ticker_id:       Ticker / Symbol, e.g. COINBASE:BTCUSD.
+    :param retry_number:    Optional. Number of retries if for some reason the alert wasn't created.
     :return: true, if successful
     """
     global alert_dialog
@@ -422,7 +451,7 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
             wait_and_click(alert_dialog, css_1st_row_left)
         except Exception as alert_err:
             log.exception(alert_err)
-            return retry(browser, alert_config, timeframe, ticker_id, retry_number)
+            return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
 
         time.sleep(DELAY_BREAK_MINI)
         el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_left + " span.tv-control-select__option-wrap")
@@ -549,16 +578,20 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
             textarea = alert_dialog.find_element_by_name('description')
             time.sleep(DELAY_BREAK_MINI)
             generated = textarea.text
+            chart = browser.current_url + '?symbol=' + ticker_id
+            if type(interval) is str and len(interval) > 0:
+                chart += '&interval=' + str(interval)
             text = str(alert_config['message']['text'])
             text = text.replace('%TIMEFRAME', timeframe)
             text = text.replace('%SYMBOL', ticker_id)
             text = text.replace('%NAME', alert_config['name'])
+            text = text.replace('%CHART', chart)
             text = text.replace('%GENERATED', generated)
             textarea.send_keys(Keys.CONTROL + 'a')
             textarea.send_keys(text)
         except Exception as alert_err:
             log.exception(alert_err)
-            return retry(browser, alert_config, timeframe, ticker_id, retry_number)
+            return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
 
         # Submit the form
         element = browser.find_element_by_css_selector('div[data-name="submit"] > span.tv-button__loader')
@@ -568,7 +601,7 @@ def create_alert(browser, alert_config, timeframe, ticker_id, retry_number=0):
     except Exception as exc:
         log.exception(exc)
         # on except, refresh and try again
-        return retry(browser, alert_config, timeframe, ticker_id, retry_number)
+        return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
 
     return True
 
@@ -593,7 +626,7 @@ def select(alert_config, current_condition, el_options, ticker_id):
     return found
 
 
-def retry(browser, alert_config, timeframe, ticker_id, retry_number):
+def retry(browser, alert_config, timeframe, interval, ticker_id, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('Trying again (' + str(retry_number+1) + ')')
         browser.refresh()
@@ -611,7 +644,7 @@ def retry(browser, alert_config, timeframe, ticker_id, retry_number):
             log.exception(err)
         input_symbol.send_keys(Keys.ENTER)
         time.sleep(DELAY_CHANGE_SYMBOL)
-        return create_alert(browser, alert_config, timeframe, ticker_id, retry_number + 1)
+        return create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_number + 1)
     else:
         log.error('Max retries reached.')
         return False
@@ -679,7 +712,7 @@ def login(browser):
     time.sleep(DELAY_BREAK)
 
 
-def run():
+def run(file):
     """
         TODO:   multi threading
     """
