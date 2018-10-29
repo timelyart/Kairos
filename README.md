@@ -9,7 +9,7 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 * [Post installation](#post-installation)
 * [Defining TradingView alerts](#defining-tradingview-alerts)
 * [Troubleshooting](#troubleshooting)
-* [Feedback](md#feedback)
+* [Feedback](#feedback)
 * [Acknowledgements](#acknowledgements)
 * [Author](#author)
 * [Donate](#donate)
