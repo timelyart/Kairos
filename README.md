@@ -26,6 +26,7 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 ## Prerequisites ##
 * [Python 3](https://www.python.org/downloads/)
 * [ChromeDriver](http://chromedriver.chromium.org/downloads)
+* [Chrome latest version](https://www.google.com/chrome/)
 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
