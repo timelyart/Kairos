@@ -10,24 +10,22 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import numbers
-
-from kairos import timing
-from configparser import RawConfigParser
 import datetime
-import sys
-from selenium.webdriver.common.keys import Keys
+import numbers
+import os
 import re
 import time
-from selenium.common.exceptions import NoSuchElementException, WebDriverException
-from kairos import debug
+from configparser import RawConfigParser
 import yaml
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
-import os
+from kairos import debug
+from kairos import timing
 
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
@@ -54,35 +52,60 @@ css_selectors = dict(
     signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
     input_username='#signin-form > div.tv-control-error > div.tv-control-material-input__wrap > input',
     input_password='#signin-form > div.tv-signin-dialog__forget-wrap > div.tv-control-error > div.tv-control-material-input__wrap > input',
-    input_watchlist_add_symbol='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > input',
     btn_login='#signin-form > div.tv-signin-dialog__footer.tv-signin-dialog__footer--login > div:nth-child(2) > button',
-    btn_charts='body > div.tv - main > div.tv - header > div.tv - mainmenu > ul > li.tv - mainmenu__item.tv - mainmenu__item - -chart',
+    btn_timeframe='#header-toolbar-intervals > div:last-child',
+    options_timeframe='#__outside-render-0 > div > div > div > div > div > div > div',
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
-    btn_watchlist_menu_active='input.wl-symbol-edit',
-    btn_watchlist_dropdown_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a',
-    btn_watchlist_dropdown_menu_active='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > '
-                                       'a.button.active.open',
-    btn_load_watchlist='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a',
-    btn_add_alert='#header-toolbar-alerts',
+    options_watchlist='div.charts-popup-list > a.item.first',
+    input_symbol='#header-toolbar-symbol-search > div > input',
+    btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
+    item_clear_alerts='div.charts-popup-list > a.item:last-child',
+    item_clear_inactive_alerts='div.charts-popup-list > a.item:nth-child(8)',
+    item_restart_inactive_alerts='div.charts-popup-list > a.item:nth-child(6)',
+    btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
+    item_alerts='table.alert-list > tbody > tr.alert-item',
+    btn_create_alert='#header-toolbar-alerts',
+    dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1)',
+    options_dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1) span.tv-control-select__option-wrap',
+    exists_dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span > span',
+    dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span',
+    options_dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right span.tv-control-select__option-wrap',
+    dlg_create_alert_second_row='fieldset > div:nth-child(2) > span',
+    options_dlg_create_alert_second_row='fieldset > div:nth-child(2) > span span.tv-control-select__option-wrap',
+    inputs_and_selects_create_alert_3rd_row_and_above='div.js-condition-second-operand-placeholder select, div.js-condition-second-operand-placeholder input',
+    dlg_create_alert_3rd_row_group_item='div.js-condition-second-operand-placeholder div.tv-alert-dialog__group-item',
+    options_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
+    checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
+    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item:nth-child(1) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item:nth-child(2) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
+    options_dlg_create_alert_ringtone='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
+    options_dlg_create_alert_sound_duration='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item:nth-child(4) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item:nth-child(5) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-value-item:nth-child(6) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item:nth-child(7) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
     btn_alerts='div[data-name="alerts"]',
-    btn_data_window='div[data-name="data-window"]',
     btn_calendar='div[data-name="calendar"]',
-    div_watchlist_symbols='body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetbody > div.symbol-list-container.wrapper-2KWBfDVB-.touch-E6yQTRo_- > div',
     div_watchlist_item='div.symbol-list > div.symbol-list-item.success',
-    form_create_alert='body > div.tv-dialog.js-dialog.tv-dialog--popup.ui-draggable.i-focused > div.tv-dialog__scroll-wrap.i-with-actions.wrapper-2KWBfDVB-.touch-E6yQTRo_- > div > div > div > p > form',
     signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
             'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a'
 )
 
-xpath_selectors = dict(
-    btn_watchlist_menu='//div[@data-name=right-toolbar]/div[@data-name=base]'
-)
 class_selectors = dict(
     form_create_alert='js-alert-form',
-    input='tv-control-input',
-    selectbox='tv-control-select',
-    selectbox_options='selectbox_options',
-    popup='tv-text'
+)
+
+name_selectors = dict(
+    checkbox_dlg_create_alert_show_popup='show-popup',
+    checkbox_dlg_create_alert_play_sound='play-sound',
+    checkbox_dlg_create_alert_send_email='send-email',
+    checkbox_dlg_create_alert_email_to_sms='send-sms',
+    checkbox_dlg_create_alert_send_sms='send-true-sms',
+    checkbox_dlg_create_alert_send_push='send-push'
 )
 
 log = debug.log
@@ -193,9 +216,8 @@ def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
 
 def set_timeframe(browser, timeframe):
     log.info('Setting timeframe to ' + timeframe)
-    wait_and_click(browser, '#header-toolbar-intervals > div:last-child')
-    # css = '#tooltip-root-element + div + div > div > div > div > div > div > div > div'
-    css = '#__outside-render-0 > div > div > div > div > div > div > div'
+    wait_and_click(browser, css_selectors['btn_timeframe'])
+    css = css_selectors['options_timeframe']
     el_options = browser.find_elements_by_css_selector(css)
     index = 0
     found = False
@@ -329,7 +351,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             # time.sleep(DELAY_BREAK_MINI)
             # load watchlist
             watchlist_exists = False
-            el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first')
+            el_options = browser.find_elements_by_css_selector(css_selectors['options_watchlist'])
             for j in range(len(el_options)):
                 if el_options[j].text == watchlist:
                     el_options[j].click()
@@ -379,7 +401,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     try:
                         # might be useful for multi threading set the symbol by going to different url like this:
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-                        input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
+                        input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
                         input_symbol.clear()
                         input_symbol.send_keys(symbols[k])
                         input_symbol.send_keys(Keys.ENTER)
@@ -391,17 +413,17 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
                     for l in range(len(chart['alerts'])):
                         if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
-                            # instead of showing a warning first try clean inactive alerts first
+                            # try clean inactive alerts first
                             time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
-                            wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
-                            wait_and_click(browser, 'div.charts-popup-list > a.item:nth-child(8)')
-                            wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
+                            wait_and_click(browser, css_selectors['btn_alert_menu'])
+                            wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                             time.sleep(DELAY_BREAK)
                             time.sleep(DELAY_BREAK)
                             time.sleep(DELAY_BREAK)
                             time.sleep(DELAY_BREAK)
                             # update counter
-                            alerts = browser.find_elements_by_css_selector('table.alert-list > tbody > tr.alert-item')
+                            alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
                             if type(alerts) is list:
                                 counter_alerts = len(alerts)
 
@@ -436,42 +458,40 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
     log.debug(alert_config['name'])
 
     try:
+        wait_and_click(browser, css_selectors['btn_create_alert'])
         time.sleep(DELAY_BREAK)
-        wait_and_click(browser, '#header-toolbar-alerts')
-
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
-        time.sleep(DELAY_BREAK_MINI)
+
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
 
         # 1st row, 1st condition
         current_condition = 0
-        css_1st_row_left = 'fieldset > div:nth-child(1) > span > div:nth-child(1)'
-        # css_1st_row_left = 'fieldset > div.js-condition-first-operand-placeholder > span > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left.js-main-series-select-wrap'
+        css_1st_row_left = css_selectors['dlg_create_alert_first_row_first_item']
         try:
             wait_and_click(alert_dialog, css_1st_row_left)
         except Exception as alert_err:
             log.exception(alert_err)
             return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
 
-        time.sleep(DELAY_BREAK_MINI)
-        el_options = alert_dialog.find_elements_by_css_selector(css_1st_row_left + " span.tv-control-select__option-wrap")
+        # time.sleep(DELAY_BREAK_MINI)
+        el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_first_item'])
         if not select(alert_config, current_condition, el_options, ticker_id):
             return False
 
         # 1st row, 2nd condition (if applicable)
-        css_1st_row_right = 'div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span > span'
+        css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
         if element_exists(browser, alert_dialog, css_1st_row_right, 0.5):
             current_condition += 1
-            wait_and_click(alert_dialog, 'div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span')
-            el_options = alert_dialog.find_elements_by_css_selector("div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right span.tv-control-select__option-wrap")
+            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
+            el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_second_item'])
             if not select(alert_config, current_condition, el_options, ticker_id):
                 return False
 
         # 2nd row, 1st condition
         current_condition += 1
-        css_2nd_row = 'fieldset > div:nth-child(2) > span'
+        css_2nd_row = css_selectors['dlg_create_alert_second_row']
         wait_and_click(alert_dialog, css_2nd_row)
-        el_options = alert_dialog.find_elements_by_css_selector(css_2nd_row + " span.tv-control-select__option-wrap")
+        el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_second_row'])
         if not select(alert_config, current_condition, el_options, ticker_id):
             return False
 
@@ -482,8 +502,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
             time.sleep(DELAY_BREAK_MINI)
             log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
             # we need to get the inputs again for every iteration as the number may change
-            inputs = alert_dialog.find_elements_by_css_selector('div.js-condition-second-operand-placeholder select, div.js-condition-second-operand-placeholder input')
-            # condition_yaml = str(alert_config['conditions'][current_condition])
+            inputs = alert_dialog.find_elements_by_css_selector(css_selectors['inputs_and_selects_create_alert_3rd_row_and_above'])
             while True:
                 if inputs[i].get_attribute('type') == 'hidden':
                     i += 1
@@ -491,29 +510,25 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
                     break
 
             if inputs[i].tag_name == 'select':
-                elements = alert_dialog.find_elements_by_css_selector('div.js-condition-second-operand-placeholder div.tv-alert-dialog__group-item')
+                elements = alert_dialog.find_elements_by_css_selector(css_selectors['dlg_create_alert_3rd_row_group_item'])
                 if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
                     elements[i].click()
                     # time.sleep(DELAY_BREAK_MINI)
-                    css = 'span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap'
-                    el_options = elements[i].find_elements_by_css_selector(css)
+
+                    el_options = elements[i].find_elements_by_css_selector(css_selectors['options_dlg_create_alert_3rd_row_group_item'])
                     condition_yaml = str(alert_config['conditions'][current_condition])
                     found = False
                     for j in range(len(el_options)):
                         option_tv = str(el_options[j].get_attribute("innerHTML")).strip()
                         if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
-                            css = 'span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span'.format(j + 1)
-                            wait_and_click(alert_dialog, css)
+                            wait_and_click(alert_dialog, css_selectors['selected_dlg_create_alert_3rd_row_group_item'].format(j + 1))
                             found = True
                             break
                     if not found:
                         log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                # clear input of any previous value (note that input[0].clear() does NOT work
-                # inputs[i].send_keys(Keys.HOME)
                 inputs[i].send_keys(Keys.LEFT_CONTROL + "a")
-                # set the new value
                 inputs[i].send_keys(str(alert_config['conditions'][current_condition]).strip())
 
             # give some time
@@ -521,7 +536,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
             i += 1
 
         # Options (i.e. frequency)
-        wait_and_click(alert_dialog, 'div[data-title="{0}"]'.format(str(alert_config['options']).strip()))
+        wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
         # Expiration
         set_expiration(alert_dialog, alert_config)
         time.sleep(DELAY_BREAK_MINI)
@@ -529,28 +544,24 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
         time.sleep(DELAY_BREAK_MINI)
 
         # Show popup
-        checkbox = alert_dialog.find_element_by_name('show-popup')
+        checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
         if is_checkbox_checked(checkbox) != alert_config['show_popup']:
-            wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(1) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+            wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_show_popup'])
 
         # Sound
-        checkbox = alert_dialog.find_element_by_name('play-sound')
+        checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_play_sound'])
         if is_checkbox_checked(checkbox) != alert_config['sound']['play']:
-            wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(2) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+            wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_play_sound'])
         if is_checkbox_checked(checkbox):
             # set ringtone
-            css = 'div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span'
-            wait_and_click(alert_dialog, css)
-            css = 'div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap'
-            el_options = alert_dialog.find_elements_by_css_selector(css)
+            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_ringtone'])
+            el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_ringtone'])
             for i in range(len(el_options)):
                 if str(el_options[i].text).strip() == str(alert_config['sound']['ringtone']).strip():
                     el_options[i].click()
             # set duration
-            css = 'div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span'
-            wait_and_click(alert_dialog, css)
-            css = 'div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap'
-            el_options = alert_dialog.find_elements_by_css_selector(css)
+            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_sound_duration'])
+            el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_sound_duration'])
             for i in range(len(el_options)):
                 if str(el_options[i].text).strip() == str(alert_config['sound']['duration']).strip():
                     el_options[i].click()
@@ -558,21 +569,21 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
         # Communication options
         # Send Email
         try:
-            checkbox = alert_dialog.find_element_by_name('send-email')
+            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_send_email'])
             if is_checkbox_checked(checkbox) != alert_config['send']['email']:
-                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(4) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email'])
             # Send Email-to-SMS (the checkbox is indeed called 'send-sms'!)
-            checkbox = alert_dialog.find_element_by_name('send-sms')
+            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_email_to_sms'])
             if is_checkbox_checked(checkbox) != alert_config['send']['email-to-sms']:
-                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(5) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email_to_sms'])
             # Send SMS (only for premium members)
-            checkbox = alert_dialog.find_element_by_name('send-true-sms')
+            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_send_sms'])
             if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
-                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(6) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_sms'])
             # Notify on App
-            checkbox = alert_dialog.find_element_by_name('send-push')
+            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_send_push'])
             if is_checkbox_checked(checkbox) != alert_config['send']['notify-on-app']:
-                wait_and_click(alert_dialog, 'div.tv-alert-dialog__fieldset-value-item:nth-child(7) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)')
+                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_push'])
 
             # Construct message
             textarea = alert_dialog.find_element_by_name('description')
@@ -594,8 +605,9 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
             return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
 
         # Submit the form
-        element = browser.find_element_by_css_selector('div[data-name="submit"] > span.tv-button__loader')
+        element = browser.find_element_by_css_selector(css_selectors['btn_dlg_create_alert_submit'])
         element.click()
+
         time.sleep(DELAY_SUBMIT_ALERT)
 
     except Exception as exc:
@@ -616,7 +628,6 @@ def select(alert_config, current_condition, el_options, ticker_id):
     found = False
     for i in range(len(el_options)):
         option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
-        # log.debug(option_tv)
         if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
             el_options[i].click()
             found = True
@@ -635,7 +646,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, retry_number):
         alert.accept()
         time.sleep(5)
         # change symbol
-        input_symbol = browser.find_element_by_css_selector('#header-toolbar-symbol-search > div > input')
+        input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
         input_symbol.send_keys(Keys.CONTROL + 'a')
         try:
             input_symbol.send_keys(ticker_id)
@@ -721,8 +732,8 @@ def run(file):
     browser = None
 
     try:
-        if len(sys.argv) > 1:
-            file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), sys.argv[1])
+        if len(file) > 1:
+            file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), file)
         else:
             file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), config.get('tradingview', 'settings'))
         if not os.path.exists(file):
@@ -749,30 +760,30 @@ def run(file):
         if config.getboolean('tradingview', 'clear_alerts'):
             wait_and_click(browser, css_selectors['btn_calendar'])
             wait_and_click(browser, css_selectors['btn_alerts'])
-            wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
-            wait_and_click(browser, 'div.charts-popup-list > a.item:last-child')
-            wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
+            wait_and_click(browser, css_selectors['btn_alert_menu'])
+            wait_and_click(browser, css_selectors['item_clear_alerts'])
+            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
             time.sleep(DELAY_BREAK)
             time.sleep(DELAY_BREAK)
         else:
             if config.getboolean('tradingview', 'restart_inactive_alerts'):
                 wait_and_click(browser, css_selectors['btn_calendar'])
                 wait_and_click(browser, css_selectors['btn_alerts'])
-                wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
-                wait_and_click(browser, 'div.charts-popup-list > a.item:nth-child(6)')
-                wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
+                wait_and_click(browser, css_selectors['btn_alert_menu'])
+                wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
+                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                 time.sleep(DELAY_BREAK)
                 time.sleep(DELAY_BREAK)
             elif config.getboolean('tradingview', 'clear_inactive_alerts'):
                 wait_and_click(browser, css_selectors['btn_calendar'])
                 wait_and_click(browser, css_selectors['btn_alerts'])
-                wait_and_click(browser, 'div.widgetbar-widget-alerts_manage > div > div > a:last-child')
-                wait_and_click(browser, 'div.charts-popup-list > a.item:nth-child(8)')
-                wait_and_click(browser, 'div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]')
+                wait_and_click(browser, css_selectors['btn_alert_menu'])
+                wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                 time.sleep(DELAY_BREAK)
                 time.sleep(DELAY_BREAK)
             # count the number of existing alerts
-            alerts = browser.find_elements_by_css_selector('table.alert-list > tbody > tr.alert-item')
+            alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
             if type(alerts) is not None:
                 counter_alerts = len(alerts)
 
