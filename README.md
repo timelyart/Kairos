@@ -30,15 +30,19 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
 ## Installing ##
-
 ### From archive (Linux, macOS and Windows) ###
+_If you are running Linux / macOS then run listed commands with **sudo**_ 
 * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
+* [Install Chrome latest version](https://www.google.com/chrome/)
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
 * [Download](dist) and extract the Kairos archive
-* Open a terminal, or - on Windows - CMD as Administrator
-* If you don't have setuptools installed, run:
+* Open a terminal, or when on Windows the command prompt as Administrator
+* Update pip, and install / update setuptools:
 ```
+curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+python get-pip.py
 pip install setuptools
+pip install --upgrade setuptools
 ```
 * Run the following command from the Kairos directory: 
 ```
@@ -47,9 +51,12 @@ python setup.py install
 * Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
 ### From source ###
-* If you don't have setuptools installed, please run:
+* Update pip, and install / update setuptools:
 ```
+curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
+python get-pip.py
 pip install setuptools
+pip install --upgrade setuptools
 ```
 * Clone archive and install:
 ```
@@ -174,7 +181,7 @@ charts:
 python main.py refresh.yaml
 ```
 * Browse through your watchlist going from symbol to symbol at a regular interval. 
-  1. Rename [_browse.yaml](tv/_browse_yaml) to **browse.yaml** and open it
+  1. Rename [_browse.yaml](tv/_browse.yaml) to **browse.yaml** and open it
   2. Fill in the blanks
   3. Run:
   ```
@@ -194,12 +201,17 @@ A lot can go wrong running web automation tools like Kairos. These are the most 
 These issues are all related and amount to Kairos unable to either find an element or to interact with an element. You will get errors (see debug.log) like:
 * Message: unknown error: [...] is not clickable at point [...]
 * Time out exceptions
+* Not clickable exceptions
 * Not visible exceptions
 
 ### Solutions ###
 #### Run multiple times ###
 If you are running Kairos for the first time, then Chrome hasn't cached anything yet. Try to run it a couple of times and ignore any errors. 
 Of course, clearing the cache will, in all likelihood, spawn the same issues again.
+
+#### Run on a different time of day###
+At certain times during the day TradingView can become less responsive. Try to run Kairos on a different time.
+If the issue persists, try to [Increase delays](#increase-delays) 
 
 #### Increase delays ###
 If you have run Kairos five times or so, and still encounter issues try to increase the **_break_mini_**, **_break_** and / or **_submit_alert_** in the [kairos.cfg](_kairos.cfg).
