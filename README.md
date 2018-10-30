@@ -37,10 +37,8 @@ _If you are running Linux / macOS then run listed commands with **sudo**_
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
 * [Download](dist) and extract the Kairos archive
 * Open a terminal, or when on Windows the command prompt as Administrator
-* Update pip, and install / update setuptools:
+* Update setuptools:
 ```
-curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
-python get-pip.py
 pip install setuptools
 pip install --upgrade setuptools
 ```
@@ -51,10 +49,8 @@ python setup.py install
 * Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
 ### From source ###
-* Update pip, and install / update setuptools:
+* Install / update setuptools:
 ```
-curl -O https://raw.github.com/pypa/pip/master/contrib/get-pip.py
-python get-pip.py
 pip install setuptools
 pip install --upgrade setuptools
 ```
