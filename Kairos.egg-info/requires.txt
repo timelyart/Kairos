@@ -4,3 +4,5 @@ urllib3
 selenium
 configparser
 tools
+pip>=18.1
+setuptools_scm
