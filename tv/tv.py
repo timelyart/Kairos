@@ -127,11 +127,24 @@ log.setLevel(config.getint('logging', 'level'))
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
     path_to_chromedriver = path_to_chromedriver.replace('.exe', '')
-    path_to_chromedriver = re.sub(r"^[a-zA-Z]:", "", path_to_chromedriver)
 else:
     log.error("File " + path_to_chromedriver + " does not exist")
     log.exception(FileNotFoundError)
     exit(0)
+
+screenshot_dir = ''
+if config.has_option('logging', 'screenshot_path'):
+    screenshot_dir = config.get('logging', 'screenshot_path')
+    if screenshot_dir != '':
+        screenshot_dir = os.path.join(CURRENT_DIR, screenshot_dir)
+    if not os.path.exists(screenshot_dir):
+        try:
+            os.mkdir(screenshot_dir)
+        except Exception as e:
+            log.exception(e)
+            screenshot_dir = ''
+
+# log.info('screenshot_dir = ' + screenshot_dir)
 
 WAIT_TIME_IMPLICIT = config.getfloat('webdriver', 'wait_time_implicit')
 PAGE_LOAD_TIMEOUT = config.getfloat('webdriver', 'page_load_timeout')
@@ -323,6 +336,18 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         close_all_popups(browser)
         log.info("Opening chart " + chart['url'])
 
+        chart_dir = ''
+        if screenshot_dir != '':
+            match = re.search("^.*chart.(\w+).*", chart['url'])
+            if type(match) is re.Match:
+                today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime('%Y%m%d'))
+                if not os.path.exists(today_dir):
+                    os.mkdir(today_dir)
+                chart_dir = os.path.join(today_dir, match.group(1))
+                if not os.path.exists(chart_dir):
+                    os.mkdir(chart_dir)
+                chart_dir = os.path.join(chart_dir, )
+
         # set wait times defined in chart
         set_delays(chart)
         log.info("WAIT_TIME_IMPLICIT = " + str(WAIT_TIME_IMPLICIT))
@@ -395,7 +420,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
                 # open each symbol within the watchlist
                 for k in range(len(symbols)):
-                    log.info(symbols[k])
+                    symbol = symbols[k]
+                    log.info(symbol)
 
                     # change symbol
                     try:
@@ -403,9 +429,21 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
                         input_symbol.clear()
-                        input_symbol.send_keys(symbols[k])
+                        input_symbol.send_keys(symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
+
+                        if screenshot_dir != '':
+                            filename = symbol.replace(':', '_') + '_' + interval + '.png'
+                            filename = os.path.join(chart_dir, filename)
+                            # instead of creating a screenshot ourselves, use TV's snap shot function:
+                            # send_keys ALT + S (shortcut snapshot)
+                            # get element by css input[readonly value] -> get attribute value
+                            # get element by css input[data-clipboard-text] -> get attribute data-clipboard-text
+                            # send_keys ESC
+                            elem_chart = browser.find_element_by_class_name('chart-widget')
+                            elem_chart.screenshot(filename)
+
                     except Exception as err:
                         log.debug('Unable to change to symbol at index ' + str(k) + ' in list of symbols:')
                         log.debug(str(symbols))
@@ -696,6 +734,11 @@ def set_expiration(_alert_dialog, alert_config):
     input_time.send_keys(Keys.CONTROL + 'a')
     input_time.send_keys(time_value)
     # time.sleep(DELAY_BREAK_MINI)
+
+
+# def make_chart_snapshot(element, filename):
+#     if screenshot_dir != '':
+#
 
 
 def login(browser):
