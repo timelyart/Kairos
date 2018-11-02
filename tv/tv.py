@@ -141,7 +141,7 @@ if config.has_option('logging', 'screenshot_path'):
         try:
             os.mkdir(screenshot_dir)
         except Exception as e:
-            log.exception(e)
+            log.info('No screenshot directory specified or unable to create it.')
             screenshot_dir = ''
 
 # log.info('screenshot_dir = ' + screenshot_dir)

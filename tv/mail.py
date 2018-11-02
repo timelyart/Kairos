@@ -131,14 +131,11 @@ def read_mail():
 
         id_list = mail_ids.split()
         if len(id_list) == 0:
-            log.info('No unread mail')
+            log.info('No unprocessed mail')
             return False
 
-        first_email_id = int(id_list[0])
-        latest_email_id = int(id_list[-1])
-
-        for i in range(latest_email_id, first_email_id, -1):
-            result, data = mail.fetch(str(i), '(RFC822)')
+        for mail_id in id_list:
+            result, data = mail.fetch(mail_id, '(RFC822)')
             process_data(data)
 
         mail.close()
@@ -154,7 +151,6 @@ def send_mail():
     msg['To'] = uid
 
     text = ''
-
     html = '<html><body><table>'
     html += '<thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Chart</th></tr></thead><tbody>'
     count = 0
@@ -168,7 +164,6 @@ def send_mail():
 
     html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter>'
     html += '</table></body></html>'
-    # log.info(html)
 
     msg.attach(MIMEText(text, 'plain'))
     msg.attach(MIMEText(html, 'html'))
@@ -180,7 +175,7 @@ def send_mail():
 
 
 def run(delay):
-    log.info("Generating mail delayed by " + str(delay) + " minutes.")
+    log.info("Generating summary mail with a of " + str(delay) + " minutes.")
     time.sleep(delay*60)
     read_mail()
     if len(charts) > 0:
