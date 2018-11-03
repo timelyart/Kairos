@@ -26,7 +26,7 @@ def print_help():
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
     print("-h\t\t Flag. Show this help.")
-    print("-h\t\t Flag. Show disclaimer.\n")
+    print("-d\t\t Flag. Show disclaimer.\n")
 
 
 def main():
