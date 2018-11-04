@@ -52,7 +52,6 @@ def process_data(data):
             email_subject = str(msg['subject'])
             if email_subject.find('TradingView Alert') >= 0:
                 log.info('Processing: ' + msg['date'] + ' - ' + msg['subject'])
-                return True
                 # get email body
                 if msg.is_multipart():
                     for part in msg.walk():
