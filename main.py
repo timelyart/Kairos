@@ -48,7 +48,7 @@ def main():
                 print_help()
             elif str(sys.argv[i]) == '-d':
                 print_disclaimer()
-            elif str(sys.argv[(i-1)]) == '-s':
+            elif i > 1 and str(sys.argv[(i-1)]) == '-s':
                 delay_summary = int(sys.argv[i])
             elif not str(sys.argv[i]).endswith('main.py'):
                 print("No such argument: " + str(sys.argv[i]))
