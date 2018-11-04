@@ -45,6 +45,7 @@ kairos/__init__.py
 kairos/debug.py
 kairos/timing.py
 kairos/tools.py
+releases/Kairos-0.2.4.tar.gz
 tv/__init__.py
 tv/_browse.yaml
 tv/_example.yaml
