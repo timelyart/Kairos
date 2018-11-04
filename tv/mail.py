@@ -52,6 +52,7 @@ def process_data(data):
             email_subject = str(msg['subject'])
             if email_subject.find('TradingView Alert') >= 0:
                 log.info('Processing: ' + msg['date'] + ' - ' + msg['subject'])
+                return True
                 # get email body
                 if msg.is_multipart():
                     for part in msg.walk():
@@ -123,20 +124,35 @@ def read_mail():
         if result != 'OK':
             log.error(result)
             return False
-        # mail.select("inbox")  # connect to inbox.
-        mail.select("TradingView_Alerts")
-        result, data = mail.search(None, 'UNSEEN')
-        # result, data = mail.search(None, 'ALL')
-        mail_ids = data[0]
 
-        id_list = mail_ids.split()
-        if len(id_list) == 0:
-            log.info('No unprocessed mail')
-            return False
+        mailbox = 'inbox'
+        if config.has_option('mail', 'mailbox') and config.get('mail', 'mailbox') != '':
+            mailbox = str(config.get('mail', 'mailbox'))
+        mail.select(mailbox)
 
-        for mail_id in id_list:
-            result, data = mail.fetch(mail_id, '(RFC822)')
-            process_data(data)
+        search_area = "UNSEEN"
+        if config.has_option('mail', 'search_area') and config.get('mail', 'search_area') != '':
+            search_area = str(config.get('mail', 'search_area'))
+        if search_area != "UNSEEN" and config.has_option('mail', 'search_term') and config.get('mail', 'search_term') != '':
+            search_term = u"" + str(config.get('mail', 'search_term'))
+            log.info('search_term: ' + search_term)
+            mail.literal = search_term.encode("UTF-8")
+
+        log.info('search_area: ' + search_area)
+        try:
+            result, data = mail.search("utf-8", search_area)
+            mail_ids = data[0]
+            id_list = mail_ids.split()
+            if len(id_list) == 0:
+                log.info('No mail to process')
+
+            for mail_id in id_list:
+                result, data = mail.fetch(mail_id, '(RFC822)')
+                process_data(data)
+
+        except imaplib.IMAP4.error as mail_error:
+            log.error("Search failed. Please verify you have a correct search_term and search_area defined.")
+            log.exception(mail_error)
 
         mail.close()
         mail.logout()
