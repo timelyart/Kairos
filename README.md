@@ -36,7 +36,7 @@ _If you are running Linux / macOS then run listed commands with **sudo**_
 * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
 * [Install Chrome latest version](https://www.google.com/chrome/)
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
-* [Download](releases) and extract the Kairos archive
+* [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
 * Open a terminal, or when on Windows the command prompt as Administrator
 * Update setuptools:
 ```
