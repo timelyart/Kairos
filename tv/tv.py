@@ -255,17 +255,25 @@ def get_interval(timeframe):
     """
     match = re.search("(\d+)\s(\w\w\w)", timeframe)
     interval = ""
-    if type(match) is re.Match:
-        interval = match.group(1)
-        unit = match.group(2)
-        if unit == 'day':
-            interval += 'D'
-        elif unit == 'wee':
-            interval += 'W'
-        elif unit == 'hou':
-            interval += 'H'
-        elif unit == 'min':
-            interval += 'M'
+    if match is None:
+        log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w)")
+    elif type(match) is re.Match:
+        try:
+            interval = match.group(1)
+            unit = match.group(2)
+            if unit == 'day':
+                interval += 'D'
+            elif unit == 'wee':
+                interval += 'W'
+            elif unit == 'hou':
+                interval += 'H'
+            elif unit == 'min':
+                interval += 'M'
+        except Exception as interval_exception:
+            log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w)")
+            log.exception(interval_exception)
+    else:
+        log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w)")
     return interval
 
 
