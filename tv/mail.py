@@ -80,9 +80,9 @@ def process_body(msg):
             break
 
     # symbol = re.sub(r"\w*%3\w*$:", "", url)
-    match = re.search("\w*[%3|:]\w*$", url)
+    match = re.search("\w*[%3A|:]\w*$", url)
     symbol = match.group(0)
-    symbol = symbol.replace('%3', ':')
+    symbol = symbol.replace('%3A', ':')
     for script in soup(["script", "style"]):
         script.extract()  # rip it out
     # text = soup.get_text(separator=' ')
