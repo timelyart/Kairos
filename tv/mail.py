@@ -190,7 +190,7 @@ def send_mail():
 
 
 def run(delay):
-    log.info("Generating summary mail with a of " + str(delay) + " minutes.")
+    log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
     read_mail()
     if len(charts) > 0:
