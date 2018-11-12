@@ -25,10 +25,13 @@ charts:
     # Values need to be EXACT (unless specified differently in your kairos.cfg under section TradingView, setting exact_conditions) and are CASE SENSITIVE.
     conditions: ["BTCUSD", "Outside channel", "Value", "6826.28", "Value", "5880.00"]
     options: "Only Once"
-    # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
-    # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
-    # Expiration: 2019-05-19 13:42, or delta in minutes (max 86400, or 60 days), or leave empty to use TradingView's default of 30 days (somewhat improves performance).
-    expiration: 2
+    expiration:
+      # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
+      # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
+      # time: 2019-05-19 13:42, or delta in minutes (max 86400, or 60 days), or leave empty to use TradingView's default of 30 days (somewhat improves performance).
+      time: 2
+      # Note that open-ended is for premium users only and - when set - will ignore the value for 'time'
+      open-ended: no
     # Note: pop-ups may hinder Kairos to continue it's process faultless.
     # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete it's run.
     show_popup: no
