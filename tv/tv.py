@@ -54,7 +54,9 @@ css_selectors = dict(
     input_password='#signin-form > div.tv-signin-dialog__forget-wrap > div.tv-control-error > div.tv-control-material-input__wrap > input',
     btn_login='#signin-form > div.tv-signin-dialog__footer.tv-signin-dialog__footer--login > div:nth-child(2) > button',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
-    options_timeframe='#__outside-render-0 > div > div > div > div > div > div > div',
+    # options_timeframe='#__outside-render-0 > div > div > div > div > div > div > div',
+    # options_timeframe='div[id^="__outside-render-"] div[class^="item"] > div > div',
+    options_timeframe='div[id^="__outside-render-"] div[class^="item"]',
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     options_watchlist='div.charts-popup-list > a.item.first',
     input_symbol='#header-toolbar-symbol-search > div > input',
@@ -92,7 +94,9 @@ css_selectors = dict(
     btn_calendar='div[data-name="calendar"]',
     div_watchlist_item='div.symbol-list > div.symbol-list-item.success',
     signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
-            'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a'
+            'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a',
+    checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
+    clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label'
 )
 
 class_selectors = dict(
@@ -160,8 +164,13 @@ options = webdriver.ChromeOptions()
 options.add_argument("--disable-extensions")
 options.add_argument('--window-size=1920,1080')
 options.add_argument('--disable-notifications')
+# run chrome in the background
 if config.getboolean('webdriver', 'run_in_background'):
-    options.add_argument('headless')  # this will hide the browser window i.e. run chrome in the background
+    options.add_argument('headless')
+    # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
+    # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
+    if os.name == 'nt':
+        options.add_argument("--disable-gpu")
 prefs = {"profile.default_content_setting_values.notifications": 2}
 options.add_experimental_option("prefs", prefs)
 
@@ -236,11 +245,10 @@ def set_timeframe(browser, timeframe):
     found = False
     while not found and index < len(el_options):
         if el_options[index].text == timeframe:
+            el_options[index].click()
             found = True
         index += 1
-    if found:
-        wait_and_click(browser, css + ':nth-child({0})'.format(index))
-    else:
+    if not found:
         log.warning('Unable to set timeframe to ' + timeframe)
         raise ValueError
 
@@ -326,6 +334,18 @@ def set_delays(chart):
             DELAY_CLEAR_INACTIVE_ALERTS = delays['clear_inactive_alerts']
         elif config.has_option('delays', 'clear_inactive_alerts'):
             DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
+
+
+def get_shared_chart(browser, chart_url):
+    """
+    Get an image based upon a chart's url, akin to TV's share function
+    :param browser The webdriver. You should be logged in on TV.
+    :param chart_url
+    :return: shared image url
+    """
+    shared_url = ""
+    browser.get(chart_url)
+    browser.send_keys(Keys.ALT + 's')
 
 
 def open_chart(browser, chart, counter_alerts, total_alerts):
@@ -719,12 +739,27 @@ def set_expiration(_alert_dialog, alert_config):
     max_minutes = 86400
     datetime_format = '%Y-%m-%d %H:%M'
 
-    if str(alert_config['expiration']).strip() == '' or str(alert_config['expiration']).strip().lower().startswith('n') or type(alert_config['expiration']) is None:
+    exp = alert_config['expiration']
+    if type(exp) is int:
+        alert_config['expiration'] = dict()
+        alert_config['expiration']['time'] = exp
+        alert_config['expiration']['open-ended'] = False
+    else:
+        if 'time' not in alert_config['expiration']:
+            alert_config['expiration']['time'] = exp
+        if 'open-ended' not in alert_config['expiration']:
+            alert_config['expiration']['open-ended'] = False
+
+    checkbox = alert_dialog.find_element_by_css_selector(css_selectors['checkbox_dlg_create_alert_open_ended'])
+    if is_checkbox_checked(checkbox) != alert_config['expiration']['open-ended']:
+        wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_open_ended'])
+
+    if alert_config['expiration']['open-ended'] or str(alert_config['expiration']['time']).strip() == '' or str(alert_config['expiration']['time']).strip().lower().startswith('n') or type(alert_config['expiration']['time']) is None:
         return
-    elif type(alert_config['expiration']) is int:
-        target_date = datetime.datetime.now() + datetime.timedelta(minutes=float(alert_config['expiration']))
-    elif type(alert_config['expiration']) is str and len(str(alert_config['expiration']).strip()) > 0:
-        target_date = datetime.datetime.strptime(str(alert_config['expiration']).strip(), datetime_format)
+    elif type(alert_config['expiration']['time']) is int:
+        target_date = datetime.datetime.now() + datetime.timedelta(minutes=float(alert_config['expiration']['time']))
+    elif type(alert_config['expiration']['time']) is str and len(str(alert_config['expiration']['time']).strip()) > 0:
+        target_date = datetime.datetime.strptime(str(alert_config['expiration']['time']).strip(), datetime_format)
     else:
         return
 
