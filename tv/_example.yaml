@@ -59,7 +59,9 @@ charts:
       # %SYMBOL is <exchange>:<ticker symbol>
       # %NAME is the name of the alert
       # %GENERATED is the text that TradingView generates
-      text: "%TIMEFRAME, %NAME\n%SYMBOL lorem ipsum"
+      # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
+      # Note, TradingView's default link is incomplete. I recommend including %CHART at all times.
+      text: "%TIMEFRAME, %NAME\n%SYMBOL\n%SCREENSHOT lorem ipsum"
   - name: "Example 2"
     conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
     options: "Once Per Bar Close"

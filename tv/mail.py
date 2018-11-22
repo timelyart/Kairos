@@ -3,12 +3,15 @@ import email
 import smtplib
 from configparser import RawConfigParser
 import time
+from email.mime.image import MIMEImage
+
 from kairos import debug
 import os
 from bs4 import BeautifulSoup
 import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from tv import tv
 
 # -------------------------------------------------
 #
@@ -45,13 +48,33 @@ smtp_port = 465
 charts = dict()
 
 
-def process_data(data):
+def create_browser():
+    return tv.create_browser()
+
+
+def destroy_browser(browser):
+    tv.destroy_browser(browser)
+
+
+def login(browser):
+    tv.login(browser)
+
+
+def take_screenshot(browser, symbol, interval, retry_number=0):
+    return tv.take_screenshot(browser, symbol, interval, retry_number)
+
+
+def process_data(data, browser):
     for response_part in data:
         if isinstance(response_part, tuple):
             msg = email.message_from_string(response_part[1].decode('utf-8'))
             email_subject = str(msg['subject'])
             if email_subject.find('TradingView Alert') >= 0:
-                log.info('Processing: ' + msg['date'] + ' - ' + msg['subject'])
+                email_subject = str(msg['subject']).split(': ')
+                text = email_subject[1]
+                symbol = email_subject[2].split(' ')[0]
+                email_subject = text + ': ' + symbol
+                log.info('Processing: ' + msg['date'] + ' - ' + email_subject.replace('\n', ''))
                 # get email body
                 if msg.is_multipart():
                     for part in msg.walk():
@@ -59,46 +82,58 @@ def process_data(data):
                         cdispo = str(part.get('Content-Disposition'))
                         # only use parts that are text/plain and not an attachment
                         if ctype == 'text/plain' and 'attachment' not in cdispo:
-                            process_body(part)
+                            process_body(part, browser)
                             break
                 else:
-                    process_body(msg)
+                    process_body(msg, browser)
 
 
-def process_body(msg):
-    # symbol = re.sub(r"\w*:\w*$:", "", msg['subject'])
-    url = ''
-    alert = ''
+def process_body(msg, browser):
+    url = '',
+    screenshot_url = ''
+    filename = ''
     date = msg['date']
     body = msg.get_payload()
     soup = BeautifulSoup(body, features="lxml")
     links = soup.find_all('a', href=True)
     for link in links:
-        # log.info(link)
         if link['href'].startswith('https://www.tradingview.com/chart/'):
             url = link['href']
             break
+        if link['href'].startswith('https://www.tradingview.com/x/'):
+            screenshot_url = link['href']
 
-    # symbol = re.sub(r"\w*%3\w*$:", "", url)
     match = re.search("\w*[%3A|:]\w*$", url)
     symbol = match.group(0)
     symbol = symbol.replace('%3A', ':')
     for script in soup(["script", "style"]):
         script.extract()  # rip it out
-    # text = soup.get_text(separator=' ')
+
     text = soup.get_text()
     lines = (line.strip() for line in text.splitlines())  # break into lines and remove leading and trailing space on each
     chunks = (phrase.strip() for line in lines for phrase in line.split("  "))  # break multi-headlines into a line each
     # drop blank lines
     j = 0
+    alert = ''
     for chunk in chunks:
-        if chunk:
-            # first chunk is the alert message
-            if j == 0:
-                alert = chunk
-                break
-            j += 1
+        chunk = str(chunk).replace('\u200c', '')
+        chunk = str(chunk).replace('&zwn', '')
+        if j == 0:
+            if chunk:
+                alert = str(chunk).split(':')[1].strip()
+                j = 1
+        elif not chunk:
+            break
+        elif str(chunk).startswith('https://www.tradingview.com/chart/'):
+            url = str(chunk)
+        elif str(chunk).startswith('https://www.tradingview.com/x/'):
+            screenshot_url = str(chunk)
+        else:
+            alert += ', ' + str(chunk)
+    alert = alert.replace(',,', ',')
+    alert = alert.replace(':,', ':')
 
+    interval = ''
     match = re.search("(\d+)\s(\w\w\w)", alert)
     if type(match) is re.Match:
         interval = match.group(1)
@@ -112,7 +147,19 @@ def process_body(msg):
         elif unit == 'min':
             interval += 'M'
         url += '&interval=' + interval
-    charts[url] = [symbol, alert, date]
+
+    # Open the chart and make a screenshot
+    if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':
+        browser.execute_script("window.open('" + url + "');")
+        for handle in browser.window_handles[1:]:
+            browser.switch_to.window(handle)
+        # page is loaded when we are done waiting for an clickable element
+        tv.wait_and_click(browser, tv.css_selectors['btn_calendar'])
+        tv.wait_and_click(browser, tv.css_selectors['btn_watchlist_menu'])
+        [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
+        tv.close_all_popups(browser)
+
+    charts[url] = [symbol, alert, date, screenshot_url, filename]
 
 
 def read_mail():
@@ -144,10 +191,15 @@ def read_mail():
             id_list = mail_ids.split()
             if len(id_list) == 0:
                 log.info('No mail to process')
+            else:
+                browser = create_browser()
+                login(browser)
 
-            for mail_id in id_list:
-                result, data = mail.fetch(mail_id, '(RFC822)')
-                process_data(data)
+                for mail_id in id_list:
+                    result, data = mail.fetch(mail_id, '(RFC822)')
+                    process_data(data, browser)
+
+                destroy_browser(browser)
 
         except imaplib.IMAP4.error as mail_error:
             log.error("Search failed. Please verify you have a correct search_term and search_area defined.")
@@ -160,25 +212,61 @@ def read_mail():
 
 
 def send_mail():
+
     msg = MIMEMultipart('alternative')
     msg['Subject'] = "TradingView Alert Summary"
     msg['From'] = uid
     msg['To'] = uid
-
     text = ''
-    html = '<html><body><table>'
-    html += '<thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Chart</th></tr></thead><tbody>'
-    count = 0
-    for url in charts:
-        symbol = charts[url][0]
-        alert = charts[url][1]
-        date = charts[url][2]
-        html += '<tr><td>' + date + '</td><td>' + symbol + '</td><td>' + alert + '</td><td>' + '<a href="' + url + '">' + url + '</a>' + '</td></tr>'
-        text += url+"\n"+alert+"\n"+symbol+"\n"+date+"\n"
-        count += 1
+    html = '<html><body>'
+    if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
+        html += '<table>'
+        html += '<thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
+        count = 0
+        for url in charts:
+            symbol = charts[url][0]
+            alert = charts[url][1]
+            date = charts[url][2]
+            screenshot = charts[url][3]
+            # filename = charts[url][4]
+            html += '<tr><td>' + date + '</td><td>' + symbol + '</td><td>' + alert + '</td><td>' + '<a href="' + screenshot + '">' + screenshot + '</a>' + '</td><td>' + '<a href="' + url + '">' + url + '</a>' + '</td></tr>'
+            text += url+"\n"+alert+"\n"+symbol+"\n"+date+"\n"+screenshot+"\n"
+            count += 1
 
-    html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter>'
-    html += '</table></body></html>'
+        html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter>'
+        html += '</table>'
+    else:
+        list_html = ''
+        count = 0
+        for url in charts:
+            symbol = charts[url][0]
+            alert = charts[url][1]
+            date = charts[url][2]
+            screenshot = charts[url][3]
+            filename = charts[url][4]
+            if screenshot:
+                list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '"><img src="' + screenshot + '"/></a><p>' + screenshot + '<br/>' + url + '</p>'
+                text += url + "\n" + alert + "\n" + symbol + "\n" + date + "\n" + url + "\n" + screenshot + "\n"
+            elif filename:
+                try:
+                    screenshot_id = str(count + 1)
+                    fp = open(filename, 'rb')
+                    msgImage = MIMEImage(fp.read())
+                    fp.close()
+                    msgImage.add_header('Content-ID', '<screenshot' + screenshot_id + '>')
+                    msg.attach(msgImage)
+                    list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '"><img src="cid:screenshot' + screenshot_id + '"/></a><p>' + screenshot + '<br/>' + url + '</p>'
+                except Exception as send_mail_error:
+                    log.exception(send_mail_error)
+                    list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '">Error embedding screenshot: ' + filename + '</a><p>' + screenshot + '<br/>' + url + '</p>'
+            else:
+                list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '">' + url + '</a><p>' + screenshot + '<br/>' + url + '</p>'
+                text += url + "\n" + alert + "\n" + symbol + "\n" + date + "\n" + url + "\n"
+            count += 1
+
+        html += '<h2>TradingView Alert Summary</h2><h3>Number of signals: ' + str(count) + '</h3>' + list_html
+
+    html += '</body></html>'
 
     msg.attach(MIMEText(text, 'plain'))
     msg.attach(MIMEText(html, 'html'))
@@ -195,4 +283,3 @@ def run(delay):
     read_mail()
     if len(charts) > 0:
         send_mail()
-

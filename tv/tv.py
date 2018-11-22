@@ -26,6 +26,7 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from kairos import debug
 from kairos import timing
+from PIL import Image
 
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
@@ -43,6 +44,8 @@ DELAY_BREAK_DEF = 0.5
 DELAY_SUBMIT_ALERT_DEF = 3.5
 DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
 DELAY_CHANGE_SYMBOL_DEF = 0.2
+DELAY_SCREENSHOT_DIALOG = 2
+DELAY_SCREENSHOT = 1
 
 ALERT_NUMBER = 0
 
@@ -55,8 +58,8 @@ css_selectors = dict(
     btn_login='#signin-form > div.tv-signin-dialog__footer.tv-signin-dialog__footer--login > div:nth-child(2) > button',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     # options_timeframe='#__outside-render-0 > div > div > div > div > div > div > div',
-    # options_timeframe='div[id^="__outside-render-"] div[class^="item"] > div > div',
-    options_timeframe='div[id^="__outside-render-"] div[class^="item"]',
+    # options_timeframe='div[id^="__outside-render-"] div[class^="item"]',
+    options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     options_watchlist='div.charts-popup-list > a.item.first',
     input_symbol='#header-toolbar-symbol-search > div > input',
@@ -96,7 +99,10 @@ css_selectors = dict(
     signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
             'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a',
     checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
-    clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label'
+    clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
+    btn_dlg_screenshot='#header-toolbar-screenshot',
+    dlg_screenshot_url='div[class^="copyForm"] > div > input',
+    dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]'
 )
 
 class_selectors = dict(
@@ -142,9 +148,10 @@ if config.has_option('logging', 'screenshot_path'):
     if screenshot_dir != '':
         screenshot_dir = os.path.join(CURRENT_DIR, screenshot_dir)
     if not os.path.exists(screenshot_dir):
+        # noinspection PyBroadException
         try:
             os.mkdir(screenshot_dir)
-        except Exception as e:
+        except Exception as screenshot_error:
             log.info('No screenshot directory specified or unable to create it.')
             screenshot_dir = ''
 
@@ -158,6 +165,10 @@ DELAY_BREAK = config.getfloat('delays', 'break')
 DELAY_SUBMIT_ALERT = config.getfloat('delays', 'submit_alert')
 DELAY_CHANGE_SYMBOL = config.getfloat('delays', 'change_symbol')
 DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
+if config.has_option('delays', 'screenshot_dialog'):
+    DELAY_SCREENSHOT_DIALOG = config.getfloat('delays', 'screenshot_dialog')
+if config.has_option('delays', 'screenshot'):
+    DELAY_SCREENSHOT = config.getfloat('delays', 'screenshot')
 EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 
 options = webdriver.ChromeOptions()
@@ -204,8 +215,8 @@ def element_exists(browser, dom, css_selector, delay):
         result = type(element) is WebElement
     except NoSuchElementException:
         log.debug('No such element. CSS SELECTOR=' + css_selector)
-    except Exception as e:
-        log.error(e)
+    except Exception as element_exists_error:
+        log.error(element_exists_error)
     finally:
         log.debug(str(result) + "(" + css_selector + ")")
         return result
@@ -251,6 +262,11 @@ def set_timeframe(browser, timeframe):
     if not found:
         log.warning('Unable to set timeframe to ' + timeframe)
         raise ValueError
+
+    if found:
+        html = browser.find_element_by_tag_name('html')
+        html.send_keys(Keys.LEFT_CONTROL + 's')
+        time.sleep(DELAY_BREAK)
 
     return found
 
@@ -336,18 +352,6 @@ def set_delays(chart):
             DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
 
 
-def get_shared_chart(browser, chart_url):
-    """
-    Get an image based upon a chart's url, akin to TV's share function
-    :param browser The webdriver. You should be logged in on TV.
-    :param chart_url
-    :return: shared image url
-    """
-    shared_url = ""
-    browser.get(chart_url)
-    browser.send_keys(Keys.ALT + 's')
-
-
 def open_chart(browser, chart, counter_alerts, total_alerts):
     """
     :param browser:
@@ -363,18 +367,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         # load the chart
         close_all_popups(browser)
         log.info("Opening chart " + chart['url'])
-
-        chart_dir = ''
-        if screenshot_dir != '':
-            match = re.search("^.*chart.(\w+).*", chart['url'])
-            if type(match) is re.Match:
-                today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime('%Y%m%d'))
-                if not os.path.exists(today_dir):
-                    os.mkdir(today_dir)
-                chart_dir = os.path.join(today_dir, match.group(1))
-                if not os.path.exists(chart_dir):
-                    os.mkdir(chart_dir)
-                chart_dir = os.path.join(chart_dir, )
 
         # set wait times defined in chart
         set_delays(chart)
@@ -461,17 +453,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
 
-                        if screenshot_dir != '':
-                            filename = symbol.replace(':', '_') + '_' + interval + '.png'
-                            filename = os.path.join(chart_dir, filename)
-                            # instead of creating a screenshot ourselves, use TV's snap shot function:
-                            # send_keys ALT + S (shortcut snapshot)
-                            # get element by css input[readonly value] -> get attribute value
-                            # get element by css input[data-clipboard-text] -> get attribute data-clipboard-text
-                            # send_keys ESC
-                            elem_chart = browser.find_element_by_class_name('chart-widget')
-                            elem_chart.screenshot(filename)
-
                     except Exception as err:
                         log.debug('Unable to change to symbol at index ' + str(k) + ' in list of symbols:')
                         log.debug(str(symbols))
@@ -497,7 +478,11 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
                             return [counter_alerts, total_alerts]
                         try:
-                            create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], 0)
+                            screenshot_url = ''
+                            if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
+                                screenshot_url = take_screenshot(browser, symbol, interval)[0]
+                            # log.info('screenshot_url = ' + screenshot_url)
+                            create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], screenshot_url)
                             counter_alerts += 1
                             total_alerts += 1
                         except Exception as err:
@@ -509,14 +494,100 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_number=0):
+def take_screenshot(browser, symbol, interval, retry_number=0):
+    """
+    Use selenium for a screenshot, or alternatively use TradingView's screenshot feature
+    :param browser:
+    :param symbol:
+    :param interval:
+    :param retry_number:
+    :return:
+    """
+    screenshot_url = ''
+    filename = ''
+
+    try:
+
+        if config.has_option('tradingview', 'tradingview_screenshot') and config.getboolean('tradingview', 'tradingview_screenshot'):
+            html = browser.find_element_by_css_selector('html')
+            html.send_keys(Keys.ALT + "s")
+            time.sleep(DELAY_SCREENSHOT_DIALOG)
+            input_screenshot_url = html.find_element_by_css_selector(css_selectors['dlg_screenshot_url'])
+            screenshot_url = input_screenshot_url.get_attribute('value')
+            html.send_keys(Keys.ESCAPE)
+            log.info(screenshot_url)
+
+        elif screenshot_dir != '':
+            chart_dir = ''
+            match = re.search("^.*chart.(\w+).*", browser.current_url)
+            if type(match) is re.Match:
+                today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime('%Y%m%d'))
+                if not os.path.exists(today_dir):
+                    os.mkdir(today_dir)
+                chart_dir = os.path.join(today_dir, match.group(1))
+                if not os.path.exists(chart_dir):
+                    os.mkdir(chart_dir)
+                chart_dir = os.path.join(chart_dir, )
+            filename = symbol.replace(':', '_') + '_' + interval + '.png'
+            filename = os.path.join(chart_dir, filename)
+            elem_chart = browser.find_element_by_class_name('chart-widget')
+            time.sleep(DELAY_SCREENSHOT)
+
+            location = elem_chart.location
+            size = elem_chart.size
+            browser.save_screenshot(filename)
+            offset_left, offset_right, offset_top, offset_bottom = [0, 0, 0, 0]
+            if config.has_option('logging', 'screenshot_offset_left'):
+                offset_left = config.getint('logging', 'screenshot_offset_right')
+            if config.has_option('logging', 'screenshot_offset_right'):
+                offset_right = config.getint('logging', 'screenshot_offset_top')
+            if config.has_option('logging', 'screenshot_offset_top'):
+                offset_top = config.getint('logging', 'screenshot_offset_left')
+            if config.has_option('logging', 'screenshot_offset_bottom'):
+                offset_bottom = config.getint('logging', 'screenshot_offset_bottom')
+            x = location['x'] + offset_left
+            y = location['y'] + offset_top
+            width = location['x'] + size['width'] + offset_right
+            height = location['y'] + size['height'] + offset_bottom
+            im = Image.open(filename)
+            im = im.crop((int(x), int(y), int(width), int(height)))
+            im.save(filename)
+
+            log.info(filename)
+
+    except Exception as take_screenshot_error:
+        log.exception(take_screenshot_error)
+        [screenshot_url, filename] = retry_take_screenshot(browser, symbol, interval, retry_number)
+    if screenshot_url == '' and filename == '':
+        [screenshot_url, filename] = retry_take_screenshot(browser, symbol, interval, retry_number)
+
+    return [screenshot_url, filename]
+
+
+def retry_take_screenshot(browser, symbol, interval, retry_number=0):
+    if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+        log.info('Trying again (' + str(retry_number + 1) + ')')
+        browser.refresh()
+        # Switching to Alert
+        try:
+            alert = browser.switch_to_alert()
+            alert.accept()
+            time.sleep(5)
+        finally:
+            return take_screenshot(browser, symbol, interval, retry_number + 1)
+    else:
+        log.error('Max retries reached.')
+
+
+def create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url='', retry_number=0):
     """
     Create an alert based upon user specified yaml configuration.
     :param browser:         The webdriver.
     :param alert_config:    The config for this specific alert.
     :param timeframe:       Timeframe, e.g. 1 day, 2 days, 4 hours, etc.
-    :param interval:    TV's short format, e.g. 2 weeks = 2W, 1 day = 1D, 4 hours =4H, 5 minutes = 5M.
+    :param interval:        TV's short format, e.g. 2 weeks = 2W, 1 day = 1D, 4 hours =4H, 5 minutes = 5M.
     :param ticker_id:       Ticker / Symbol, e.g. COINBASE:BTCUSD.
+    :param screenshot_url:  URL of TV's screenshot feature
     :param retry_number:    Optional. Number of retries if for some reason the alert wasn't created.
     :return: true, if successful
     """
@@ -537,7 +608,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
             wait_and_click(alert_dialog, css_1st_row_left)
         except Exception as alert_err:
             log.exception(alert_err)
-            return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
+            return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
         # time.sleep(DELAY_BREAK_MINI)
         el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_first_item'])
@@ -659,16 +730,18 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
             if type(interval) is str and len(interval) > 0:
                 chart += '&interval=' + str(interval)
             text = str(alert_config['message']['text'])
-            text = text.replace('%TIMEFRAME', timeframe)
-            text = text.replace('%SYMBOL', ticker_id)
-            text = text.replace('%NAME', alert_config['name'])
-            text = text.replace('%CHART', chart)
+            text = text.replace('%TIMEFRAME', ' ' + timeframe)
+            text = text.replace('%SYMBOL', ' ' + ticker_id)
+            text = text.replace('%NAME', ' ' + alert_config['name'])
+            text = text.replace('%CHART', ' ' + chart)
+            text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
+
             text = text.replace('%GENERATED', generated)
             textarea.send_keys(Keys.CONTROL + 'a')
             textarea.send_keys(text)
         except Exception as alert_err:
             log.exception(alert_err)
-            return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
+            return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
         # Submit the form
         element = browser.find_element_by_css_selector(css_selectors['btn_dlg_create_alert_submit'])
@@ -679,7 +752,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_nu
     except Exception as exc:
         log.exception(exc)
         # on except, refresh and try again
-        return retry(browser, alert_config, timeframe, interval, ticker_id, retry_number)
+        return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
     return True
 
@@ -703,7 +776,7 @@ def select(alert_config, current_condition, el_options, ticker_id):
     return found
 
 
-def retry(browser, alert_config, timeframe, interval, ticker_id, retry_number):
+def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('Trying again (' + str(retry_number+1) + ')')
         browser.refresh()
@@ -721,7 +794,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, retry_number):
             log.exception(err)
         input_symbol.send_keys(Keys.ENTER)
         time.sleep(DELAY_CHANGE_SYMBOL)
-        return create_alert(browser, alert_config, timeframe, interval, ticker_id, retry_number + 1)
+        return create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number + 1)
     else:
         log.error('Max retries reached.')
         return False
@@ -809,6 +882,25 @@ def login(browser):
     time.sleep(DELAY_BREAK)
 
 
+def create_browser():
+    browser = None
+
+    chromedriver_file = r"" + str(config.get('webdriver', 'path'))
+    if not os.path.exists(chromedriver_file):
+        log.error("File " + chromedriver_file + " does not exist. Did setup your kairos.cfg correctly?")
+        raise FileNotFoundError
+    chromedriver_file.replace('.exe', '')
+
+    try:
+        browser = webdriver.Chrome(executable_path=chromedriver_file, options=options)
+        browser.implicitly_wait(WAIT_TIME_IMPLICIT)
+    except WebDriverException as web_err:
+        log.exception(web_err)
+        browser.close()
+    browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+    return browser
+
+
 def run(file):
     """
         TODO:   multi threading
@@ -826,21 +918,8 @@ def run(file):
             log.error("File " + str(file) + " does not exist. Did you setup your kairos.cfg and yaml file correctly?")
             raise FileNotFoundError
 
-        chromedriver_file = r"" + str(config.get('webdriver', 'path'))
-        if not os.path.exists(chromedriver_file):
-            log.error("File " + chromedriver_file + " does not exist. Did setup your kairos.cfg correctly?")
-            raise FileNotFoundError
-        chromedriver_file.replace('.exe', '')
-
-        try:
-            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options)
-            browser.implicitly_wait(WAIT_TIME_IMPLICIT)
-            login(browser)
-        except WebDriverException as web_err:
-            log.exception(web_err)
-            browser.close()
-            login(browser)
-        browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+        browser = create_browser()
+        login(browser)
 
         # do some maintenance on the alert list (removing or restarting)
         if config.getboolean('tradingview', 'clear_alerts'):
@@ -888,20 +967,24 @@ def run(file):
             log.exception(err_file)
         except OSError as err_os:
             log.exception(err_os)
-
-        close(browser, total_alerts)
+        summary(total_alerts)
+        destroy_browser(browser)
     except Exception as exc:
         log.exception(exc)
-        close(browser, total_alerts)
+        summary(total_alerts)
+        destroy_browser(browser)
 
 
-def close(browser, total_alerts):
+def summary(total_alerts):
     if total_alerts > 0:
         elapsed = timing.clock() - timing.start
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
         log.info(str(total_alerts) + " alerts set with an average process time of " + avg + " seconds")
-    else:
+    elif total_alerts == 0:
         log.info("No alerts set")
+
+
+def destroy_browser(browser):
     if type(browser) is webdriver.Chrome:
         close_all_popups(browser)
         browser.close()
