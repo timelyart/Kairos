@@ -1,8 +1,5 @@
-# noinspection PyUnresolvedReferences
-from kairos import timing
-from tv import tv
-from tv import mail
 import sys
+from tv import mail
 
 
 def print_disclaimer():
@@ -30,6 +27,8 @@ def print_help():
 
 
 def main():
+    from tv import tv
+
     try:
         print_disclaimer()
         print("USAGE:\npython main.py [<file>] [-s|-s <minutes>] [-h] [-d]")

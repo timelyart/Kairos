@@ -5,3 +5,4 @@ selenium
 configparser
 tools
 pip>=18.1
+Pillow
