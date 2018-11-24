@@ -70,11 +70,7 @@ def process_data(data, browser):
             msg = email.message_from_string(response_part[1].decode('utf-8'))
             email_subject = str(msg['subject'])
             if email_subject.find('TradingView Alert') >= 0:
-                email_subject = str(msg['subject']).split(': ')
-                text = email_subject[1]
-                symbol = email_subject[2].split(' ')[0]
-                email_subject = text + ': ' + symbol
-                log.info('Processing: ' + msg['date'] + ' - ' + email_subject.replace('\n', ''))
+                log.info('Processing: ' + msg['date'] + ' - ' + email_subject)
                 # get email body
                 if msg.is_multipart():
                     for part in msg.walk():
