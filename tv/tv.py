@@ -515,7 +515,7 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
             input_screenshot_url = html.find_element_by_css_selector(css_selectors['dlg_screenshot_url'])
             screenshot_url = input_screenshot_url.get_attribute('value')
             html.send_keys(Keys.ESCAPE)
-            log.info(screenshot_url)
+            log.debug(screenshot_url)
 
         elif screenshot_dir != '':
             chart_dir = ''
@@ -553,7 +553,7 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
             im = im.crop((int(x), int(y), int(width), int(height)))
             im.save(filename)
 
-            log.info(filename)
+            log.debug(filename)
 
     except Exception as take_screenshot_error:
         log.exception(take_screenshot_error)
