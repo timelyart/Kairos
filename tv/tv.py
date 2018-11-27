@@ -281,7 +281,7 @@ def get_interval(timeframe):
     interval = ""
     if match is None:
         log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w). [0]")
-    elif type(match) is re.Match:
+    else:
         try:
             interval = match.group(1)
             unit = match.group(2)
@@ -296,8 +296,6 @@ def get_interval(timeframe):
         except Exception as interval_exception:
             log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w). [1]")
             log.exception(interval_exception)
-    else:
-        log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w). [2]")
     return interval
 
 
