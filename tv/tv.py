@@ -14,6 +14,7 @@ import datetime
 import numbers
 import os
 import re
+import sys
 import time
 from configparser import RawConfigParser
 import yaml
@@ -48,6 +49,10 @@ DELAY_SCREENSHOT_DIALOG = 2
 DELAY_SCREENSHOT = 1
 
 ALERT_NUMBER = 0
+
+MODIFIER_KEY = Keys.LEFT_CONTROL
+if sys.platform == 'os2':
+    MODIFIER_KEY = Keys.COMMAND
 
 css_selectors = dict(
     username='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user > span.tv-header__dropdown-wrap.tv-dropdown-behavior__'
@@ -154,8 +159,6 @@ if config.has_option('logging', 'screenshot_path'):
         except Exception as screenshot_error:
             log.info('No screenshot directory specified or unable to create it.')
             screenshot_dir = ''
-
-# log.info('screenshot_dir = ' + screenshot_dir)
 
 WAIT_TIME_IMPLICIT = config.getfloat('webdriver', 'wait_time_implicit')
 PAGE_LOAD_TIMEOUT = config.getfloat('webdriver', 'page_load_timeout')
@@ -265,7 +268,7 @@ def set_timeframe(browser, timeframe):
 
     if found:
         html = browser.find_element_by_tag_name('html')
-        html.send_keys(Keys.LEFT_CONTROL + 's')
+        html.send_keys(MODIFIER_KEY + 's')
         time.sleep(DELAY_BREAK)
 
     return found
@@ -663,7 +666,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                         log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                inputs[i].send_keys(Keys.LEFT_CONTROL + "a")
+                inputs[i].send_keys(MODIFIER_KEY + "a")
                 inputs[i].send_keys(str(alert_config['conditions'][current_condition]).strip())
 
             # give some time
@@ -735,7 +738,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
 
             text = text.replace('%GENERATED', generated)
-            textarea.send_keys(Keys.CONTROL + 'a')
+            textarea.send_keys(MODIFIER_KEY + 'a')
             textarea.send_keys(text)
         except Exception as alert_err:
             log.exception(alert_err)
@@ -784,7 +787,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         time.sleep(5)
         # change symbol
         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-        input_symbol.send_keys(Keys.CONTROL + 'a')
+        input_symbol.send_keys(MODIFIER_KEY + 'a')
         try:
             input_symbol.send_keys(ticker_id)
         except Exception as err:
@@ -842,10 +845,10 @@ def set_expiration(_alert_dialog, alert_config):
     # time.sleep(DELAY_BREAK_MINI)
 
     input_date = _alert_dialog.find_element_by_name('alert_exp_date')
-    input_date.send_keys(Keys.CONTROL + 'a')
+    input_date.send_keys(MODIFIER_KEY + 'a')
     input_date.send_keys(date_value)
     input_time = _alert_dialog.find_element_by_name('alert_exp_time')
-    input_time.send_keys(Keys.CONTROL + 'a')
+    input_time.send_keys(MODIFIER_KEY + 'a')
     input_time.send_keys(time_value)
     # time.sleep(DELAY_BREAK_MINI)
 
