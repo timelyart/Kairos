@@ -13,6 +13,8 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from tv import tv
 
+import requests
+
 # -------------------------------------------------
 #
 # Utility to read email from Gmail Using Python
@@ -214,55 +216,36 @@ def send_mail():
     msg['From'] = uid
     msg['To'] = uid
     text = ''
+    list_html = ''
     html = '<html><body>'
+
+    count = 0
     if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
-        html += '<table>'
-        html += '<thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
-        count = 0
-        for url in charts:
-            symbol = charts[url][0]
-            alert = charts[url][1]
-            date = charts[url][2]
-            screenshot = charts[url][3]
-            # filename = charts[url][4]
-            html += '<tr><td>' + date + '</td><td>' + symbol + '</td><td>' + alert + '</td><td>' + '<a href="' + screenshot + '">' + screenshot + '</a>' + '</td><td>' + '<a href="' + url + '">' + url + '</a>' + '</td></tr>'
-            text += url+"\n"+alert+"\n"+symbol+"\n"+date+"\n"+screenshot+"\n"
-            count += 1
+        html += '<table><thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
 
-        html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter>'
-        html += '</table>'
-    else:
-        list_html = ''
-        count = 0
-        for url in charts:
-            symbol = charts[url][0]
-            alert = charts[url][1]
-            date = charts[url][2]
-            screenshot = charts[url][3]
+    for url in charts:
+        symbol = charts[url][0]
+        alert = charts[url][1]
+        date = charts[url][2]
+        screenshot = charts[url][3]
+
+        filename = ''
+        if len(charts) >= 4:
             filename = charts[url][4]
-            if screenshot:
-                list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '"><img src="' + screenshot + '"/></a><p>' + screenshot + '<br/>' + url + '</p>'
-                text += url + "\n" + alert + "\n" + symbol + "\n" + date + "\n" + url + "\n" + screenshot + "\n"
-            elif filename:
-                try:
-                    screenshot_id = str(count + 1)
-                    fp = open(filename, 'rb')
-                    msgImage = MIMEImage(fp.read())
-                    fp.close()
-                    msgImage.add_header('Content-ID', '<screenshot' + screenshot_id + '>')
-                    msg.attach(msgImage)
-                    list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '"><img src="cid:screenshot' + screenshot_id + '"/></a><p>' + screenshot + '<br/>' + url + '</p>'
-                except Exception as send_mail_error:
-                    log.exception(send_mail_error)
-                    list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '">Error embedding screenshot: ' + filename + '</a><p>' + screenshot + '<br/>' + url + '</p>'
-            else:
-                list_html += '<hr><h4>' + alert + '</h4><a href="' + url + '">' + url + '</a><p>' + screenshot + '<br/>' + url + '</p>'
-                text += url + "\n" + alert + "\n" + symbol + "\n" + date + "\n" + url + "\n"
-            count += 1
 
-        html += '<h2>TradingView Alert Summary</h2><h3>Number of signals: ' + str(count) + '</h3>' + list_html
+        if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
+            html += generate_table_row(date, symbol, alert, screenshot, url)
+        else:
+            list_html += generate_list_entry(msg, date, symbol, alert, screenshot, filename, url, count)
 
-    html += '</body></html>'
+        text += generate_text(date, symbol, alert, screenshot, url)
+        send_zapier(date, symbol, alert, screenshot, filename, url)
+        count += 1
+
+    if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
+        html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table></body></html>'
+    else:
+        html += '<h2>TradingView Alert Summary</h2><h3>Number of signals: ' + str(count) + '</h3>' + list_html + '</body></html>'
 
     msg.attach(MIMEText(text, 'plain'))
     msg.attach(MIMEText(html, 'html'))
@@ -271,6 +254,58 @@ def send_mail():
     server.sendmail(uid, uid, msg.as_string())
     log.info("Mail send")
     server.quit()
+
+
+def generate_text(date, symbol, alert, screenshot, url):
+    return url + "\n" + alert + "\n" + symbol + "\n" + date + "\n" + screenshot + "\n"
+
+
+def generate_list_entry(msg, date, symbol, alert, screenshot, filename, url, count):
+    result = ''
+    if screenshot:
+        result += '<hr><h4>' + alert + '</h4><a href="' + url + '"><img src="' + screenshot + '"/></a><p>' + screenshot + '<br/>' + url + '</p>'
+    elif filename:
+        try:
+            screenshot_id = str(count + 1)
+            fp = open(filename, 'rb')
+            msgImage = MIMEImage(fp.read())
+            fp.close()
+            msgImage.add_header('Content-ID', '<screenshot' + screenshot_id + '>')
+            msg.attach(msgImage)
+            result += '<hr><h4>' + alert + '</h4><a href="' + url + '"><img src="cid:screenshot' + screenshot_id + '"/></a><p>' + screenshot + '<br/>' + url + '</p>'
+        except Exception as send_mail_error:
+            log.exception(send_mail_error)
+            result += '<hr><h4>' + alert + '</h4><a href="' + url + '">Error embedding screenshot: ' + filename + '</a><p>' + screenshot + '<br/>' + url + '</p>'
+    else:
+        result += '<hr><h4>' + alert + '</h4><a href="' + url + '">' + url + '</a><p>' + screenshot + '<br/>' + url + '</p>'
+    return result
+
+
+def generate_table_row(date, symbol, alert, screenshot, url):
+    return '<tr><td>' + date + '</td><td>' + symbol + '</td><td>' + alert + '</td><td>' + '<a href="' + screenshot + '">' + screenshot + '</a>' + '</td><td>' + '<a href="' + url + '">' + url + '</a>' + '</td></tr>'
+
+
+def send_zapier(date, symbol, alert, screenshot, filename, url):
+    result = [500, 'Internal Server Error']
+    if config.has_option('webhooks', 'zapier') and config.get('webhooks', 'zapier') != '':
+        webhook_url = config.get('webhooks', 'zapier')
+
+        if screenshot:
+            r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot})
+        # unfortunately, we cannot send a raw image to zapier
+        # elif filename:
+        #     screenshot_bytestream = ''
+        #     try:
+        #         fp = open(filename, 'rb')
+        #         screenshot_bytestream = MIMEImage(fp.read())
+        #         fp.close()
+        #     except Exception as send_webhook_error:
+        #         log.exception(send_webhook_error)
+        #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+            result = [r.status_code, r.reason]
+    if result[0] != 200:
+        log.warn(str(result[0]) + ' ' + str(result[1]))
+    return result
 
 
 def run(delay):
