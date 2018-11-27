@@ -25,8 +25,7 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 
 ## Prerequisites ##
 * [Python 3](https://www.python.org/downloads/)
-* [ChromeDriver](http://chromedriver.chromium.org/downloads)
-* [Chrome latest version](https://www.google.com/chrome/)
+* [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/); or [geckodriver](https://github.com/mozilla/geckodriver/) with [Firefox](https://www.mozilla.org/en-US/firefox/) (for macOS)
 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
@@ -34,8 +33,8 @@ _Note: when you install Python on Windows make sure that it's part of your PATH.
 ### From archive (Linux, macOS and Windows) ###
 _If you are running Linux / macOS then run listed commands with **sudo**_ 
 * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
-* [Install Chrome latest version](https://www.google.com/chrome/)
-* [Download ChromeDriver](http://chromedriver.chromium.org/downloads)
+* [Install Chrome latest version](https://www.google.com/chrome/) or [geckodriver](https://github.com/mozilla/geckodriver/) (macOS)
+* [Download ChromeDriver](http://chromedriver.chromium.org/downloads) or [Firefox](https://www.mozilla.org/en-US/firefox/) (macOS)
 * [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
 * Open a terminal, or when on Windows the command prompt as Administrator
 * Update setuptools:
