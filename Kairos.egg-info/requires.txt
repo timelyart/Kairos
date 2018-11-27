@@ -6,3 +6,4 @@ configparser
 tools
 pip>=18.1
 Pillow
+requests
