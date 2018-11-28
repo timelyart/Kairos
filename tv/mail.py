@@ -289,8 +289,9 @@ def generate_table_row(date, symbol, alert, screenshot, url):
 
 
 def send_zapier(date, symbol, alert, screenshot, filename, url):
-    result = [500, 'Internal Server Error']
+    result = False
     if config.has_option('webhooks', 'zapier') and config.get('webhooks', 'zapier') != '':
+        result = [500, 'Internal Server Error']
         webhook_url = config.get('webhooks', 'zapier')
 
         if screenshot:
@@ -306,8 +307,8 @@ def send_zapier(date, symbol, alert, screenshot, filename, url):
         #         log.exception(send_webhook_error)
         #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
             result = [r.status_code, r.reason]
-    if result[0] != 200:
-        log.warn(str(result[0]) + ' ' + str(result[1]))
+        if result[0] != 200:
+            log.warn(str(result[0]) + ' ' + str(result[1]))
     return result
 
 
