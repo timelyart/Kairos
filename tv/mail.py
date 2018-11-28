@@ -133,18 +133,21 @@ def process_body(msg, browser):
 
     interval = ''
     match = re.search("(\d+)\s(\w\w\w)", alert)
-    if type(match) is re.Match:
+    if match:
         interval = match.group(1)
         unit = match.group(2)
         if unit == 'day':
             interval += 'D'
         elif unit == 'wee':
             interval += 'W'
+        elif unit == 'mon':
+            interval += 'M'
         elif unit == 'hou':
             interval += 'H'
         elif unit == 'min':
-            interval += 'M'
-        url += '&interval=' + interval
+            interval += ''
+        if not url.endswith(interval):
+            url += '&interval=' + interval
 
     # Open the chart and make a screenshot
     if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':

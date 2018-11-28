@@ -292,10 +292,12 @@ def get_interval(timeframe):
                 interval += 'D'
             elif unit == 'wee':
                 interval += 'W'
+            elif unit == 'mon':
+                interval += 'M'
             elif unit == 'hou':
                 interval += 'H'
             elif unit == 'min':
-                interval += 'M'
+                interval += ''
         except Exception as interval_exception:
             log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w). [1]")
             log.exception(interval_exception)
