@@ -1,8 +1,8 @@
 # File: tools.py
-from collections import OrderedDict
+import collections
 
 
-class ConfigParserMultiValues(OrderedDict):
+class ConfigParserMultiValues(collections.OrderedDict):
 
     def __setitem__(self, key, value):
         if key in self and isinstance(value, list):
