@@ -23,7 +23,7 @@ class Switch:
 
     def __enter__(self): return self
 
-    def __exit__(self, type, value, traceback): return False # Allows traceback to occur
+    # Allows traceback to occur
+    def __exit__(self, type, value, traceback): return False
 
     def __call__(self, *mconds): return self._val in mconds
-
