@@ -87,10 +87,11 @@ def process_body(msg, browser):
         if link['href'].startswith('https://www.tradingview.com/x/'):
             screenshot_url = link['href']
 
+    log.debug("chart's url: " + url)
     if url == '':
         return False
 
-    match = re.search("\w*[%3A|:]\w*$", url)
+    match = re.search("\w*[%3A|:]\w*$", url, re.M)
     symbol = match.group(0)
     symbol = symbol.replace('%3A', ':')
     for script in soup(["script", "style"]):
