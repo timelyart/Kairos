@@ -1,20 +1,15 @@
 import imaplib
 import email
 import smtplib
-from configparser import RawConfigParser
 import time
 from email.mime.image import MIMEImage
-
-from kairos import debug
 import os
 from bs4 import BeautifulSoup
 import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-
-from tools import ConfigParserMultiValues
+from kairos import tools
 from tv import tv
-
 import requests
 
 # -------------------------------------------------
@@ -26,21 +21,9 @@ import requests
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
-log = debug.log
+log = tools.log
 log.setLevel(20)
-
-config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=ConfigParserMultiValues, converters={"list": ConfigParserMultiValues.getlist})
-# config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=MultiOrderedDict)
-config_file = os.path.join(CURRENT_DIR, "kairos.cfg")
-if os.path.exists(config_file):
-    config.read(config_file)
-    if config.getboolean('logging', 'clear_on_start_up'):
-        debug.clear_log()
-    log.setLevel(config.getint('logging', 'level'))
-else:
-    log.error("File " + config_file + " does not exist")
-    log.exception(FileNotFoundError)
-    exit(0)
+config = tools.get_config(CURRENT_DIR)
 log.setLevel(config.getint('logging', 'level'))
 
 uid = str(config.get('mail', 'uid'))

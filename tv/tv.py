@@ -16,7 +16,6 @@ import os
 import re
 import sys
 import time
-from configparser import RawConfigParser
 import yaml
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
@@ -25,13 +24,11 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
-from kairos import debug
 from kairos import timing
+from kairos import tools
 from PIL import Image
 
-from tools import ConfigParserMultiValues
-
-BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
 CHECKBOX = 'checkbox'
@@ -125,20 +122,9 @@ name_selectors = dict(
     checkbox_dlg_create_alert_send_push='send-push'
 )
 
-log = debug.log
+log = tools.log
 log.setLevel(20)
-
-config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=ConfigParserMultiValues, converters={"list": ConfigParserMultiValues.getlist})
-config_file = os.path.join(CURRENT_DIR, "kairos.cfg")
-if os.path.exists(config_file):
-    config.read(config_file)
-    if config.getboolean('logging', 'clear_on_start_up'):
-        debug.clear_log()
-    log.setLevel(config.getint('logging', 'level'))
-else:
-    log.error("File " + config_file + " does not exist")
-    log.exception(FileNotFoundError)
-    exit(0)
+config = tools.get_config(CURRENT_DIR)
 log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
