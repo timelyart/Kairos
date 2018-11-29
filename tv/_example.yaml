@@ -60,8 +60,8 @@ charts:
       # %NAME is the name of the alert
       # %GENERATED is the text that TradingView generates
       # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
-      # Note, TradingView's default link is incomplete. I recommend including %CHART at all times.
-      text: "%TIMEFRAME, %NAME\n%SYMBOL\n%SCREENSHOT lorem ipsum"
+      # Recommended value: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
+      text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
   - name: "Example 2"
     conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
     options: "Once Per Bar Close"
@@ -77,7 +77,7 @@ charts:
       sms: no
       notify-on-app: no
     message:
-      text: "%TIMEFRAME, %NAME\n%SYMBOL lorem ipsum"
+      text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
 - url: https://www.tradingview.com/chart/<your_second_chart>/
   timeframes: [2 minutes]
   watchlists: [<your_watchlist-name>]
@@ -97,4 +97,4 @@ charts:
       sms: no
       notify-on-app: no
     message:
-      text: "%TIMEFRAME, %NAME\n%SYMBOL lorem ipsum"
+      text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
