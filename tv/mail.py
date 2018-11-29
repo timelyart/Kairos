@@ -11,6 +11,8 @@ from bs4 import BeautifulSoup
 import re
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+
+from tools import ConfigParserMultiValues
 from tv import tv
 
 import requests
@@ -27,7 +29,8 @@ CURRENT_DIR = os.path.curdir
 log = debug.log
 log.setLevel(20)
 
-config = RawConfigParser(allow_no_value=True)
+config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=ConfigParserMultiValues, converters={"list": ConfigParserMultiValues.getlist})
+# config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=MultiOrderedDict)
 config_file = os.path.join(CURRENT_DIR, "kairos.cfg")
 if os.path.exists(config_file):
     config.read(config_file)
@@ -212,7 +215,7 @@ def read_mail():
         log.exception(e)
 
 
-def send_mail():
+def send_mail(webhooks=True):
 
     msg = MIMEMultipart('alternative')
     msg['Subject'] = "TradingView Alert Summary"
@@ -242,7 +245,8 @@ def send_mail():
             list_html += generate_list_entry(msg, date, symbol, alert, screenshot, filename, url, count)
 
         text += generate_text(date, symbol, alert, screenshot, url)
-        send_zapier(date, symbol, alert, screenshot, filename, url)
+        if webhooks:
+            send_webhooks(date, symbol, alert, screenshot, filename, url)
         count += 1
 
     if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
@@ -288,27 +292,34 @@ def generate_table_row(date, symbol, alert, screenshot, url):
     return '<tr><td>' + date + '</td><td>' + symbol + '</td><td>' + alert + '</td><td>' + '<a href="' + screenshot + '">' + screenshot + '</a>' + '</td><td>' + '<a href="' + url + '">' + url + '</a>' + '</td></tr>'
 
 
-def send_zapier(date, symbol, alert, screenshot, filename, url):
+def send_webhooks(date, symbol, alert, screenshot, filename, url):
     result = False
-    if config.has_option('webhooks', 'zapier') and config.get('webhooks', 'zapier') != '':
-        result = [500, 'Internal Server Error']
-        webhook_url = config.get('webhooks', 'zapier')
+    if config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
+        search_criteria = config.getlist('webhooks', 'search_criteria')
+        webhooks = config.getlist('webhooks', 'webhook')
 
-        if screenshot:
-            r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot})
-        # unfortunately, we cannot send a raw image to zapier
-        # elif filename:
-        #     screenshot_bytestream = ''
-        #     try:
-        #         fp = open(filename, 'rb')
-        #         screenshot_bytestream = MIMEImage(fp.read())
-        #         fp.close()
-        #     except Exception as send_webhook_error:
-        #         log.exception(send_webhook_error)
-        #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
-            result = [r.status_code, r.reason]
-        if result[0] != 200:
-            log.warn(str(result[0]) + ' ' + str(result[1]))
+        for i in range(len(search_criteria)):
+
+            if search_criteria[i] and str(alert).find(str(search_criteria[i])):
+                for j in range(len(webhooks)):
+
+                    if webhooks[j]:
+                        result = [500, 'Internal Server Error; search_criteria: ' + str(search_criteria[i]) + '; webhook: ' + str(webhooks[j])]
+                        if screenshot:
+                            r = requests.post(str(webhooks[j]), json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot})
+                        # unfortunately, we cannot always send a raw image (e.g. zapier)
+                        # elif filename:
+                        #     screenshot_bytestream = ''
+                        #     try:
+                        #         fp = open(filename, 'rb')
+                        #         screenshot_bytestream = MIMEImage(fp.read())
+                        #         fp.close()
+                        #     except Exception as send_webhook_error:
+                        #         log.exception(send_webhook_error)
+                        #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+                            result = [r.status_code, r.reason]
+                        if result[0] != 200:
+                            log.warn(str(result[0]) + ' ' + str(result[1]))
     return result
 
 

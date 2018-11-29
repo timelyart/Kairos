@@ -29,6 +29,8 @@ from kairos import debug
 from kairos import timing
 from PIL import Image
 
+from tools import ConfigParserMultiValues
+
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
@@ -126,7 +128,7 @@ name_selectors = dict(
 log = debug.log
 log.setLevel(20)
 
-config = RawConfigParser(allow_no_value=True)
+config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=ConfigParserMultiValues, converters={"list": ConfigParserMultiValues.getlist})
 config_file = os.path.join(CURRENT_DIR, "kairos.cfg")
 if os.path.exists(config_file):
     config.read(config_file)
