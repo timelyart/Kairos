@@ -73,7 +73,7 @@ def process_data(data, browser):
 
 
 def process_body(msg, browser):
-    url = '',
+    url = ''
     screenshot_url = ''
     filename = ''
     date = msg['date']
@@ -86,6 +86,9 @@ def process_body(msg, browser):
             break
         if link['href'].startswith('https://www.tradingview.com/x/'):
             screenshot_url = link['href']
+
+    if url == '':
+        return False
 
     match = re.search("\w*[%3A|:]\w*$", url)
     symbol = match.group(0)
