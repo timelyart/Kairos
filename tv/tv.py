@@ -511,7 +511,7 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
         elif screenshot_dir != '':
             chart_dir = ''
             match = re.search("^.*chart.(\w+).*", browser.current_url)
-            if type(match) is re.Match:
+            if re.Match:
                 today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime('%Y%m%d'))
                 if not os.path.exists(today_dir):
                     os.mkdir(today_dir)
@@ -733,6 +733,15 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
 
             text = text.replace('%GENERATED', generated)
+            try:
+                screenshot_urls = []
+                for i in range(len(alert_config['include_screenshots_of_charts'])):
+                    screenshot_urls.append(alert_config['include_screenshots_of_charts'][i]+'?symbol='+ticker_id)
+                text += ' screenshots_to_include: ' + str(screenshot_urls)
+            except ValueError as value_error:
+                log.exception(value_error)
+            except KeyError:
+                log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
             textarea.send_keys(MODIFIER_KEY + 'a')
             textarea.send_keys(text)
         except Exception as alert_err:

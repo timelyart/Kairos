@@ -24,6 +24,9 @@ charts:
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
+    # list of charts (url's) to include in the alert (these will be picked up by the summary mail as well)
+    # if you want to include additional screenshot then the option screenshot_timing must be set to 'summary' (without quotation marks) in your kairos.cfg (section [tradingview])
+    include_screenshots_of_charts: [https://www.tradingview.com/chart/<your_chart>/, https://www.tradingview.com/chart/<your_chart>/]
     # Conditions need to be listed in order of TV's Create Alert dialog form, i.e. from left to right and from top to bottom.
     # Values need to be EXACT (unless specified differently in your kairos.cfg under section TradingView, setting exact_conditions) and are CASE SENSITIVE.
     conditions: ["BTCUSD", "Outside channel", "Value", "6826.28", "Value", "5880.00"]
