@@ -140,8 +140,6 @@ def process_body(msg, browser):
             interval += 'H'
         elif unit == 'min':
             interval += ''
-        if not url.endswith(interval):
-            url += '&interval=' + interval
 
     # Open the chart and make a screenshot
     if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':
@@ -227,7 +225,7 @@ def send_mail(webhooks=True):
         screenshot = charts[url][3]
 
         filename = ''
-        if len(charts) >= 4:
+        if len(charts[url]) >= 4:
             filename = charts[url][4]
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
@@ -275,7 +273,7 @@ def generate_list_entry(msg, date, symbol, alert, screenshot, filename, url, cou
             log.exception(send_mail_error)
             result += '<hr><h4>' + alert + '</h4><a href="' + url + '">Error embedding screenshot: ' + filename + '</a><p>' + screenshot + '<br/>' + url + '</p>'
     else:
-        result += '<hr><h4>' + alert + '</h4><a href="' + url + '">' + url + '</a><p>' + screenshot + '<br/>' + url + '</p>'
+        result += '<hr><h4>' + alert + '</h4><a href="' + url + '">' + url + '</a>'
     return result
 
 
