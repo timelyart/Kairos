@@ -91,9 +91,13 @@ def process_body(msg, browser):
     if url == '':
         return False
 
-    match = re.search("\w*[%3A|:]\w*$", url, re.M)
-    symbol = match.group(0)
-    symbol = symbol.replace('%3A', ':')
+    symbol = ''
+    match = re.search("\w+[%3A|:]\w+$", url, re.M)
+    try:
+        symbol = match.group(0)
+        symbol = symbol.replace('%3A', ':')
+    except re.error as match_error:
+        log.exception(match_error)
     for script in soup(["script", "style"]):
         script.extract()  # rip it out
 
