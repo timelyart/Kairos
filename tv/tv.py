@@ -521,7 +521,7 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
                 chart_dir = os.path.join(chart_dir, )
             filename = symbol.replace(':', '_') + '_' + interval + '.png'
             filename = os.path.join(chart_dir, filename)
-            elem_chart = browser.find_element_by_class_name('chart-widget')
+            elem_chart = browser.find_element_by_class_name('layout__area--center')
             time.sleep(DELAY_SCREENSHOT)
 
             location = elem_chart.location
@@ -718,7 +718,12 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             time.sleep(DELAY_BREAK_MINI)
             generated = textarea.text
             chart = browser.current_url + '?symbol=' + ticker_id
-            if type(interval) is str and len(interval) > 0:
+            show_multi_chart_layout = False
+            try:
+                show_multi_chart_layout = alert_config['show_multi_chart_layout']
+            except KeyError:
+                log.warn('charts: multichartlayout not set in yaml, defaulting to multichartlayout = no')
+            if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
                 chart += '&interval=' + str(interval)
             text = str(alert_config['message']['text'])
             text = text.replace('%TIMEFRAME', ' ' + timeframe)
