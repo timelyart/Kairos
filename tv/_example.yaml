@@ -21,6 +21,9 @@ charts:
   # The name is like to be used with a future update to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts.
   # Make sure the name is unique.
   - name: "Example 1"
+    # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
+    # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
+    show_multi_chart_layout: no
     # Conditions need to be listed in order of TV's Create Alert dialog form, i.e. from left to right and from top to bottom.
     # Values need to be EXACT (unless specified differently in your kairos.cfg under section TradingView, setting exact_conditions) and are CASE SENSITIVE.
     conditions: ["BTCUSD", "Outside channel", "Value", "6826.28", "Value", "5880.00"]
@@ -78,6 +81,7 @@ charts:
       notify-on-app: no
     message:
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
+    show_multi_chart_layout: no
 - url: https://www.tradingview.com/chart/<your_second_chart>/
   timeframes: [2 minutes]
   watchlists: [<your_watchlist-name>]
@@ -98,3 +102,4 @@ charts:
       notify-on-app: no
     message:
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
+    show_multi_chart_layout: no
