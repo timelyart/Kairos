@@ -163,9 +163,13 @@ if config.has_option('delays', 'screenshot'):
     DELAY_SCREENSHOT = config.getfloat('delays', 'screenshot')
 EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 
+RESOLUTION = '1920,1080'
+if config.has_option('webdriver', 'resolution'):
+    RESOLUTION = config.get('webdriver', 'resolution').strip(' ')
+
 options = webdriver.ChromeOptions()
-options.add_argument("--disable-extensions")
-options.add_argument('--window-size=1920,1080')
+options.add_argument('--disable-extensions')
+options.add_argument('--window-size=' + RESOLUTION)
 options.add_argument('--disable-notifications')
 # run chrome in the background
 if config.getboolean('webdriver', 'run_in_background'):
@@ -173,9 +177,9 @@ if config.getboolean('webdriver', 'run_in_background'):
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
     # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
     if os.name == 'nt':
-        options.add_argument("--disable-gpu")
-prefs = {"profile.default_content_setting_values.notifications": 2}
-options.add_experimental_option("prefs", prefs)
+        options.add_argument('--disable-gpu')
+prefs = {'profile.default_content_setting_values.notifications': 2}
+options.add_experimental_option('prefs', prefs)
 
 
 def close_all_popups(browser):
@@ -739,8 +743,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 screenshot_urls = []
                 for i in range(len(alert_config['include_screenshots_of_charts'])):
                     screenshot_urls.append(alert_config['include_screenshots_of_charts'][i]+'?symbol='+ticker_id)
-                text += (' screenshots_to_include: ' + str(screenshot_urls)).strip("'")
-                # text = text.strip("'")
+                text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
             except ValueError as value_error:
                 log.exception(value_error)
             except KeyError:
