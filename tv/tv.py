@@ -27,6 +27,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from kairos import timing
 from kairos import tools
 from PIL import Image
+from urllib.parse import unquote
 
 # BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
@@ -370,7 +371,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         log.info("DELAY_CHANGE_SYMBOL = " + str(DELAY_CHANGE_SYMBOL))
         log.info("DELAY_CLEAR_INACTIVE_ALERTS = " + str(DELAY_CLEAR_INACTIVE_ALERTS))
 
-        browser.execute_script("window.open('" + chart['url'] + "');")
+        url = unquote(chart['url'])
+        browser.execute_script("window.open('" + url + "');")
         for handle in browser.window_handles[1:]:
             browser.switch_to.window(handle)
 
@@ -737,7 +739,8 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 screenshot_urls = []
                 for i in range(len(alert_config['include_screenshots_of_charts'])):
                     screenshot_urls.append(alert_config['include_screenshots_of_charts'][i]+'?symbol='+ticker_id)
-                text += ' screenshots_to_include: ' + str(screenshot_urls)
+                text += (' screenshots_to_include: ' + str(screenshot_urls)).strip("'")
+                # text = text.strip("'")
             except ValueError as value_error:
                 log.exception(value_error)
             except KeyError:

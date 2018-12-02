@@ -1,7 +1,9 @@
+import datetime
 import imaplib
 import email
 import smtplib
 import time
+from urllib.parse import unquote
 from email.mime.image import MIMEImage
 import os
 from bs4 import BeautifulSoup
@@ -34,6 +36,26 @@ smtp_server = config.get("mail", "smtp_server")
 smtp_port = 465
 
 charts = dict()
+# watchlists_dir = 'watchlists'
+# watchlists_dir = os.path.join(CURRENT_DIR, watchlists_dir)
+# if not os.path.exists(watchlists_dir):
+#     # noinspection PyBroadException
+#     try:
+#         os.mkdir(watchlists_dir)
+#     except Exception as watchlist_dir_error:
+#         log.exception(watchlist_dir_error)
+#         watchlists_dir = ''
+#
+# watchlist_dir = os.path.join(watchlists_dir, datetime.datetime.today().strftime('%Y%m%d'))
+# if os.path.exists(watchlists_dir) and not os.path.exists(watchlist_dir):
+#     # noinspection PyBroadException
+#     try:
+#         os.mkdir(watchlists_dir)
+#     except Exception as watchlist_dir_error:
+#         log.exception(watchlist_dir_error)
+#         watchlists_dir = ''
+#
+#         os.mkdir(watchlist_dir)
 
 
 def create_browser():
@@ -161,7 +183,7 @@ def process_body(msg, browser):
     # Open the chart and make a screenshot
     if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':
         for i in range(len(screenshot_charts)):
-            screenshot_chart = screenshot_charts[i]
+            screenshot_chart = unquote(screenshot_charts[i])
             browser.execute_script("window.open('" + screenshot_chart + "');")
             for handle in browser.window_handles[1:]:
                 browser.switch_to.window(handle)
@@ -345,7 +367,7 @@ def send_webhooks(date, symbol, alert, screenshots, url):
     return result
 
 
-def run(delay):
+def run(delay, watchlist, clear_watchlist = False):
     log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
     read_mail()
