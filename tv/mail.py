@@ -176,7 +176,10 @@ def process_body(msg, browser):
             interval += ''
 
     if len(screenshot_charts) == 0:
-        screenshot_charts.append(screenshot_url)
+        if screenshot_url:
+            screenshot_charts.append(screenshot_url)
+        else:
+            screenshot_charts.append(url)
 
     screenshots = dict()
     filenames = dict()
@@ -184,6 +187,8 @@ def process_body(msg, browser):
     if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':
         for i in range(len(screenshot_charts)):
             screenshot_chart = unquote(screenshot_charts[i])
+            # screenshot_chart = screenshot_charts[i]
+            # log.info(screenshot_chart)
             browser.execute_script("window.open('" + screenshot_chart + "');")
             for handle in browser.window_handles[1:]:
                 browser.switch_to.window(handle)
