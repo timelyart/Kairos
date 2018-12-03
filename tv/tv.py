@@ -446,6 +446,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
                         input_symbol.clear()
+                        input_symbol.send_keys(Keys.BACKSPACE)
                         input_symbol.send_keys(symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
@@ -882,9 +883,11 @@ def login(browser):
     input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
     input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
     input_username.clear()
+    input_username.send_keys(Keys.BACKSPACE)
     input_username.send_keys(config.get('tradingview', 'username'))
-    time.sleep(DELAY_BREAK)
+    # time.sleep(DELAY_BREAK)
     input_password.clear()
+    input_password.send_keys(Keys.BACKSPACE)
     input_password.send_keys(config.get('tradingview', 'password'))
     wait_and_click(browser, css_selectors['btn_login'])
 
