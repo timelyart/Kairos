@@ -63,7 +63,7 @@ python setup.py install
 ```
 * Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
-### Ubuntu 18.04, command line installation ###
+### Ubuntu 18.04 - command line installation ###
 ```
 cd ~/
 wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
