@@ -30,7 +30,7 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
 ## Installing ##
-If you run Ubuntu 18.04 there is a list of commands here: [Ubuntu 18.04 - command line installation](#ubuntu-1804-command-line-installation).
+If you run Ubuntu 18.04 there is a list of commands here: [Ubuntu 18.04 - command line installation](#ubuntu-1804---command-line-installation).
 ### From archive (Linux, macOS and Windows) ###
 _If you are running Linux / macOS then run listed commands with **sudo**_ 
 * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
