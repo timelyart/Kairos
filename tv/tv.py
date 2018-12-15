@@ -273,10 +273,10 @@ def get_interval(timeframe):
     :param timeframe: String.
     :return: interval: Short timeframe notation if found, empty string otherwise.
     """
-    match = re.search("(\d+)\s(\w\w\w)", timeframe)
+    match = re.search("(\\d+)\\s(\\w\\w\\w)", timeframe)
     interval = ""
     if match is None:
-        log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w). [0]")
+        log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\\d+)\\s(\\w\\w\\w). [0]")
     else:
         try:
             interval = match.group(1)
@@ -292,7 +292,7 @@ def get_interval(timeframe):
             elif unit == 'min':
                 interval += ''
         except Exception as interval_exception:
-            log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\d+)\s(\w\w\w). [1]")
+            log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\\d+)\\s(\\w\\w\\w). [1]")
             log.exception(interval_exception)
     return interval
 
@@ -390,7 +390,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             watchlist = chart['watchlists'][i]
             log.info("Collecting symbols from watchlist " + watchlist)
             wait_and_click(browser, 'input.wl-symbol-edit + a.button')
-            # time.sleep(DELAY_BREAK_MINI)
+
             # load watchlist
             watchlist_exists = False
             el_options = browser.find_elements_by_css_selector(css_selectors['options_watchlist'])
@@ -415,7 +415,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 dict_watchlist[chart['watchlists'][i]] = symbols
 
         # open alerts tab
-        # wait_and_click(browser, css_selectors['btn_calendar'])
         wait_and_click(browser, css_selectors['btn_alerts'])
 
         # set the time frame
@@ -447,6 +446,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
                         input_symbol.clear()
                         input_symbol.send_keys(Keys.BACKSPACE)
+                        time.sleep(0.1)
                         input_symbol.send_keys(symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
@@ -479,7 +479,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             screenshot_url = ''
                             if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
                                 screenshot_url = take_screenshot(browser, symbol, interval)[0]
-                            # log.info('screenshot_url = ' + screenshot_url)
                             create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], screenshot_url)
                             counter_alerts += 1
                             total_alerts += 1
@@ -517,7 +516,7 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
 
         elif screenshot_dir != '':
             chart_dir = ''
-            match = re.search("^.*chart.(\w+).*", browser.current_url)
+            match = re.search("^.*chart.(\\w+).*", browser.current_url)
             if re.Match:
                 today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime('%Y%m%d'))
                 if not os.path.exists(today_dir):
@@ -864,11 +863,6 @@ def set_expiration(_alert_dialog, alert_config):
     # time.sleep(DELAY_BREAK_MINI)
 
 
-# def make_chart_snapshot(element, filename):
-#     if screenshot_dir != '':
-#
-
-
 def login(browser):
     url = 'https://www.tradingview.com'
     browser.get(url)
@@ -884,10 +878,11 @@ def login(browser):
     input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
     input_username.clear()
     input_username.send_keys(Keys.BACKSPACE)
+    time.sleep(0.1)
     input_username.send_keys(config.get('tradingview', 'username'))
-    # time.sleep(DELAY_BREAK)
     input_password.clear()
     input_password.send_keys(Keys.BACKSPACE)
+    time.sleep(0.1)
     input_password.send_keys(config.get('tradingview', 'password'))
     wait_and_click(browser, css_selectors['btn_login'])
 

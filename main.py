@@ -61,10 +61,8 @@ def main():
         # print(str(sys.argv))
         if len(yaml) > 0:
             tv.run(yaml)
-            if send_summary:
-                mail.run(delay_summary)
-        elif send_summary:
-            mail.run(delay_summary, watchlist)
+        if send_summary:
+            mail.run(delay_summary)
     except Exception as e:
         print(e)
     finally:
