@@ -1,0 +1,49 @@
+# use a url + other settings per type of alert you want to set
+# note that all values are case sensitive
+charts:
+- url: https://www.tradingview.com/chart/<chart_id>/
+  timeframes: [1 day]
+  watchlists: [<watchlist_name>]
+  delays: {change_symbol: 0.5, submit_alert: 3}
+  # alert listed under alerts must be available from the chart which is loaded through the 'url' parameter
+  alerts:
+    # the name is used to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts
+    # make sure the name is unique
+  - name: "Davo long. "
+    # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
+    # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
+    show_multi_chart_layout: no
+    # list of charts (url's) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
+    include_screenshots_of_charts: [https://www.tradingview.com/chart/<chart_id>/]
+    conditions: ["Davo v3.5.", "Davo long", "Alert davo long"]
+    options: "Only Once"
+    expiration:
+      # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
+      # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
+      # time: 2019-05-19 13:42, or delta in minutes (max 86400, or 60 days), or leave empty to use TradingView's default of 30 days (somewhat improves performance).
+      time: 5
+      # Note that open-ended is for premium users only and - when set - will ignore the value for 'time'
+      open-ended: no
+    show_popup: no
+    sound:
+      play: no
+      ringtone: Chirpy
+      duration: Once
+    send:
+      email: yes
+      email-to-sms: no
+      sms: no
+      notify-on-app: no
+    message:
+      prepend: no
+      # Use `\n` to add and an ENTER
+      # Use keywords to add dynamic information in your text.
+      # %TIMEFRAME, is self-explanatory
+      # %SYMBOL is <exchange>:<ticker symbol>
+      # %NAME is the name of the alert
+      # %CHART add a url to the chart (inc. timeframe and symbol)
+      # %GENERATED is the text that TradingView generates
+      # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
+      # NOTE: TradingView's default link is incomplete. I recommend including %CHART at all times.
+      # NOTE: If you want to create summary mails and generate a watchlist don't change this.
+      text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
