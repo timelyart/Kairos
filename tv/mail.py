@@ -74,6 +74,10 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
     return tv.take_screenshot(browser, symbol, interval, retry_number)
 
 
+def import_watchlist(browser, filepath):
+    return tv.import_watchlist(browser, filepath)
+
+
 def process_data(data, browser):
     for response_part in data:
         if isinstance(response_part, tuple):
@@ -208,7 +212,7 @@ def process_body(msg, browser):
         log.exception(e)
 
 
-def read_mail():
+def read_mail(browser):
     # noinspection PyBroadException
     try:
         mail = imaplib.IMAP4_SSL(imap_server)
@@ -239,17 +243,12 @@ def read_mail():
             if len(id_list) == 0:
                 log.info('No mail to process')
             else:
-                browser = create_browser()
-                login(browser)
-
                 for mail_id in id_list:
                     result, data = mail.fetch(mail_id, '(RFC822)')
                     try:
                         process_data(data, browser)
                     except Exception as e:
                         log.exception(e)
-
-                destroy_browser(browser)
 
         except imaplib.IMAP4.error as mail_error:
             log.error("Search failed. Please verify you have a correct search_term and search_area defined.")
@@ -285,7 +284,7 @@ def create_watchlist(csv):
     return filepath
 
 
-def send_mail(webhooks=True, watchlist=True):
+def send_mail(browser, webhooks=True, watchlist=True):
 
     msg = MIMEMultipart('alternative')
     msg['Subject'] = "TradingView Alert Summary"
@@ -340,10 +339,7 @@ def send_mail(webhooks=True, watchlist=True):
         filepath = create_watchlist(csv)
         filepath = os.path.join(os.getcwd(), filepath)
         log.debug('watchlist ' + filepath + ' created')
-        # cwd = os.getcwd()
-        log.info(filepath)
-
-    return csv
+        import_watchlist(browser, filepath)
 
 
 def generate_text(date, symbol, alert, screenshots, url):
@@ -419,6 +415,9 @@ def send_webhooks(date, symbol, alert, screenshots, url):
 def run(delay):
     log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
-    read_mail()
+    browser = create_browser()
+    login(browser)
+    read_mail(browser)
     if len(charts) > 0:
-        send_mail()
+        send_mail(browser)
+    destroy_browser(browser)

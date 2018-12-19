@@ -28,8 +28,8 @@ from kairos import timing
 from kairos import tools
 from PIL import Image
 from urllib.parse import unquote
+import pyautogui
 
-# BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
 CHECKBOX = 'checkbox'
@@ -51,8 +51,12 @@ DELAY_SCREENSHOT = 1
 ALERT_NUMBER = 0
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
+OS = 'windows'
 if sys.platform == 'os2':
+    OS = 'macos'
     MODIFIER_KEY = Keys.COMMAND
+elif os.name == 'posix':
+    OS = 'linux'
 
 css_selectors = dict(
     username='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user > span.tv-header__dropdown-wrap.tv-dropdown-behavior__'
@@ -66,6 +70,7 @@ css_selectors = dict(
     # options_timeframe='div[id^="__outside-render-"] div[class^="item"]',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
+    btn_watchlist_menu_menu='input.wl-symbol-edit + a.button',
     options_watchlist='div.charts-popup-list > a.item.first',
     input_symbol='#header-toolbar-symbol-search > div > input',
     btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
@@ -170,13 +175,13 @@ if config.has_option('webdriver', 'resolution'):
 options = webdriver.ChromeOptions()
 options.add_argument('--disable-extensions')
 options.add_argument('--window-size=' + RESOLUTION)
-options.add_argument('--disable-notifications')
+# options.add_argument('--disable-notifications')
 # run chrome in the background
 if config.getboolean('webdriver', 'run_in_background'):
     options.add_argument('headless')
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
     # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
-    if os.name == 'nt':
+    if OS == 'windows':
         options.add_argument('--disable-gpu')
 prefs = {'profile.default_content_setting_values.notifications': 2}
 options.add_experimental_option('prefs', prefs)
@@ -389,7 +394,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             # open list of watchlists element
             watchlist = chart['watchlists'][i]
             log.info("Collecting symbols from watchlist " + watchlist)
-            wait_and_click(browser, 'input.wl-symbol-edit + a.button')
+            wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
             # load watchlist
             watchlist_exists = False
@@ -766,6 +771,42 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
     return True
+
+
+def import_watchlist(browser, filename):
+    try:
+        wait_and_click(browser, css_selectors['btn_calendar'])
+        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
+        time.sleep(DELAY_BREAK)
+        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+        time.sleep(DELAY_BREAK)
+
+        el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
+        for j in range(len(el_options)):
+            if str(el_options[j].text).startswith('Import Watchlist'):
+                el_options[j].click()
+                time.sleep(DELAY_BREAK)
+                time.sleep(DELAY_BREAK)
+                time.sleep(DELAY_BREAK)
+                time.sleep(DELAY_BREAK)
+                # Unfortunately, this code doesn't work:
+                #   WebDriverWait(browser, 5).until(ec.alert_is_present(), 'Timed out waiting for upload popup to appear.')
+                #   popup_obj = browser.switch_to.alert
+                #   popup_obj.send_keys(filename)
+                #   popup_obj.accept()
+                #
+                # Plan B: use pyautogui which is cross platform but has different dependencies per platform.
+                # See https://pyautogui.readthedocs.io/en/latest/install.html
+                pyautogui.typewrite(r"" + filename, interval=0.05)
+                pyautogui.press('enter')
+                break
+    except Exception as e:
+        log.info('Cannot import watchlist')
+        log.info('If you are running OS X make sure you have pyobjc installed:')
+        log.info('\tpip3 install pyobjc')
+        log.info('If you have problems installing pyobjc on OS X El Capitain, try this instead:')
+        log.info('\tMACOSX_DEPLOYMENT_TARGET=10.11 pip install pyobjc')
+        log.exception(e)
 
 
 def select(alert_config, current_condition, el_options, ticker_id):

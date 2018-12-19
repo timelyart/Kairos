@@ -22,6 +22,8 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 * Add (limited) dynamic data to your alert messages. 
 * Run from command line and in the background.
 * Send a summary mail.
+* Generate a TradingView watchlist from the summary mail.
+* Import generated TradingView watchlist.
 
 ## Prerequisites ##
 * [Python 3](https://www.python.org/downloads/)
@@ -31,9 +33,9 @@ _Note: when you install Python on Windows make sure that it's part of your PATH.
 
 ## Installing ##
 If you run Ubuntu 18.04 there is a list of commands here: [Ubuntu 18.04 - command line installation](#ubuntu-1804---command-line-installation).
-### From archive (Linux, macOS and Windows) ###
-_If you are running Linux / macOS then run listed commands with **sudo**_ 
-* [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
+### From archive (Linux, OS X and Windows) ###
+_If you are running Linux / OS X then run listed commands with **sudo**_ 
+* [Install Python 3](https://www.python.org/downloads/) - [OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
 * [Install Chrome latest version](https://www.google.com/chrome/) or [geckodriver](https://github.com/mozilla/geckodriver/) (macOS)
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads) or [Firefox](https://www.mozilla.org/en-US/firefox/) (macOS)
 * [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
@@ -246,6 +248,8 @@ Feedback is invaluable. Please, take the time to give constructive feedback by o
 [DorukKorkmaz](https://github.com/dorukkorkmaz), for providing a starting point with his [TradingView scraper](https://github.com/DorukKorkmaz/tradingview-scraper).
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
+
+[asweigart](https://github.com/asweigart/pyautogui), for [PyAutoGUI](https://github.com/asweigart/pyautogui)
 
 ## Author ##
 [timelyart](https://github.com/timelyart)
