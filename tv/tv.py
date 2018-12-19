@@ -785,20 +785,11 @@ def import_watchlist(browser, filename):
         for j in range(len(el_options)):
             if str(el_options[j].text).startswith('Import Watchlist'):
                 el_options[j].click()
-                time.sleep(DELAY_BREAK)
-                time.sleep(DELAY_BREAK)
-                time.sleep(DELAY_BREAK)
-                time.sleep(DELAY_BREAK)
-                # Unfortunately, this code doesn't work:
-                #   WebDriverWait(browser, 5).until(ec.alert_is_present(), 'Timed out waiting for upload popup to appear.')
-                #   popup_obj = browser.switch_to.alert
-                #   popup_obj.send_keys(filename)
-                #   popup_obj.accept()
-                #
-                # Plan B: use pyautogui which is cross platform but has different dependencies per platform.
-                # See https://pyautogui.readthedocs.io/en/latest/install.html
+                time.sleep(DELAY_BREAK * 6)
                 pyautogui.typewrite(r"" + filename, interval=0.05)
                 pyautogui.press('enter')
+                time.sleep(DELAY_BREAK * 6)
+                log.info('watchlist imported')
                 break
     except Exception as e:
         log.info('Cannot import watchlist')
