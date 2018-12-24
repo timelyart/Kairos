@@ -19,11 +19,9 @@ def print_disclaimer():
 def print_help():
     print("HELP")
     print("usage: python main.py [<file>] [-s|-s <minutes>] [-h] [-d]\n")
-    print("<file>\t\t YAML file with alert definitions")
+    print("<file>\t\t YAML file with alert definitions and/or summary option")
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
-    # print("-w\t\t Flag. Generate a TradingView watchlist from the summary.")
-    # print("<watchlist_name>\t\t Watchlist name.")
     print("-h\t\t Flag. Show this help.")
     print("-d\t\t Flag. Show disclaimer.\n")
 
@@ -39,7 +37,6 @@ def main():
         yaml = ""
         send_summary = False
         delay_summary = 0
-        watchlist = ''
         i = 1
         while i < len(sys.argv):
             if str(sys.argv[i]).endswith('.yaml'):
@@ -52,17 +49,14 @@ def main():
                 print_disclaimer()
             elif i > 1 and str(sys.argv[(i-1)]) == '-s':
                 delay_summary = int(sys.argv[i])
-            elif i > 1 and str(sys.argv[(i-1)]) == '-w':
-                watchlist = str(sys.argv[i])
             elif not str(sys.argv[i]).endswith('main.py'):
                 print("No such argument: " + str(sys.argv[i]))
             i += 1
 
-        # print(str(sys.argv))
         if len(yaml) > 0:
             tv.run(yaml)
         if send_summary:
-            mail.run(delay_summary)
+            mail.run(delay_summary, yaml)
     except Exception as e:
         print(e)
     finally:

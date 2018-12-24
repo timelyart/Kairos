@@ -47,6 +47,9 @@ DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
 DELAY_CHANGE_SYMBOL_DEF = 0.2
 DELAY_SCREENSHOT_DIALOG = 2
 DELAY_SCREENSHOT = 1
+DELAY_KEYSTROKE = 0.01
+DELAY_WATCHLIST = 0.2
+DELAY_TIMEFRAME = 0.2
 
 ALERT_NUMBER = 0
 
@@ -166,25 +169,13 @@ if config.has_option('delays', 'screenshot_dialog'):
     DELAY_SCREENSHOT_DIALOG = config.getfloat('delays', 'screenshot_dialog')
 if config.has_option('delays', 'screenshot'):
     DELAY_SCREENSHOT = config.getfloat('delays', 'screenshot')
+if config.has_option('delays', 'keystroke'):
+    DELAY_KEYSTROKE = 0.05
 EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 
 RESOLUTION = '1920,1080'
 if config.has_option('webdriver', 'resolution'):
     RESOLUTION = config.get('webdriver', 'resolution').strip(' ')
-
-options = webdriver.ChromeOptions()
-options.add_argument('--disable-extensions')
-options.add_argument('--window-size=' + RESOLUTION)
-# options.add_argument('--disable-notifications')
-# run chrome in the background
-if config.getboolean('webdriver', 'run_in_background'):
-    options.add_argument('headless')
-    # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
-    # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
-    if OS == 'windows':
-        options.add_argument('--disable-gpu')
-prefs = {'profile.default_content_setting_values.notifications': 2}
-options.add_experimental_option('prefs', prefs)
 
 
 def close_all_popups(browser):
@@ -311,6 +302,7 @@ def set_delays(chart):
     global DELAY_SUBMIT_ALERT
     global DELAY_CLEAR_INACTIVE_ALERTS
     global DELAY_CHANGE_SYMBOL
+    global DELAY_KEYSTROKE
 
     # set delays as defined within the chart with a fallback to the config file
     if 'wait_time_implicit' in chart and isinstance(chart['wait_time_implicit'], numbers.Real):
@@ -351,6 +343,10 @@ def set_delays(chart):
             DELAY_CLEAR_INACTIVE_ALERTS = delays['clear_inactive_alerts']
         elif config.has_option('delays', 'clear_inactive_alerts'):
             DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
+        if 'keystroke' in delays and isinstance(delays['keystroke'], numbers.Real):
+            DELAY_KEYSTROKE = delays['keystroke']
+        elif config.has_option('delays', 'keystroke'):
+            DELAY_KEYSTROKE = config.getfloat('delays', 'keystroke')
 
 
 def open_chart(browser, chart, counter_alerts, total_alerts):
@@ -379,6 +375,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         log.info("DELAY_SUBMIT_ALERT = " + str(DELAY_SUBMIT_ALERT))
         log.info("DELAY_CHANGE_SYMBOL = " + str(DELAY_CHANGE_SYMBOL))
         log.info("DELAY_CLEAR_INACTIVE_ALERTS = " + str(DELAY_CLEAR_INACTIVE_ALERTS))
+        log.info("DELAY_KEYSTROKE = " + str(DELAY_KEYSTROKE))
 
         url = unquote(chart['url'])
         browser.execute_script("window.open('" + url + "');")
@@ -387,7 +384,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
         wait_and_click(browser, css_selectors['btn_calendar'])
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
-        time.sleep(DELAY_BREAK_MINI)
+        time.sleep(DELAY_WATCHLIST)
         # scrape the symbols for each watchlist
         dict_watchlist = dict()
         for i in range(len(chart['watchlists'])):
@@ -404,7 +401,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     el_options[j].click()
                     watchlist_exists = True
                     log.debug('Watchlist \'' + watchlist + '\' found')
-                    time.sleep(DELAY_BREAK_MINI)
+                    time.sleep(DELAY_WATCHLIST)
                     break
 
             if watchlist_exists:
@@ -427,7 +424,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             timeframe = chart['timeframes'][i]
             interval = get_interval(timeframe)
             set_timeframe(browser, timeframe)
-            time.sleep(DELAY_BREAK_MINI)
+            time.sleep(DELAY_TIMEFRAME)
 
             # iterate over each symbol per watchlist
             # for j in range(len(chart['watchlists'])):
@@ -449,10 +446,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # might be useful for multi threading set the symbol by going to different url like this:
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-                        input_symbol.clear()
-                        input_symbol.send_keys(Keys.BACKSPACE)
-                        time.sleep(0.1)
-                        input_symbol.send_keys(symbol)
+                        clear(input_symbol)
+                        send_keys(input_symbol, symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
 
@@ -468,10 +463,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             wait_and_click(browser, css_selectors['btn_alert_menu'])
                             wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
                             wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK)
-                            time.sleep(DELAY_BREAK)
-                            time.sleep(DELAY_BREAK)
-                            time.sleep(DELAY_BREAK)
+                            time.sleep(DELAY_BREAK * 4)
                             # update counter
                             alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
                             if type(alerts) is list:
@@ -598,7 +590,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
 
     try:
         wait_and_click(browser, css_selectors['btn_create_alert'])
-        time.sleep(DELAY_BREAK)
+        time.sleep(DELAY_BREAK_MINI)
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
 
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
@@ -667,8 +659,8 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                         log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                inputs[i].send_keys(MODIFIER_KEY + "a")
-                inputs[i].send_keys(str(alert_config['conditions'][current_condition]).strip())
+                clear(inputs[i])
+                send_keys(inputs[i], str(alert_config['conditions'][current_condition]).strip())
 
             # give some time
             current_condition += 1
@@ -678,9 +670,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
         # Expiration
         set_expiration(alert_dialog, alert_config)
-        time.sleep(DELAY_BREAK_MINI)
-        time.sleep(DELAY_BREAK_MINI)
-        time.sleep(DELAY_BREAK_MINI)
+        time.sleep(DELAY_BREAK_MINI * 2)
 
         # Show popup
         checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
@@ -742,7 +732,6 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             text = text.replace('%NAME', ' ' + alert_config['name'])
             text = text.replace('%CHART', ' ' + chart)
             text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
-
             text = text.replace('%GENERATED', generated)
             try:
                 screenshot_urls = []
@@ -753,7 +742,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 log.exception(value_error)
             except KeyError:
                 log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-            textarea.send_keys(MODIFIER_KEY + 'a')
+            clear(textarea)
             textarea.send_keys(text)
         except Exception as alert_err:
             log.exception(alert_err)
@@ -773,24 +762,58 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     return True
 
 
-def import_watchlist(browser, filename):
+def import_watchlist(filepath, filename):
+
+    browser = create_browser(False)
+    login(browser)
+
     try:
         wait_and_click(browser, css_selectors['btn_calendar'])
         wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
-        time.sleep(DELAY_BREAK)
+        time.sleep(0.5)
         wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-        time.sleep(DELAY_BREAK)
+        time.sleep(0.5)
 
         el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
         for j in range(len(el_options)):
             if str(el_options[j].text).startswith('Import Watchlist'):
                 el_options[j].click()
-                time.sleep(DELAY_BREAK * 6)
-                pyautogui.typewrite(r"" + filename, interval=0.05)
+                time.sleep(2)
+                pyautogui.typewrite(r"" + filepath, interval=DELAY_KEYSTROKE)
                 pyautogui.press('enter')
-                time.sleep(DELAY_BREAK * 6)
+                time.sleep(1)
                 log.info('watchlist imported')
                 break
+
+        # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
+        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+        time.sleep(0.5)
+        el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+        time.sleep(0.5)
+        j = 0
+        while j < len(el_options):
+            try:
+                if str(el_options[j].text) == str(filename).replace('.txt', ''):
+                    btn_delete = el_options[j].find_element_by_class_name('icon-delete')
+                    time.sleep(0.5)
+                    browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
+                    time.sleep(0.5)
+                    btn_delete.click()
+                    # handle confirmation dialog
+                    wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
+                    log.info('existing watchlist ' + str(filename).replace('.txt', '') + ' deleted')
+                    # give TV time to remove the watchlist
+                    time.sleep(0.5)
+                    # open the watchlists menu again and update the options to prevent 'element is stale' error
+                    wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+                    time.sleep(0.5)
+                    el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+                    time.sleep(0.5)
+                    j = 0
+            except Exception as e:
+                log.exception(e)
+            j = j + 1
+
     except Exception as e:
         log.info('Cannot import watchlist')
         log.info('If you are running OS X make sure you have pyobjc installed:')
@@ -798,6 +821,8 @@ def import_watchlist(browser, filename):
         log.info('If you have problems installing pyobjc on OS X El Capitain, try this instead:')
         log.info('\tMACOSX_DEPLOYMENT_TARGET=10.11 pip install pyobjc')
         log.exception(e)
+    finally:
+        destroy_browser(browser)
 
 
 def select(alert_config, current_condition, el_options, ticker_id):
@@ -819,6 +844,19 @@ def select(alert_config, current_condition, el_options, ticker_id):
     return found
 
 
+def clear(element):
+    element.clear()
+    element.send_keys(MODIFIER_KEY + 'a')
+    element.send_keys(Keys.BACKSPACE)
+    time.sleep(DELAY_BREAK_MINI * 0.5)
+
+
+def send_keys(element, string, interval=DELAY_KEYSTROKE):
+    for i in range(len(string)):
+        element.send_keys(string[i])
+        time.sleep(interval)
+
+
 def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('Trying again (' + str(retry_number+1) + ')')
@@ -829,9 +867,9 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         time.sleep(5)
         # change symbol
         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-        input_symbol.send_keys(MODIFIER_KEY + 'a')
+        clear(input_symbol)
         try:
-            input_symbol.send_keys(ticker_id)
+            send_keys(input_symbol, ticker_id)
         except Exception as err:
             log.debug('Can\'t find ' + str(ticker_id) + ' in list of symbols:')
             log.exception(err)
@@ -884,46 +922,71 @@ def set_expiration(_alert_dialog, alert_config):
         target_date = max_expiration
     date_value = target_date.strftime('%Y-%m-%d')
     time_value = target_date.strftime('%H:%M')
-    # time.sleep(DELAY_BREAK_MINI)
 
     input_date = _alert_dialog.find_element_by_name('alert_exp_date')
-    input_date.send_keys(MODIFIER_KEY + 'a')
-    input_date.send_keys(date_value)
+    time.sleep(DELAY_BREAK_MINI * 0.5)
+    clear(input_date)
+    send_keys(input_date, date_value)
     input_time = _alert_dialog.find_element_by_name('alert_exp_time')
-    input_time.send_keys(MODIFIER_KEY + 'a')
-    input_time.send_keys(time_value)
-    # time.sleep(DELAY_BREAK_MINI)
+    time.sleep(DELAY_BREAK_MINI * 0.5)
+    clear(input_time)
+    send_keys(input_time, time_value)
 
 
 def login(browser):
     url = 'https://www.tradingview.com'
+    uid = config.get('tradingview', 'username')
+    pwd = config.get('tradingview', 'password')
     browser.get(url)
 
     # if logged in under a different username or not logged in at all log out and then log in again
     elem_username = browser.find_element_by_css_selector(css_selectors['username'])
-    if type(elem_username) is WebElement and elem_username.text != '' and elem_username.text == config.get('tradingview', 'username'):
+    if type(elem_username) is WebElement and elem_username.text != '' and elem_username.text == uid:
         wait_and_click(browser, css_selectors['username'])
         wait_and_click(browser, css_selectors['signout'])
 
     wait_and_click(browser, css_selectors['signin'])
-    input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
-    input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
-    input_username.clear()
-    input_username.send_keys(Keys.BACKSPACE)
-    time.sleep(0.1)
-    input_username.send_keys(config.get('tradingview', 'username'))
-    input_password.clear()
-    input_password.send_keys(Keys.BACKSPACE)
-    time.sleep(0.1)
-    input_password.send_keys(config.get('tradingview', 'password'))
-    wait_and_click(browser, css_selectors['btn_login'])
 
-    time.sleep(DELAY_BREAK)
-    time.sleep(DELAY_BREAK)
-    time.sleep(DELAY_BREAK)
+    # put credentials in if defined
+    if uid and pwd:
+        input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+        input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
+        clear(input_username)
+        input_username.send_keys(config.get('tradingview', 'username'))
+        clear(input_password)
+        input_password.send_keys(config.get('tradingview', 'password'))
+    # if there are no user credentials and it is run in the background, then exit
+    elif config.getboolean('webdriver', 'run_in_background'):
+        log.warn("You are running Kairos in the background but haven't set your TV credentials. Please, do so in the config file or don't run Kairos in the background so you can manually enter your TV credentials on login.")
+        exit(0)
+    # otherwise give user time to set
+    else:
+        input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+        input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
+        clear(input_password)
+        clear(input_username)
+        log.info("Please finish setting your credentials within 60 seconds. No need to press the login button.")
+        time.sleep(60)
+    try:
+        wait_and_click(browser, css_selectors['btn_login'])
+    finally:
+        time.sleep(DELAY_BREAK * 3)
 
 
-def create_browser():
+def create_browser(run_in_background):
+    options = webdriver.ChromeOptions()
+    options.add_argument('--disable-extensions')
+    options.add_argument('--window-size=' + RESOLUTION)
+    options.add_argument('--disable-notifications')
+    prefs = {'profile.default_content_setting_values.notifications': 2}
+    options.add_experimental_option('prefs', prefs)
+    # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
+    # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
+    if OS == 'windows':
+        options.add_argument('--disable-gpu')
+    # run chrome in the background
+    if run_in_background:
+        options.add_argument('headless')
     browser = None
 
     chromedriver_file = r"" + str(config.get('webdriver', 'path'))
@@ -949,6 +1012,8 @@ def run(file):
     counter_alerts = 0
     total_alerts = 0
     browser = None
+    tv = None
+    has_charts = False
 
     try:
         if len(file) > 1:
@@ -959,57 +1024,60 @@ def run(file):
             log.error("File " + str(file) + " does not exist. Did you setup your kairos.cfg and yaml file correctly?")
             raise FileNotFoundError
 
-        browser = create_browser()
-        login(browser)
-
-        # do some maintenance on the alert list (removing or restarting)
-        if config.getboolean('tradingview', 'clear_alerts'):
-            wait_and_click(browser, css_selectors['btn_calendar'])
-            wait_and_click(browser, css_selectors['btn_alerts'])
-            wait_and_click(browser, css_selectors['btn_alert_menu'])
-            wait_and_click(browser, css_selectors['item_clear_alerts'])
-            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-            time.sleep(DELAY_BREAK)
-            time.sleep(DELAY_BREAK)
-        else:
-            if config.getboolean('tradingview', 'restart_inactive_alerts'):
-                wait_and_click(browser, css_selectors['btn_calendar'])
-                wait_and_click(browser, css_selectors['btn_alerts'])
-                wait_and_click(browser, css_selectors['btn_alert_menu'])
-                wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
-                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                time.sleep(DELAY_BREAK)
-                time.sleep(DELAY_BREAK)
-            elif config.getboolean('tradingview', 'clear_inactive_alerts'):
-                wait_and_click(browser, css_selectors['btn_calendar'])
-                wait_and_click(browser, css_selectors['btn_alerts'])
-                wait_and_click(browser, css_selectors['btn_alert_menu'])
-                wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
-                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                time.sleep(DELAY_BREAK)
-                time.sleep(DELAY_BREAK)
-            # count the number of existing alerts
-            alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
-            if type(alerts) is not None:
-                counter_alerts = len(alerts)
-
         # get the user defined settings file
         try:
             with open(file, 'r') as stream:
                 try:
                     tv = yaml.safe_load(stream)
-                    for file, charts in tv.items():
-                        if type(charts) is list:
-                            for i in range(len(charts)):
-                                [counter_alerts, total_alerts] = open_chart(browser, charts[i], counter_alerts, total_alerts)
+                    has_charts = 'charts' in tv
                 except yaml.YAMLError as err_yaml:
                     log.exception(err_yaml)
         except FileNotFoundError as err_file:
             log.exception(err_file)
         except OSError as err_os:
             log.exception(err_os)
-        summary(total_alerts)
-        destroy_browser(browser)
+
+        if has_charts:
+            browser = create_browser(config.getboolean('webdriver', 'run_in_background'))
+            login(browser)
+
+            # do some maintenance on the alert list (removing or restarting)
+            if config.getboolean('tradingview', 'clear_alerts'):
+                wait_and_click(browser, css_selectors['btn_calendar'])
+                wait_and_click(browser, css_selectors['btn_alerts'])
+                wait_and_click(browser, css_selectors['btn_alert_menu'])
+                wait_and_click(browser, css_selectors['item_clear_alerts'])
+                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                time.sleep(DELAY_BREAK * 2)
+            else:
+                if config.getboolean('tradingview', 'restart_inactive_alerts'):
+                    wait_and_click(browser, css_selectors['btn_calendar'])
+                    wait_and_click(browser, css_selectors['btn_alerts'])
+                    wait_and_click(browser, css_selectors['btn_alert_menu'])
+                    wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
+                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                    time.sleep(DELAY_BREAK * 2)
+                elif config.getboolean('tradingview', 'clear_inactive_alerts'):
+                    wait_and_click(browser, css_selectors['btn_calendar'])
+                    wait_and_click(browser, css_selectors['btn_alerts'])
+                    wait_and_click(browser, css_selectors['btn_alert_menu'])
+                    wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                    time.sleep(DELAY_BREAK * 2)
+                # count the number of existing alerts
+                alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
+                if type(alerts) is not None:
+                    counter_alerts = len(alerts)
+
+            # iterate over all items that have an 'alerts' property
+            for file, items in tv.items():
+                if type(items) is list:
+                    for i in range(len(items)):
+                        if 'alerts' in items[i]:
+                            [counter_alerts, total_alerts] = open_chart(browser, items[i], counter_alerts, total_alerts)
+
+            summary(total_alerts)
+            destroy_browser(browser)
     except Exception as exc:
         log.exception(exc)
         summary(total_alerts)

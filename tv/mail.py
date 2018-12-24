@@ -10,6 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from urllib.parse import unquote
 import requests
+import yaml
 from bs4 import BeautifulSoup
 from kairos import tools
 from tv import tv
@@ -36,30 +37,10 @@ smtp_server = config.get("mail", "smtp_server")
 smtp_port = 465
 
 charts = dict()
-# watchlists_dir = 'watchlists'
-# watchlists_dir = os.path.join(CURRENT_DIR, watchlists_dir)
-# if not os.path.exists(watchlists_dir):
-#     # noinspection PyBroadException
-#     try:
-#         os.mkdir(watchlists_dir)
-#     except Exception as watchlist_dir_error:
-#         log.exception(watchlist_dir_error)
-#         watchlists_dir = ''
-#
-# watchlist_dir = os.path.join(watchlists_dir, datetime.datetime.today().strftime('%Y%m%d'))
-# if os.path.exists(watchlists_dir) and not os.path.exists(watchlist_dir):
-#     # noinspection PyBroadException
-#     try:
-#         os.mkdir(watchlists_dir)
-#     except Exception as watchlist_dir_error:
-#         log.exception(watchlist_dir_error)
-#         watchlists_dir = ''
-#
-#         os.mkdir(watchlist_dir)
 
 
-def create_browser():
-    return tv.create_browser()
+def create_browser(run_in_background=True):
+    return tv.create_browser(run_in_background)
 
 
 def destroy_browser(browser):
@@ -74,8 +55,8 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
     return tv.take_screenshot(browser, symbol, interval, retry_number)
 
 
-def import_watchlist(browser, filepath):
-    return tv.import_watchlist(browser, filepath)
+def import_watchlist(filepath, filename):
+    return tv.import_watchlist(filepath, filename)
 
 
 def process_data(data, browser):
@@ -261,7 +242,7 @@ def read_mail(browser):
         # log.exception(e)
 
 
-def create_watchlist(csv):
+def create_watchlist(csv, filename=''):
     filepath = ''
     if config.has_option('logging', 'watchlist_path'):
         watchlist_dir = config.get('logging', 'watchlist_path')
@@ -275,71 +256,137 @@ def create_watchlist(csv):
                     log.exception(e)
 
             if os.path.exists(watchlist_dir):
-                filename = datetime.datetime.today().strftime('%Y-%m-%d_%H%M') + '.txt'
+                if filename != '':
+                    filename = filename.replace('%DATE', datetime.datetime.today().strftime('%Y-%m-%d'))
+                    filename = filename.replace('%TIME', datetime.datetime.today().strftime('%H%M'))
+                else:
+                    filename = datetime.datetime.today().strftime('%Y-%m-%d_%H%M')
+
+                # TradingView's upload dialog expects the file to end with .txt
+                filename += '.txt'
                 filepath = os.path.join(watchlist_dir, filename)
                 f = open(filepath, "w")
                 f.write(csv)
                 f.close()
 
-    return filepath
+    return [filepath, filename]
 
 
-def send_mail(browser, webhooks=True, watchlist=True):
+def send_mail(summary_config):
 
-    msg = MIMEMultipart('alternative')
-    msg['Subject'] = "TradingView Alert Summary"
-    msg['From'] = uid
-    msg['To'] = uid
-    text = ''
-    list_html = ''
-    html = '<html><body>'
-    csv = ''
+    try:
+        msg = MIMEMultipart('alternative')
+        text = ''
+        list_html = ''
+        html = ''
+        csv = ''
+        to = [uid]
+        cc = []
+        bcc = []
 
-    count = 0
-    if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
-        html += '<table><thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
+        headers = dict()
+        headers['Subject'] = 'TradingView Alert Summary'
+        headers['From'] = uid
+        headers['To'] = uid
 
-    for url in charts:
-        symbol = charts[url][0]
-        alert = charts[url][1]
-        date = charts[url][2]
-        screenshots = charts[url][3]
-        filenames = []
-        if len(charts[url]) >= 4:
-            filenames = charts[url][4]
+        email_config = None
+        if summary_config and 'email' in summary_config:
+            email_config = summary_config['email']
+        if 'to' in email_config and len(email_config['to']) > 0:
+            to = email_config['to']
+            headers['To'] = ",".join(to)
+        if 'cc' in email_config and len(email_config['cc']) > 0:
+            cc = email_config['cc']
+            headers['Cc'] = ",".join(cc)
+        if 'bcc' in email_config and len(email_config['bcc']) > 0:
+            bcc = email_config['bcc']
+        if 'subject' in email_config and email_config['subject'] != '':
+            headers['Subject'] = '' + email_config['subject']
+
+        for key in headers:
+            msg[key] = headers[key]
+
+        count = 0
+        if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
+            html += '<table><thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
+
+        for url in charts:
+            symbol = charts[url][0]
+            alert = charts[url][1]
+            date = charts[url][2]
+            screenshots = charts[url][3]
+            filenames = []
+            if len(charts[url]) >= 4:
+                filenames = charts[url][4]
+
+            if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
+                html += generate_table_row(date, symbol, alert, screenshots, url)
+            else:
+                list_html += generate_list_entry(msg, alert, screenshots, filenames, url, count)
+
+            text += generate_text(date, symbol, alert, screenshots, url)
+
+            if csv == '':
+                csv += symbol
+            else:
+                csv += ',' + symbol
+
+            # send signals to webhooks
+            if summary_config and 'webhooks' in summary_config:
+                webhooks_config = summary_config['webhooks']
+                if type(webhooks_config) is list:
+                    for i in range(len(webhooks_config)):
+                        webhooks = webhooks_config[i]['url']
+                        search_criteria = webhooks_config[i]['search_criteria']
+                        send_webhooks(date, symbol, alert, screenshots, url, webhooks, search_criteria)
+            elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
+                search_criteria = config.getlist('webhooks', 'search_criteria')
+                webhooks = config.getlist('webhooks', 'webhook')
+                send_webhooks(date, symbol, alert, screenshots, url, webhooks, search_criteria)
+
+            count += 1
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
-            html += generate_table_row(date, symbol, alert, screenshots, url)
+            html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
         else:
-            list_html += generate_list_entry(msg, alert, screenshots, filenames, url, count)
+            html += '<h2>TradingView Alert Summary</h2><h3>Number of signals: ' + str(count) + '</h3>' + list_html
 
-        text += generate_text(date, symbol, alert, screenshots, url)
-        if webhooks:
-            send_webhooks(date, symbol, alert, screenshots, url)
-        if csv == '':
-            csv += symbol
+        if email_config and 'text' in email_config and email_config['text'] != '':
+            text = email_config['text'].replace('%SUMMARY', '' + text)
+        if email_config and 'html' in email_config and email_config['html'] != '':
+            html = email_config['html'].replace('%SUMMARY', '' + html)
+
+        if html[:6].lower() != '<html>':
+            html = '<html><body>' + html + '</body></html>'
+
+        msg.attach(MIMEText(text, 'plain'))
+        msg.attach(MIMEText(html, 'html'))
+
+        recipients = to + cc + bcc
+
+        if (not email_config) or ('send' in email_config and email_config['send']):
+            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
+            server.login(uid, pwd)
+            server.sendmail(uid, recipients, msg.as_string())
+            log.info("Mail send")
+            server.quit()
+
+        if summary_config and 'watchlist' in summary_config:
+            watchlist_config = summary_config['watchlist']
+            filename = watchlist_config['name']
+            [filepath, filename] = create_watchlist(csv, filename)
+            filepath = os.path.join(os.getcwd(), filepath)
+            log.info('watchlist ' + filepath + ' created')
+            if watchlist_config['import']:
+                import_watchlist(filepath, filename)
         else:
-            csv += ',' + symbol
-        count += 1
+            [filepath, filename] = create_watchlist(csv)
+            filepath = os.path.join(os.getcwd(), filepath)
+            log.info('watchlist ' + filepath + ' created')
+            import_watchlist(filepath, filename)
 
-    if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
-        html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table></body></html>'
-    else:
-        html += '<h2>TradingView Alert Summary</h2><h3>Number of signals: ' + str(count) + '</h3>' + list_html + '</body></html>'
-
-    msg.attach(MIMEText(text, 'plain'))
-    msg.attach(MIMEText(html, 'html'))
-    server = smtplib.SMTP_SSL(smtp_server, smtp_port)
-    server.login(uid, pwd)
-    server.sendmail(uid, uid, msg.as_string())
-    log.info("Mail send")
-    server.quit()
-
-    if watchlist:
-        filepath = create_watchlist(csv)
-        filepath = os.path.join(os.getcwd(), filepath)
-        log.debug('watchlist ' + filepath + ' created')
-        import_watchlist(browser, filepath)
+    except Exception as e:
+        log.exception(e)
 
 
 def generate_text(date, symbol, alert, screenshots, url):
@@ -378,24 +425,22 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def send_webhooks(date, symbol, alert, screenshots, url):
+def send_webhooks(date, symbol, alert, screenshots, chart_url, webhooks, search_criteria):
     result = False
-    if config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-        search_criteria = config.getlist('webhooks', 'search_criteria')
-        webhooks = config.getlist('webhooks', 'webhook')
-
+    try:
         for i in range(len(search_criteria)):
-            if str(alert).index(str(search_criteria[i])) >= 0:
+            if str(alert).find(str(search_criteria[i])):
                 for j in range(len(webhooks)):
                     if webhooks[j]:
-                        # result = [500, 'Internal Server Error; search_criteria: ' + str(search_criteria[i]) + '; webhook: ' + str(webhooks[j])]
                         screenshot = ''
                         for chart in screenshots:
                             if screenshot == '':
                                 screenshot = screenshots[chart]
-                        json = {'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots}
-                        log.debug(json)
+                        json = {'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': chart_url, 'screenshot_url': screenshot, 'screenshots': screenshots}
+                        log.debug('webhook: ' + str(webhooks[j]))
+                        log.debug('json: ' + str(json))
                         r = requests.post(str(webhooks[j]), json=json)
+
                         # unfortunately, we cannot always send a raw image (e.g. zapier)
                         # elif filename:
                         #     screenshot_bytestream = ''
@@ -406,18 +451,36 @@ def send_webhooks(date, symbol, alert, screenshots, url):
                         #     except Exception as send_webhook_error:
                         #         log.exception(send_webhook_error)
                         #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+
                         result = [r.status_code, r.reason]
                         if result[0] != 200:
                             log.warn(str(result[0]) + ' ' + str(result[1]))
+    except Exception as e:
+        log.exception(e)
     return result
 
 
-def run(delay):
+def run(delay, file):
     log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
-    browser = create_browser()
+    summary_config = ''
+    if file:
+        file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), file)
+        if not os.path.exists(file):
+            log.error("File " + str(file) + " does not exist. Did you setup your kairos.cfg and yaml file correctly?")
+            raise FileNotFoundError
+
+        with open(file, 'r') as stream:
+            try:
+                data = yaml.safe_load(stream)
+                if 'summary' in data:
+                    summary_config = data['summary']
+            except Exception as err_yaml:
+                log.exception(err_yaml)
+
+    browser = create_browser(tv.config.getboolean('webdriver', 'run_in_background'))
     login(browser)
     read_mail(browser)
-    if len(charts) > 0:
-        send_mail(browser)
     destroy_browser(browser)
+    if len(charts) > 0:
+        send_mail(summary_config)

@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 1.0.18
+Version: 1.1.0
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 Home-page: https://github.com/timelyart/Kairos/
 Author: timelyart
@@ -30,20 +30,22 @@ Description: # Kairos #
         * Add (limited) dynamic data to your alert messages. 
         * Run from command line and in the background.
         * Send a summary mail.
+        * Generate a TradingView watchlist from the summary mail.
+        * Import generated TradingView watchlist.
         
         ## Prerequisites ##
         * [Python 3](https://www.python.org/downloads/)
-        * [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/); or [geckodriver](https://github.com/mozilla/geckodriver/) with [Firefox](https://www.mozilla.org/en-US/firefox/) (for macOS)
+        * [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/); or [geckodriver](https://github.com/mozilla/geckodriver/) with [Firefox](https://www.mozilla.org/en-US/firefox/) (for OS X)
         
         _Note: when you install Python on Windows make sure that it's part of your PATH._
         
         ## Installing ##
         If you run Ubuntu 18.04 there is a list of commands here: [Ubuntu 18.04 - command line installation](#ubuntu-1804---command-line-installation).
-        ### From archive (Linux, macOS and Windows) ###
-        _If you are running Linux / macOS then run listed commands with **sudo**_ 
-        * [Install Python 3](https://www.python.org/downloads/) - [macOS guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
-        * [Install Chrome latest version](https://www.google.com/chrome/) or [geckodriver](https://github.com/mozilla/geckodriver/) (macOS)
-        * [Download ChromeDriver](http://chromedriver.chromium.org/downloads) or [Firefox](https://www.mozilla.org/en-US/firefox/) (macOS)
+        ### From archive (Linux, OS X and Windows) ###
+        _If you are running Linux / OS X then run listed commands with **sudo**_ 
+        * [Install Python 3](https://www.python.org/downloads/) - [OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
+        * [Install Chrome latest version](https://www.google.com/chrome/) or [geckodriver](https://github.com/mozilla/geckodriver/) (OS X)
+        * [Download ChromeDriver](http://chromedriver.chromium.org/downloads) or [Firefox](https://www.mozilla.org/en-US/firefox/) (OS X)
         * [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
         * Open a terminal, or when on Windows the command prompt as Administrator
         * Update setuptools:
@@ -255,6 +257,8 @@ Description: # Kairos #
         
         [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
         
+        [asweigart](https://github.com/asweigart/pyautogui), for [PyAutoGUI](https://github.com/asweigart/pyautogui)
+        
         ## Author ##
         [timelyart](https://github.com/timelyart)
         
@@ -265,6 +269,6 @@ Description: # Kairos #
         This project is licensed under the GNU GPLv3 License - see the [LICENSE.md](LICENSE.md) file for details. 
         
 Platform: UNKNOWN
+Provides-Extra: platform_system == "Windows"
 Provides-Extra: platform_system == "Darwin"
 Provides-Extra: platform_system == "Linux"
-Provides-Extra: platform_system == "Windows"
