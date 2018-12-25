@@ -429,7 +429,7 @@ def send_webhooks(date, symbol, alert, screenshots, chart_url, webhooks, search_
     result = False
     try:
         for i in range(len(search_criteria)):
-            if str(alert).find(str(search_criteria[i])):
+            if str(alert).find(str(search_criteria[i])) >= 0:
                 for j in range(len(webhooks)):
                     if webhooks[j]:
                         screenshot = ''
