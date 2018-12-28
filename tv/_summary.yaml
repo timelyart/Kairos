@@ -15,6 +15,8 @@ summary:
     html: '<p>my prepended text</p>%SUMMARY<p>my appended text</p>'
     # If you just want to send the signals to webhooks (see your config file) or import them as a watchlist, set this to no
     send: yes
+    # if you want to shield recipients from seeing each other's email address, set this to yes
+    one-mail-per-recipient: yes
   # Create a watchlist of summarized signals
   watchlist:
     # Keywords %DATE (yyyymmdd), %TIME (hhmm)

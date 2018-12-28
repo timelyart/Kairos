@@ -106,3 +106,34 @@ charts:
     message:
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
     show_multi_chart_layout: no
+summary:
+  # Create email
+  email:
+    # List of comma separated values
+    to: ['my_name@example.com', 'my_alias@example.com']
+    # List of comma separated values
+    cc: ['my_cc@example.com', 'my_cc_alias@example.com']
+    # List of comma separated values
+    # Note: not all email providers support bcc (e.g. gmail)
+    bcc: ['my_bcc@example.com', 'my_bcc@example.com']
+    subject: 'TradingView Alert Summary'
+    # Use keyword %SUMMARY in your text and/or html to include the Kairos generated summary
+    text: 'my prepended text %SUMMARY my appended text'
+    # Note: you may include <html> and <body> tags but it is not necessary (Kairos will include them if they aren't found)
+    html: '<p>my prepended text</p>%SUMMARY<p>my appended text</p>'
+    # If you just want to send the signals to webhooks (see your config file) or import them as a watchlist, set this to no
+    send: yes
+    # if you want to shield recipients from seeing each other's email address, set this to yes
+    one-mail-per-recipient: yes
+  # Create a watchlist of summarized signals
+  watchlist:
+    # Keywords %DATE (yyyymmdd), %TIME (hhmm)
+    # Note: will overwrite watchlists of the same name
+    name: 'summary_%DATE_%TIME'
+    # Import the watchlist into TV
+    # Note: existing watchlists of the same name will be deleted
+    import: yes
+  # Send individual signals to one or more lists webhooks when one out of a list of search_criteria is met
+  webhooks:
+    - url: ['https://hooks.zapier.com/hooks/catch/my_id/<webhook_id>']
+      search_criteria: ['search_text', 'second_search_text']

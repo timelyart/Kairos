@@ -294,10 +294,12 @@ def send_mail(summary_config):
             email_config = summary_config['email']
         if 'to' in email_config and len(email_config['to']) > 0:
             to = email_config['to']
-            headers['To'] = ",".join(to)
+            if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                headers['To'] = ",".join(to)
         if 'cc' in email_config and len(email_config['cc']) > 0:
             cc = email_config['cc']
-            headers['Cc'] = ",".join(cc)
+            if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                headers['Cc'] = ",".join(cc)
         if 'bcc' in email_config and len(email_config['bcc']) > 0:
             bcc = email_config['bcc']
         if 'subject' in email_config and email_config['subject'] != '':
@@ -367,8 +369,16 @@ def send_mail(summary_config):
         if (not email_config) or ('send' in email_config and email_config['send']):
             server = smtplib.SMTP_SSL(smtp_server, smtp_port)
             server.login(uid, pwd)
-            server.sendmail(uid, recipients, msg.as_string())
-            log.info("Mail send")
+
+            if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                server.sendmail(uid, recipients, msg.as_string())
+                log.info("Mail send to: " + str(recipients))
+            else:
+                for i in range(len(recipients)):
+                    msg['To'] = recipients[i]
+                    server.sendmail(uid, recipients[i], msg.as_string())
+                    log.info("Mail send to: " + str(recipients[i]))
+
             server.quit()
 
         if summary_config and 'watchlist' in summary_config:
