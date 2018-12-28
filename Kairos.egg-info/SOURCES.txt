@@ -26,6 +26,7 @@ tv/__init__.py
 tv/_browse.yaml
 tv/_example.yaml
 tv/_example_davo.yaml
+tv/_summary.yaml
 tv/mail.py
 tv/refresh.yaml
 tv/tv.py

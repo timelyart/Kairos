@@ -29,6 +29,7 @@ from kairos import tools
 from PIL import Image
 from urllib.parse import unquote
 import pyautogui
+import pyperclip
 
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
@@ -48,8 +49,8 @@ DELAY_CHANGE_SYMBOL_DEF = 0.2
 DELAY_SCREENSHOT_DIALOG = 2
 DELAY_SCREENSHOT = 1
 DELAY_KEYSTROKE = 0.01
-DELAY_WATCHLIST = 0.2
-DELAY_TIMEFRAME = 0.2
+DELAY_WATCHLIST = 0.5
+DELAY_TIMEFRAME = 0.5
 
 ALERT_NUMBER = 0
 
@@ -446,8 +447,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # might be useful for multi threading set the symbol by going to different url like this:
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-                        clear(input_symbol)
                         send_keys(input_symbol, symbol)
+                        # copy2paste(input_symbol, symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
 
@@ -586,11 +587,10 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     :return: true, if successful
     """
     global alert_dialog
-    log.debug(alert_config['name'])
 
     try:
         wait_and_click(browser, css_selectors['btn_create_alert'])
-        time.sleep(DELAY_BREAK_MINI)
+        time.sleep(DELAY_BREAK)
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
 
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
@@ -644,7 +644,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 elements = alert_dialog.find_elements_by_css_selector(css_selectors['dlg_create_alert_3rd_row_group_item'])
                 if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
                     elements[i].click()
-                    # time.sleep(DELAY_BREAK_MINI)
+                    time.sleep(DELAY_BREAK_MINI)
 
                     el_options = elements[i].find_elements_by_css_selector(css_selectors['options_dlg_create_alert_3rd_row_group_item'])
                     condition_yaml = str(alert_config['conditions'][current_condition])
@@ -659,8 +659,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                         log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                clear(inputs[i])
-                send_keys(inputs[i], str(alert_config['conditions'][current_condition]).strip())
+                copy2paste(inputs[i], str(alert_config['conditions'][current_condition]).strip())
 
             # give some time
             current_condition += 1
@@ -670,7 +669,6 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
         # Expiration
         set_expiration(alert_dialog, alert_config)
-        time.sleep(DELAY_BREAK_MINI * 2)
 
         # Show popup
         checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
@@ -716,7 +714,6 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
 
             # Construct message
             textarea = alert_dialog.find_element_by_name('description')
-            time.sleep(DELAY_BREAK_MINI)
             generated = textarea.text
             chart = browser.current_url + '?symbol=' + ticker_id
             show_multi_chart_layout = False
@@ -742,8 +739,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 log.exception(value_error)
             except KeyError:
                 log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-            clear(textarea)
-            textarea.send_keys(text)
+            copy2paste(textarea, text)
         except Exception as alert_err:
             log.exception(alert_err)
             return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
@@ -857,6 +853,16 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
         time.sleep(interval)
 
 
+def copy2paste(element, string):
+    pyperclip.copy(string)
+    clear(element)
+    pyperclip.paste()
+    if OS == 'macos':
+        element.send_keys(Keys.SHIFT + Keys.INSERT)
+    else:
+        element.send_keys(Keys.CONTROL + 'v')
+
+
 def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('Trying again (' + str(retry_number+1) + ')')
@@ -867,9 +873,8 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         time.sleep(5)
         # change symbol
         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-        clear(input_symbol)
         try:
-            send_keys(input_symbol, ticker_id)
+            copy2paste(input_symbol, ticker_id)
         except Exception as err:
             log.debug('Can\'t find ' + str(ticker_id) + ' in list of symbols:')
             log.exception(err)
@@ -924,13 +929,11 @@ def set_expiration(_alert_dialog, alert_config):
     time_value = target_date.strftime('%H:%M')
 
     input_date = _alert_dialog.find_element_by_name('alert_exp_date')
-    time.sleep(DELAY_BREAK_MINI * 0.5)
-    clear(input_date)
-    send_keys(input_date, date_value)
+    time.sleep(DELAY_BREAK_MINI)
+    copy2paste(input_date, date_value)
     input_time = _alert_dialog.find_element_by_name('alert_exp_time')
-    time.sleep(DELAY_BREAK_MINI * 0.5)
-    clear(input_time)
-    send_keys(input_time, time_value)
+    time.sleep(DELAY_BREAK_MINI)
+    copy2paste(input_time, time_value)
 
 
 def login(browser):
@@ -965,12 +968,12 @@ def login(browser):
         input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
         clear(input_password)
         clear(input_username)
-        log.info("Please finish setting your credentials within 60 seconds. No need to press the login button.")
+        log.info("Please finish setting your credentials within 60 seconds. No need to press the login button (doing so will slow down Kairos).")
         time.sleep(60)
     try:
         wait_and_click(browser, css_selectors['btn_login'])
     finally:
-        time.sleep(DELAY_BREAK * 3)
+        time.sleep(DELAY_BREAK * 5)
 
 
 def create_browser(run_in_background):
@@ -1042,33 +1045,35 @@ def run(file):
             login(browser)
 
             # do some maintenance on the alert list (removing or restarting)
-            if config.getboolean('tradingview', 'clear_alerts'):
-                wait_and_click(browser, css_selectors['btn_calendar'])
-                wait_and_click(browser, css_selectors['btn_alerts'])
-                wait_and_click(browser, css_selectors['btn_alert_menu'])
-                wait_and_click(browser, css_selectors['item_clear_alerts'])
-                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                time.sleep(DELAY_BREAK * 2)
-            else:
-                if config.getboolean('tradingview', 'restart_inactive_alerts'):
+            try:
+                if config.getboolean('tradingview', 'clear_alerts'):
                     wait_and_click(browser, css_selectors['btn_calendar'])
                     wait_and_click(browser, css_selectors['btn_alerts'])
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
-                    wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
+                    wait_and_click(browser, css_selectors['item_clear_alerts'])
                     wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                     time.sleep(DELAY_BREAK * 2)
-                elif config.getboolean('tradingview', 'clear_inactive_alerts'):
-                    wait_and_click(browser, css_selectors['btn_calendar'])
-                    wait_and_click(browser, css_selectors['btn_alerts'])
-                    wait_and_click(browser, css_selectors['btn_alert_menu'])
-                    wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
-                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                    time.sleep(DELAY_BREAK * 2)
-                # count the number of existing alerts
-                alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
-                if type(alerts) is not None:
-                    counter_alerts = len(alerts)
-
+                else:
+                    if config.getboolean('tradingview', 'restart_inactive_alerts'):
+                        wait_and_click(browser, css_selectors['btn_calendar'])
+                        wait_and_click(browser, css_selectors['btn_alerts'])
+                        wait_and_click(browser, css_selectors['btn_alert_menu'])
+                        wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
+                        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                        time.sleep(DELAY_BREAK * 2)
+                    elif config.getboolean('tradingview', 'clear_inactive_alerts'):
+                        wait_and_click(browser, css_selectors['btn_calendar'])
+                        wait_and_click(browser, css_selectors['btn_alerts'])
+                        wait_and_click(browser, css_selectors['btn_alert_menu'])
+                        wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                        time.sleep(DELAY_BREAK * 2)
+                    # count the number of existing alerts
+                    alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
+                    if type(alerts) is not None:
+                        counter_alerts = len(alerts)
+            except Exception as e:
+                log.exception(e)
             # iterate over all items that have an 'alerts' property
             for file, items in tv.items():
                 if type(items) is list:
