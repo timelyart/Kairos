@@ -8,6 +8,7 @@ import time
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from email import policy
 from urllib.parse import unquote
 import requests
 import yaml
@@ -62,7 +63,7 @@ def import_watchlist(filepath, filename):
 def process_data(data, browser):
     for response_part in data:
         if isinstance(response_part, tuple):
-            msg = email.message_from_string(response_part[1].decode('utf-8'))
+            msg = email.message_from_string(response_part[1].decode('utf-8'), policy=policy.default)
             email_subject = str(msg['subject'])
             if email_subject.find('TradingView Alert') >= 0:
                 log.info('Processing: ' + msg['date'] + ' - ' + email_subject)
@@ -84,7 +85,7 @@ def process_body(msg, browser):
         url = ''
         screenshot_url = ''
         date = msg['date']
-        body = msg.get_payload()
+        body = msg.get_content()
         soup = BeautifulSoup(body, features="lxml")
         links = soup.find_all('a', href=True)
         screenshot_charts = []
@@ -237,9 +238,8 @@ def read_mail(browser):
 
         mail.close()
         mail.logout()
-    except Exception:
-        log.debug('Unable')
-        # log.exception(e)
+    except Exception as e:
+        log.exception(e)
 
 
 def create_watchlist(csv, filename=''):
