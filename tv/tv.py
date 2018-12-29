@@ -216,13 +216,21 @@ def element_exists(browser, dom, css_selector, delay):
 
 
 def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
-    WebDriverWait(browser, delay).until(
-        ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
+    try:
+        WebDriverWait(browser, delay).until(
+            ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
+    except Exception as e:
+        log.exception(e)
+        log_screenshot(browser)
 
 
 def wait_and_click_by_xpath(browser, xpath, delay=CHECK_IF_EXISTS_TIMEOUT):
-    WebDriverWait(browser, delay).until(
-        ec.element_to_be_clickable((By.XPATH, xpath))).click()
+    try:
+        WebDriverWait(browser, delay).until(
+            ec.element_to_be_clickable((By.XPATH, xpath))).click()
+    except Exception as e:
+        log.exception(e)
+        log_screenshot(browser)
 
 
 def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -230,14 +238,22 @@ def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_
         xpath = '//{0}[contains(text(), "{1}") and @class="{2}"]'.format(tag, search_text, css_class)
     else:
         xpath = '//{0}[contains(text(), "{1}")]'.format(tag, search_text)
-    WebDriverWait(browser, delay).until(
-        ec.element_to_be_clickable((By.XPATH, xpath))).click()
+    try:
+        WebDriverWait(browser, delay).until(
+            ec.element_to_be_clickable((By.XPATH, xpath))).click()
+    except Exception as e:
+        log.exception(e)
+        log_screenshot(browser)
 
 
 def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
-    element = WebDriverWait(browser, delay).until(
-        ec.element_to_be_clickable((By.CSS_SELECTOR, css)))
-    return element
+    try:
+        element = WebDriverWait(browser, delay).until(
+            ec.element_to_be_clickable((By.CSS_SELECTOR, css)))
+        return element
+    except Exception as e:
+        log.exception(e)
+        log_screenshot(browser)
 
 
 def set_timeframe(browser, timeframe):
@@ -419,7 +435,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
         # open alerts tab
         wait_and_click(browser, css_selectors['btn_alerts'])
-
         # set the time frame
         for i in range(len(chart['timeframes'])):
             timeframe = chart['timeframes'][i]
@@ -448,7 +463,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
                         send_keys(input_symbol, symbol)
-                        # copy2paste(input_symbol, symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
 
@@ -487,6 +501,41 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     except Exception as exc:
         log.exception(exc)
     return [counter_alerts, total_alerts]
+
+
+def log_screenshot(browser, quit_program=False, name=''):
+    if config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error'):
+        filename = str(name) + datetime.datetime.now().strftime('%Y%m%d_%H%M') + '.png'
+        if not os.path.exists('log'):
+            os.mkdir('log')
+        filename = os.path.join('log', filename)
+        element = browser.find_element_by_css_selector('html')
+
+        try:
+            location = element.location
+            size = element.size
+            browser.save_screenshot(filename)
+            offset_left, offset_right, offset_top, offset_bottom = [0, 0, 0, 0]
+            if config.has_option('logging', 'screenshot_offset_left'):
+                offset_left = config.getint('logging', 'screenshot_offset_right')
+            if config.has_option('logging', 'screenshot_offset_right'):
+                offset_right = config.getint('logging', 'screenshot_offset_top')
+            if config.has_option('logging', 'screenshot_offset_top'):
+                offset_top = config.getint('logging', 'screenshot_offset_left')
+            if config.has_option('logging', 'screenshot_offset_bottom'):
+                offset_bottom = config.getint('logging', 'screenshot_offset_bottom')
+            x = location['x'] + offset_left
+            y = location['y'] + offset_top
+            width = location['x'] + size['width'] + offset_right
+            height = location['y'] + size['height'] + offset_bottom
+            im = Image.open(filename)
+            im = im.crop((int(x), int(y), int(width), int(height)))
+            im.save(filename)
+            log.error('snapshot: ' + str(filename))
+        except Exception as take_screenshot_error:
+            log.exception(take_screenshot_error)
+        if quit_program:
+            exit(0)
 
 
 def take_screenshot(browser, symbol, interval, retry_number=0):
@@ -589,10 +638,11 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     global alert_dialog
 
     try:
-        wait_and_click(browser, css_selectors['btn_create_alert'])
+        html = browser.find_element_by_css_selector('html')
+        html.send_keys(Keys.ALT + 'a')
+        # wait_and_click(browser, css_selectors['btn_create_alert'])
         time.sleep(DELAY_BREAK)
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
-
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
 
         # 1st row, 1st condition
