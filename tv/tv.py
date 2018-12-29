@@ -447,7 +447,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # might be useful for multi threading set the symbol by going to different url like this:
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-                        copy2paste(input_symbol, symbol)
+                        send_keys(input_symbol, symbol)
+                        # copy2paste(input_symbol, symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
 
