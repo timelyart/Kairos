@@ -5,10 +5,12 @@ import os
 import re
 import smtplib
 import time
+from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email import policy
+from email import encoders
 from urllib.parse import unquote
 import requests
 import yaml
@@ -364,6 +366,27 @@ def send_mail(summary_config):
         msg.attach(MIMEText(text, 'plain'))
         msg.attach(MIMEText(html, 'html'))
 
+        # create watchlist
+        if summary_config and 'watchlist' in summary_config:
+            watchlist_config = summary_config['watchlist']
+            filename = watchlist_config['name']
+            [filepath, filename] = create_watchlist(csv, filename)
+            filepath = os.path.join(os.getcwd(), filepath)
+            log.info('watchlist ' + filepath + ' created')
+            if watchlist_config['import']:
+                import_watchlist(filepath, filename)
+            if watchlist_config['attach-to-email']:
+                watchlist_att = MIMEBase('application', "octet-stream")
+                watchlist_att.set_payload(open(filepath, "rb").read())
+                encoders.encode_base64(watchlist_att)
+                watchlist_att.add_header('Content-Disposition', 'attachment; filename="' + filename + '"')
+                msg.attach(watchlist_att)
+        else:
+            [filepath, filename] = create_watchlist(csv)
+            filepath = os.path.join(os.getcwd(), filepath)
+            log.info('watchlist ' + filepath + ' created')
+            import_watchlist(filepath, filename)
+
         recipients = to + cc + bcc
 
         if (not email_config) or ('send' in email_config and email_config['send']):
@@ -380,20 +403,6 @@ def send_mail(summary_config):
                     log.info("Mail send to: " + str(recipients[i]))
 
             server.quit()
-
-        if summary_config and 'watchlist' in summary_config:
-            watchlist_config = summary_config['watchlist']
-            filename = watchlist_config['name']
-            [filepath, filename] = create_watchlist(csv, filename)
-            filepath = os.path.join(os.getcwd(), filepath)
-            log.info('watchlist ' + filepath + ' created')
-            if watchlist_config['import']:
-                import_watchlist(filepath, filename)
-        else:
-            [filepath, filename] = create_watchlist(csv)
-            filepath = os.path.join(os.getcwd(), filepath)
-            log.info('watchlist ' + filepath + ' created')
-            import_watchlist(filepath, filename)
 
     except Exception as e:
         log.exception(e)
@@ -473,7 +482,10 @@ def send_webhooks(date, symbol, alert, screenshots, chart_url, webhooks, search_
 def run(delay, file):
     log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
+
+    run_in_background = config.getboolean('webdriver', 'run_in_background')
     summary_config = ''
+
     if file:
         file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), file)
         if not os.path.exists(file):
@@ -485,10 +497,13 @@ def run(delay, file):
                 data = yaml.safe_load(stream)
                 if 'summary' in data:
                     summary_config = data['summary']
+                if 'webdriver' in data and 'run-in-backrgound' in data['webdriver']:
+                    run_in_background = data['webdriver']['run-in-backrgound']
             except Exception as err_yaml:
                 log.exception(err_yaml)
 
-    browser = create_browser(tv.config.getboolean('webdriver', 'run_in_background'))
+    tv.RUN_IN_BACKGROUND = run_in_background
+    browser = create_browser(run_in_background)
     login(browser)
     read_mail(browser)
     destroy_browser(browser)

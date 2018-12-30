@@ -73,8 +73,14 @@ summary:
     name: 'summary_%DATE_%TIME'
     # Import the watchlist into TV
     # Note: existing watchlists of the same name will be deleted
-    import: yes
+    # Note: this will make use of your clipboard to insert the filename in TV's upload file dialog
+    import: no
+    # Attach to summary email
+    attach-to-email: yes
   # Send individual signals to one or more lists webhooks when one out of a list of search_criteria is met
   webhooks:
     - url: ['https://hooks.zapier.com/hooks/catch/my_id/<webhook_id>']
       search_criteria: ['search_text', 'second_search_text']
+webdriver:
+  # run the webdriver in the background or not (this overrides the setting in the configuration file)
+  run-in-backrgound: yes
