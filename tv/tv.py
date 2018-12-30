@@ -19,6 +19,7 @@ import time
 import yaml
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException
+from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
@@ -51,6 +52,7 @@ DELAY_SCREENSHOT = 1
 DELAY_KEYSTROKE = 0.01
 DELAY_WATCHLIST = 0.5
 DELAY_TIMEFRAME = 0.5
+RUN_IN_BACKGROUND = False
 
 ALERT_NUMBER = 0
 
@@ -216,21 +218,13 @@ def element_exists(browser, dom, css_selector, delay):
 
 
 def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
-    try:
-        WebDriverWait(browser, delay).until(
-            ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
-    except Exception as e:
-        log.exception(e)
-        log_screenshot(browser)
+    WebDriverWait(browser, delay).until(
+        ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
 
 
 def wait_and_click_by_xpath(browser, xpath, delay=CHECK_IF_EXISTS_TIMEOUT):
-    try:
-        WebDriverWait(browser, delay).until(
-            ec.element_to_be_clickable((By.XPATH, xpath))).click()
-    except Exception as e:
-        log.exception(e)
-        log_screenshot(browser)
+    WebDriverWait(browser, delay).until(
+        ec.element_to_be_clickable((By.XPATH, xpath))).click()
 
 
 def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -238,22 +232,14 @@ def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_
         xpath = '//{0}[contains(text(), "{1}") and @class="{2}"]'.format(tag, search_text, css_class)
     else:
         xpath = '//{0}[contains(text(), "{1}")]'.format(tag, search_text)
-    try:
-        WebDriverWait(browser, delay).until(
-            ec.element_to_be_clickable((By.XPATH, xpath))).click()
-    except Exception as e:
-        log.exception(e)
-        log_screenshot(browser)
+    WebDriverWait(browser, delay).until(
+        ec.element_to_be_clickable((By.XPATH, xpath))).click()
 
 
 def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
-    try:
-        element = WebDriverWait(browser, delay).until(
-            ec.element_to_be_clickable((By.CSS_SELECTOR, css)))
-        return element
-    except Exception as e:
-        log.exception(e)
-        log_screenshot(browser)
+    element = WebDriverWait(browser, delay).until(
+        ec.element_to_be_clickable((By.CSS_SELECTOR, css)))
+    return element
 
 
 def set_timeframe(browser, timeframe):
@@ -425,6 +411,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 # extract symbols from watchlist
                 symbols = dict()
                 dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
+                time.sleep(DELAY_WATCHLIST)
                 for j in range(len(dict_symbols)):
                     symbol = dict_symbols[j]
                     symbols[j] = symbol.get_attribute('data-symbol-full')
@@ -443,7 +430,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
             time.sleep(DELAY_TIMEFRAME)
 
             # iterate over each symbol per watchlist
-            # for j in range(len(chart['watchlists'])):
             for j in range(len(chart['watchlists'])):
                 log.info("Opening watchlist " + chart['watchlists'][j])
                 try:
@@ -462,7 +448,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         # might be useful for multi threading set the symbol by going to different url like this:
                         # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
                         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-                        send_keys(input_symbol, symbol)
+                        set_value(browser, input_symbol, symbol)
                         input_symbol.send_keys(Keys.ENTER)
                         time.sleep(DELAY_CHANGE_SYMBOL)
 
@@ -470,6 +456,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         log.debug('Unable to change to symbol at index ' + str(k) + ' in list of symbols:')
                         log.debug(str(symbols))
                         log.exception(err)
+                        snapshot(browser)
 
                     for l in range(len(chart['alerts'])):
                         if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
@@ -497,21 +484,25 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         except Exception as err:
                             log.error("Could not set alert: " + symbols[k] + " " + chart['alerts'][l]['name'])
                             log.exception(err)
+                            snapshot(browser)
 
     except Exception as exc:
         log.exception(exc)
+        snapshot(browser)
     return [counter_alerts, total_alerts]
 
 
-def log_screenshot(browser, quit_program=False, name=''):
+def snapshot(browser, quit_program=False, name=''):
     if config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error'):
-        filename = str(name) + datetime.datetime.now().strftime('%Y%m%d_%H%M') + '.png'
+        filename = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.png'
+        if name:
+            filename = str(name) + '_' + filename
         if not os.path.exists('log'):
             os.mkdir('log')
         filename = os.path.join('log', filename)
-        element = browser.find_element_by_css_selector('html')
 
         try:
+            element = browser.find_element_by_css_selector('html')
             location = element.location
             size = element.size
             browser.save_screenshot(filename)
@@ -531,7 +522,8 @@ def log_screenshot(browser, quit_program=False, name=''):
             im = Image.open(filename)
             im = im.crop((int(x), int(y), int(width), int(height)))
             im.save(filename)
-            log.error('snapshot: ' + str(filename))
+            log.error(str(filename))
+            time.sleep(1)
         except Exception as take_screenshot_error:
             log.exception(take_screenshot_error)
         if quit_program:
@@ -638,9 +630,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     global alert_dialog
 
     try:
-        html = browser.find_element_by_css_selector('html')
-        html.send_keys(Keys.ALT + 'a')
-        # wait_and_click(browser, css_selectors['btn_create_alert'])
+        wait_and_click(browser, css_selectors['btn_create_alert'])
         time.sleep(DELAY_BREAK)
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
@@ -652,6 +642,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             wait_and_click(alert_dialog, css_1st_row_left)
         except Exception as alert_err:
             log.exception(alert_err)
+            snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
         # time.sleep(DELAY_BREAK_MINI)
@@ -709,7 +700,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                         log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                copy2paste(inputs[i], str(alert_config['conditions'][current_condition]).strip())
+                set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip(), 0)
 
             # give some time
             current_condition += 1
@@ -718,7 +709,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         # Options (i.e. frequency)
         wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
         # Expiration
-        set_expiration(alert_dialog, alert_config)
+        set_expiration(browser, alert_dialog, alert_config)
 
         # Show popup
         checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
@@ -787,11 +778,13 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
             except ValueError as value_error:
                 log.exception(value_error)
+                snapshot(browser)
             except KeyError:
                 log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-            copy2paste(textarea, text)
+            set_value(browser, textarea, text, 0)
         except Exception as alert_err:
             log.exception(alert_err)
+            snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
         # Submit the form
@@ -802,6 +795,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
 
     except Exception as exc:
         log.exception(exc)
+        snapshot(browser)
         # on except, refresh and try again
         return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
@@ -809,66 +803,70 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
 
 
 def import_watchlist(filepath, filename):
+    if not config.getboolean('webdriver', 'clipboard'):
+        log.warn('Cannot import watchlists unless clipboard is set to yes in the configuration file.')
+    else:
+        browser = create_browser(False)
+        login(browser)
 
-    browser = create_browser(False)
-    login(browser)
+        try:
+            wait_and_click(browser, css_selectors['btn_calendar'])
+            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
+            time.sleep(0.5)
+            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+            time.sleep(0.5)
 
-    try:
-        wait_and_click(browser, css_selectors['btn_calendar'])
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
-        time.sleep(0.5)
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-        time.sleep(0.5)
+            el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
+            for j in range(len(el_options)):
+                if str(el_options[j].text).startswith('Import Watchlist'):
+                    el_options[j].click()
+                    time.sleep(2)
+                    pyautogui.typewrite(r"" + filepath, interval=DELAY_KEYSTROKE)
+                    pyautogui.press('enter')
+                    time.sleep(1)
+                    log.info('watchlist imported')
+                    break
 
-        el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
-        for j in range(len(el_options)):
-            if str(el_options[j].text).startswith('Import Watchlist'):
-                el_options[j].click()
-                time.sleep(2)
-                pyautogui.typewrite(r"" + filepath, interval=DELAY_KEYSTROKE)
-                pyautogui.press('enter')
-                time.sleep(1)
-                log.info('watchlist imported')
-                break
+            # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
+            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+            time.sleep(0.5)
+            el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+            time.sleep(0.5)
+            j = 0
+            while j < len(el_options):
+                try:
+                    if str(el_options[j].text) == str(filename).replace('.txt', ''):
+                        btn_delete = el_options[j].find_element_by_class_name('icon-delete')
+                        time.sleep(0.5)
+                        browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
+                        time.sleep(0.5)
+                        btn_delete.click()
+                        # handle confirmation dialog
+                        wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
+                        log.info('existing watchlist ' + str(filename).replace('.txt', '') + ' deleted')
+                        # give TV time to remove the watchlist
+                        time.sleep(0.5)
+                        # open the watchlists menu again and update the options to prevent 'element is stale' error
+                        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+                        time.sleep(0.5)
+                        el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+                        time.sleep(0.5)
+                        j = 0
+                except Exception as e:
+                    log.exception(e)
+                    snapshot(browser)
+                j = j + 1
 
-        # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-        time.sleep(0.5)
-        el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-        time.sleep(0.5)
-        j = 0
-        while j < len(el_options):
-            try:
-                if str(el_options[j].text) == str(filename).replace('.txt', ''):
-                    btn_delete = el_options[j].find_element_by_class_name('icon-delete')
-                    time.sleep(0.5)
-                    browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
-                    time.sleep(0.5)
-                    btn_delete.click()
-                    # handle confirmation dialog
-                    wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
-                    log.info('existing watchlist ' + str(filename).replace('.txt', '') + ' deleted')
-                    # give TV time to remove the watchlist
-                    time.sleep(0.5)
-                    # open the watchlists menu again and update the options to prevent 'element is stale' error
-                    wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-                    time.sleep(0.5)
-                    el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-                    time.sleep(0.5)
-                    j = 0
-            except Exception as e:
-                log.exception(e)
-            j = j + 1
-
-    except Exception as e:
-        log.info('Cannot import watchlist')
-        log.info('If you are running OS X make sure you have pyobjc installed:')
-        log.info('\tpip3 install pyobjc')
-        log.info('If you have problems installing pyobjc on OS X El Capitain, try this instead:')
-        log.info('\tMACOSX_DEPLOYMENT_TARGET=10.11 pip install pyobjc')
-        log.exception(e)
-    finally:
-        destroy_browser(browser)
+        except Exception as e:
+            log.info('Cannot import watchlist')
+            log.info('If you are running OS X make sure you have pyobjc installed:')
+            log.info('\tpip3 install pyobjc')
+            log.info('If you have problems installing pyobjc on OS X El Capitain, try this instead:')
+            log.info('\tMACOSX_DEPLOYMENT_TARGET=10.11 pip install pyobjc')
+            log.exception(e)
+            snapshot(browser)
+        finally:
+            destroy_browser(browser)
 
 
 def select(alert_config, current_condition, el_options, ticker_id):
@@ -898,19 +896,49 @@ def clear(element):
 
 
 def send_keys(element, string, interval=DELAY_KEYSTROKE):
-    for i in range(len(string)):
-        element.send_keys(string[i])
-        time.sleep(interval)
-
-
-def copy2paste(element, string):
-    pyperclip.copy(string)
-    clear(element)
-    pyperclip.paste()
-    if OS == 'macos':
-        element.send_keys(Keys.SHIFT + Keys.INSERT)
+    if interval == 0:
+        element.send_keys(string)
     else:
-        element.send_keys(Keys.CONTROL + 'v')
+        for i in range(len(string)):
+            element.send_keys(string[i])
+            time.sleep(interval)
+
+
+def set_value(browser, element, string, interval=DELAY_KEYSTROKE):
+    url = browser.current_url
+    url += ''
+    clear(element)
+    # make use of the clipboard if we can for a 500% performance boost
+    if config.getboolean('webdriver', 'clipboard'):
+        if RUN_IN_BACKGROUND:
+            # find a way to make the clipboard work while running in the background
+            send_keys(element, string, interval)
+
+            # TODO find solution for clipboard and running it in the background
+            # see https://developers.google.com/web/updates/2018/03/clipboardapi
+
+            # --headless + navigator.clipboard doesn't seem to work (I can't copy something to the clipboard
+            # js_write = "navigator.clipboard.writeText('" + string + "').then(() => { console.log('Text copied to clipboard'); }).catch(err => { console.error('Could not copy text: ', err); });"
+            # browser.execute_script(js_write, string)
+            # js_read = "navigator.clipboard.readText().then(text => { console.log('Pasted content: ', text);}).catch(err => { console.error('Failed to read clipboard contents: ', err); result = err; }); return result;"
+            # result = browser.execute_script(js_read)
+            # if OS == 'macos':
+            #     element.send_keys(Keys.SHIFT + Keys.INSERT)
+            # else:
+            #     element.send_keys(Keys.CONTROL + 'v')
+
+            # TODO instead of using the clipboard, find solution for injecting value and using document.execCommand('cut') + document.execCommand('paste')
+
+        else:
+            pyperclip.copy(string)
+            pyperclip.paste()
+            if OS == 'macos':
+                element.send_keys(Keys.SHIFT + Keys.INSERT)
+            else:
+                element.send_keys(Keys.CONTROL + 'v')
+    # if clipboard is not allowed by user, send keystrokes instead
+    else:
+        send_keys(element, string, interval)
 
 
 def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
@@ -924,7 +952,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         # change symbol
         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
         try:
-            copy2paste(input_symbol, ticker_id)
+            set_value(browser, input_symbol, ticker_id)
         except Exception as err:
             log.debug('Can\'t find ' + str(ticker_id) + ' in list of symbols:')
             log.exception(err)
@@ -944,7 +972,7 @@ def is_checkbox_checked(checkbox):
         return checked
 
 
-def set_expiration(_alert_dialog, alert_config):
+def set_expiration(browser, _alert_dialog, alert_config):
     max_minutes = 86400
     datetime_format = '%Y-%m-%d %H:%M'
 
@@ -959,9 +987,9 @@ def set_expiration(_alert_dialog, alert_config):
         if 'open-ended' not in alert_config['expiration']:
             alert_config['expiration']['open-ended'] = False
 
-    checkbox = alert_dialog.find_element_by_css_selector(css_selectors['checkbox_dlg_create_alert_open_ended'])
+    checkbox = _alert_dialog.find_element_by_css_selector(css_selectors['checkbox_dlg_create_alert_open_ended'])
     if is_checkbox_checked(checkbox) != alert_config['expiration']['open-ended']:
-        wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_open_ended'])
+        wait_and_click(_alert_dialog, css_selectors['clickable_dlg_create_alert_open_ended'])
 
     if alert_config['expiration']['open-ended'] or str(alert_config['expiration']['time']).strip() == '' or str(alert_config['expiration']['time']).strip().lower().startswith('n') or type(alert_config['expiration']['time']) is None:
         return
@@ -980,10 +1008,10 @@ def set_expiration(_alert_dialog, alert_config):
 
     input_date = _alert_dialog.find_element_by_name('alert_exp_date')
     time.sleep(DELAY_BREAK_MINI)
-    copy2paste(input_date, date_value)
+    set_value(browser, input_date, date_value, 0)
     input_time = _alert_dialog.find_element_by_name('alert_exp_time')
     time.sleep(DELAY_BREAK_MINI)
-    copy2paste(input_time, time_value)
+    set_value(browser, input_time, time_value, 0)
 
 
 def login(browser):
@@ -1003,11 +1031,11 @@ def login(browser):
     # put credentials in if defined
     if uid and pwd:
         input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+        set_value(browser, input_username, config.get('tradingview', 'username'), 0)
+        time.sleep(DELAY_BREAK_MINI)
         input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
-        clear(input_username)
-        input_username.send_keys(config.get('tradingview', 'username'))
-        clear(input_password)
-        input_password.send_keys(config.get('tradingview', 'password'))
+        set_value(browser, input_password, config.get('tradingview', 'password'), 0)
+        time.sleep(DELAY_BREAK_MINI)
     # if there are no user credentials and it is run in the background, then exit
     elif config.getboolean('webdriver', 'run_in_background'):
         log.warn("You are running Kairos in the background but haven't set your TV credentials. Please, do so in the config file or don't run Kairos in the background so you can manually enter your TV credentials on login.")
@@ -1015,22 +1043,35 @@ def login(browser):
     # otherwise give user time to set
     else:
         input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+        clear(input_username)
         input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
         clear(input_password)
-        clear(input_username)
         log.info("Please finish setting your credentials within 60 seconds. No need to press the login button (doing so will slow down Kairos).")
         time.sleep(60)
     try:
         wait_and_click(browser, css_selectors['btn_login'])
+    except Exception as e:
+        log.error(e)
+        snapshot(browser)
     finally:
         time.sleep(DELAY_BREAK * 5)
 
 
 def create_browser(run_in_background):
+    log.info('open new browser')
     options = webdriver.ChromeOptions()
+    # options.add_argument('--user-data-dir=C:\\PyCharm Projects\\Kairos\\profile')
+    # options.add_argument('--user-data-dir=profile')
     options.add_argument('--disable-extensions')
-    options.add_argument('--window-size=' + RESOLUTION)
     options.add_argument('--disable-notifications')
+    options.add_argument('--noerrdialogs')
+    options.add_argument('--disable-session-crashed-bubble')
+    options.add_argument('--disable-infobars https://www.tradingview.com')
+    options.add_argument('--disable-restore-session-state')
+    options.add_argument('--no-sandbox')
+    # options.add_argument("--disable-dev-shm-usage")
+    options.add_argument('--window-size=' + RESOLUTION)
+
     prefs = {'profile.default_content_setting_values.notifications': 2}
     options.add_experimental_option('prefs', prefs)
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
@@ -1039,7 +1080,7 @@ def create_browser(run_in_background):
         options.add_argument('--disable-gpu')
     # run chrome in the background
     if run_in_background:
-        options.add_argument('headless')
+        options.add_argument('--headless')
     browser = None
 
     chromedriver_file = r"" + str(config.get('webdriver', 'path'))
@@ -1049,12 +1090,14 @@ def create_browser(run_in_background):
     chromedriver_file.replace('.exe', '')
 
     try:
-        browser = webdriver.Chrome(executable_path=chromedriver_file, options=options)
-        browser.implicitly_wait(WAIT_TIME_IMPLICIT)
+        browser = webdriver.Chrome(executable_path=chromedriver_file, chrome_options=options, desired_capabilities=DesiredCapabilities.CHROME, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
     except WebDriverException as web_err:
         log.exception(web_err)
-        browser.close()
+        exit(0)
+
+    browser.implicitly_wait(WAIT_TIME_IMPLICIT)
     browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+
     return browser
 
 
@@ -1067,6 +1110,7 @@ def run(file):
     browser = None
     tv = None
     has_charts = False
+    global RUN_IN_BACKGROUND
 
     try:
         if len(file) > 1:
@@ -1091,7 +1135,10 @@ def run(file):
             log.exception(err_os)
 
         if has_charts:
-            browser = create_browser(config.getboolean('webdriver', 'run_in_background'))
+            RUN_IN_BACKGROUND = config.getboolean('webdriver', 'run_in_background')
+            if 'webdriver' in tv and 'run-in-backrgound' in tv['webdriver']:
+                RUN_IN_BACKGROUND = tv['webdriver']['run-in-backrgound']
+            browser = create_browser(RUN_IN_BACKGROUND)
             login(browser)
 
             # do some maintenance on the alert list (removing or restarting)
@@ -1149,6 +1196,7 @@ def summary(total_alerts):
 
 
 def destroy_browser(browser):
+    log.info('close browser')
     if type(browser) is webdriver.Chrome:
         close_all_popups(browser)
         browser.close()
