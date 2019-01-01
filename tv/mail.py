@@ -474,6 +474,8 @@ def send_webhooks(date, symbol, alert, screenshots, chart_url, webhooks, search_
                         result = [r.status_code, r.reason]
                         if result[0] != 200:
                             log.warn(str(result[0]) + ' ' + str(result[1]))
+                        else:
+                            log.info(str(result[0]) + ' ' + str(result[1]))
     except Exception as e:
         log.exception(e)
     return result

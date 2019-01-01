@@ -30,7 +30,6 @@ from kairos import tools
 from PIL import Image
 from urllib.parse import unquote
 import pyautogui
-import pyperclip
 
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
@@ -38,7 +37,7 @@ CHECKBOX = 'checkbox'
 SELECTBOX = 'selectbox'
 DATE = 'date'
 TIME = 'time'
-
+MAX_SCREENSHOTS_ON_ERROR = 0
 WAIT_TIME_IMPLICIT_DEF = 30
 PAGE_LOAD_TIMEOUT_DEF = 15
 CHECK_IF_EXISTS_TIMEOUT_DEF = 15
@@ -63,6 +62,10 @@ if sys.platform == 'os2':
     MODIFIER_KEY = Keys.COMMAND
 elif os.name == 'posix':
     OS = 'linux'
+SELECT_ALL = MODIFIER_KEY + 'a'
+CUT = MODIFIER_KEY + 'x'
+PASTE = MODIFIER_KEY + 'v'
+COPY = MODIFIER_KEY + 'c'
 
 css_selectors = dict(
     username='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user > span.tv-header__dropdown-wrap.tv-dropdown-behavior__'
@@ -159,6 +162,9 @@ if config.has_option('logging', 'screenshot_path'):
         except Exception as screenshot_error:
             log.info('No screenshot directory specified or unable to create it.')
             screenshot_dir = ''
+
+if config.has_option('logging', 'max_screenshots_on_error'):
+    MAX_SCREENSHOTS_ON_ERROR = config.getint('logging', 'max_screenshots_on_error')
 
 WAIT_TIME_IMPLICIT = config.getfloat('webdriver', 'wait_time_implicit')
 PAGE_LOAD_TIMEOUT = config.getfloat('webdriver', 'page_load_timeout')
@@ -493,7 +499,9 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
 
 def snapshot(browser, quit_program=False, name=''):
-    if config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error'):
+    global MAX_SCREENSHOTS_ON_ERROR
+    if config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error') and MAX_SCREENSHOTS_ON_ERROR > 0:
+        MAX_SCREENSHOTS_ON_ERROR -= 1
         filename = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.png'
         if name:
             filename = str(name) + '_' + filename
@@ -523,7 +531,6 @@ def snapshot(browser, quit_program=False, name=''):
             im = im.crop((int(x), int(y), int(width), int(height)))
             im.save(filename)
             log.error(str(filename))
-            time.sleep(1)
         except Exception as take_screenshot_error:
             log.exception(take_screenshot_error)
         if quit_program:
@@ -700,7 +707,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                         log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
-                set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip(), 0)
+                set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
 
             # give some time
             current_condition += 1
@@ -710,7 +717,6 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
         # Expiration
         set_expiration(browser, alert_dialog, alert_config)
-
         # Show popup
         checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
         if is_checkbox_checked(checkbox) != alert_config['show_popup']:
@@ -781,7 +787,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 snapshot(browser)
             except KeyError:
                 log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-            set_value(browser, textarea, text, 0)
+            set_value(browser, textarea, text, True)
         except Exception as alert_err:
             log.exception(alert_err)
             snapshot(browser)
@@ -812,45 +818,45 @@ def import_watchlist(filepath, filename):
         try:
             wait_and_click(browser, css_selectors['btn_calendar'])
             wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
-            time.sleep(0.5)
+            time.sleep(DELAY_BREAK)
             wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-            time.sleep(0.5)
+            time.sleep(DELAY_BREAK)
 
             el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
             for j in range(len(el_options)):
                 if str(el_options[j].text).startswith('Import Watchlist'):
                     el_options[j].click()
-                    time.sleep(2)
+                    time.sleep(DELAY_BREAK * 4)
                     pyautogui.typewrite(r"" + filepath, interval=DELAY_KEYSTROKE)
                     pyautogui.press('enter')
-                    time.sleep(1)
+                    time.sleep(DELAY_BREAK * 2)
                     log.info('watchlist imported')
                     break
 
             # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
             wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-            time.sleep(0.5)
+            time.sleep(DELAY_BREAK)
             el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-            time.sleep(0.5)
+            time.sleep(DELAY_BREAK)
             j = 0
             while j < len(el_options):
                 try:
                     if str(el_options[j].text) == str(filename).replace('.txt', ''):
                         btn_delete = el_options[j].find_element_by_class_name('icon-delete')
-                        time.sleep(0.5)
+                        time.sleep(DELAY_BREAK)
                         browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
-                        time.sleep(0.5)
+                        time.sleep(DELAY_BREAK)
                         btn_delete.click()
                         # handle confirmation dialog
                         wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
                         log.info('existing watchlist ' + str(filename).replace('.txt', '') + ' deleted')
                         # give TV time to remove the watchlist
-                        time.sleep(0.5)
+                        time.sleep(DELAY_BREAK * 2)
                         # open the watchlists menu again and update the options to prevent 'element is stale' error
                         wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-                        time.sleep(0.5)
+                        time.sleep(DELAY_BREAK)
                         el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-                        time.sleep(0.5)
+                        time.sleep(DELAY_BREAK)
                         j = 0
                 except Exception as e:
                     log.exception(e)
@@ -904,41 +910,20 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
             time.sleep(interval)
 
 
-def set_value(browser, element, string, interval=DELAY_KEYSTROKE):
-    url = browser.current_url
-    url += ''
-    clear(element)
-    # make use of the clipboard if we can for a 500% performance boost
-    if config.getboolean('webdriver', 'clipboard'):
-        if RUN_IN_BACKGROUND:
-            # find a way to make the clipboard work while running in the background
-            send_keys(element, string, interval)
+def set_value(browser, element, string, use_clipboard=False, use_send_keys=False, interval=DELAY_KEYSTROKE):
 
-            # TODO find solution for clipboard and running it in the background
-            # see https://developers.google.com/web/updates/2018/03/clipboardapi
-
-            # --headless + navigator.clipboard doesn't seem to work (I can't copy something to the clipboard
-            # js_write = "navigator.clipboard.writeText('" + string + "').then(() => { console.log('Text copied to clipboard'); }).catch(err => { console.error('Could not copy text: ', err); });"
-            # browser.execute_script(js_write, string)
-            # js_read = "navigator.clipboard.readText().then(text => { console.log('Pasted content: ', text);}).catch(err => { console.error('Failed to read clipboard contents: ', err); result = err; }); return result;"
-            # result = browser.execute_script(js_read)
-            # if OS == 'macos':
-            #     element.send_keys(Keys.SHIFT + Keys.INSERT)
-            # else:
-            #     element.send_keys(Keys.CONTROL + 'v')
-
-            # TODO instead of using the clipboard, find solution for injecting value and using document.execCommand('cut') + document.execCommand('paste')
-
-        else:
-            pyperclip.copy(string)
-            pyperclip.paste()
-            if OS == 'macos':
-                element.send_keys(Keys.SHIFT + Keys.INSERT)
-            else:
-                element.send_keys(Keys.CONTROL + 'v')
-    # if clipboard is not allowed by user, send keystrokes instead
-    else:
+    if use_send_keys:
         send_keys(element, string, interval)
+    else:
+
+        browser.execute_script("arguments[0].value = arguments[1];", element, string)
+        if use_clipboard:
+            if config.getboolean('webdriver', 'clipboard'):
+                element.send_keys(SELECT_ALL)
+                element.send_keys(CUT)
+                element.send_keys(PASTE)
+            else:
+                send_keys(element, string, interval)
 
 
 def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
@@ -1006,12 +991,16 @@ def set_expiration(browser, _alert_dialog, alert_config):
     date_value = target_date.strftime('%Y-%m-%d')
     time_value = target_date.strftime('%H:%M')
 
+    # For some reason TV does not register setting the date value directly.
+    # Furthermore, we need to make sure that the date and time inputs are cleared beforehand.
     input_date = _alert_dialog.find_element_by_name('alert_exp_date')
     time.sleep(DELAY_BREAK_MINI)
-    set_value(browser, input_date, date_value, 0)
+    clear(input_date)
+    set_value(browser, input_date, date_value, True)
     input_time = _alert_dialog.find_element_by_name('alert_exp_time')
     time.sleep(DELAY_BREAK_MINI)
-    set_value(browser, input_time, time_value, 0)
+    clear(input_time)
+    set_value(browser, input_time, time_value, True)
 
 
 def login(browser):
@@ -1028,26 +1017,24 @@ def login(browser):
 
     wait_and_click(browser, css_selectors['signin'])
 
-    # put credentials in if defined
-    if uid and pwd:
-        input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
-        set_value(browser, input_username, config.get('tradingview', 'username'), 0)
-        time.sleep(DELAY_BREAK_MINI)
-        input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
-        set_value(browser, input_password, config.get('tradingview', 'password'), 0)
-        time.sleep(DELAY_BREAK_MINI)
-    # if there are no user credentials and it is run in the background, then exit
-    elif config.getboolean('webdriver', 'run_in_background'):
-        log.warn("You are running Kairos in the background but haven't set your TV credentials. Please, do so in the config file or don't run Kairos in the background so you can manually enter your TV credentials on login.")
-        exit(0)
-    # otherwise give user time to set
-    else:
-        input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
-        clear(input_username)
-        input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
-        clear(input_password)
-        log.info("Please finish setting your credentials within 60 seconds. No need to press the login button (doing so will slow down Kairos).")
-        time.sleep(60)
+    input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+    input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
+    if input_username.get_attribute('value') == '' or input_password.get_attribute('value') == '':
+        # put credentials in if defined
+        if uid and pwd:
+            set_value(browser, input_username, config.get('tradingview', 'username'))
+            time.sleep(DELAY_BREAK_MINI)
+            set_value(browser, input_password, config.get('tradingview', 'password'))
+            time.sleep(DELAY_BREAK_MINI)
+        # if there are no user credentials and it is run in the background, then exit
+        elif config.getboolean('webdriver', 'run_in_background'):
+            log.warn("You are running Kairos in the background but haven't set your TV credentials. Please, do so in the config file or don't run Kairos in the background so you can manually enter your TV credentials on login.")
+            exit(0)
+        # otherwise give user time to set password
+        else:
+            log.info("Please finish setting your credentials within 60 seconds. No need to press the login button (doing so will slow down Kairos).")
+            time.sleep(60)
+
     try:
         wait_and_click(browser, css_selectors['btn_login'])
     except Exception as e:
@@ -1066,8 +1053,8 @@ def create_browser(run_in_background):
     options.add_argument('--disable-notifications')
     options.add_argument('--noerrdialogs')
     options.add_argument('--disable-session-crashed-bubble')
-    options.add_argument('--disable-infobars https://www.tradingview.com')
-    options.add_argument('--disable-restore-session-state')
+    # options.add_argument('--disable-infobars https://www.tradingview.com')
+    # options.add_argument('--disable-restore-session-state')
     options.add_argument('--no-sandbox')
     # options.add_argument("--disable-dev-shm-usage")
     options.add_argument('--window-size=' + RESOLUTION)

@@ -8,7 +8,6 @@ pip>=18.1
 Pillow
 requests
 pyautogui
-pyperclip
 
 [platform_system == "Darwin"]
 pyobjc-core
