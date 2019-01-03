@@ -1,4 +1,5 @@
 debug.log
+chromedriver.log
 kairos.cfg
 *.pyc
 *.bat
@@ -13,11 +14,8 @@ watchlists/
 test/
 .eggs/
 desktop.ini
-!tv/_example.yaml
-!tv/_browse.yaml
+!tv/_*.yaml
 !tv/refresh.yaml
-!tv/_example_davo.yaml
-!tv/_summary.yaml
 !img/300_Bitcoin_QR_code.png
 !img/300_Dash_QR_code.png
 !img/300_Ethereum_QR_code.png
