@@ -11,7 +11,6 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime
-import math
 import numbers
 import os
 import re
@@ -19,7 +18,7 @@ import sys
 import time
 import yaml
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -52,7 +51,6 @@ DELAY_SCREENSHOT = 1
 DELAY_KEYSTROKE = 0.01
 DELAY_WATCHLIST = 0.5
 DELAY_TIMEFRAME = 0.5
-DELAY_SCREENER_SEARCH = 2
 RUN_IN_BACKGROUND = False
 
 ALERT_NUMBER = 0
@@ -70,7 +68,6 @@ PASTE = MODIFIER_KEY + 'v'
 COPY = MODIFIER_KEY + 'c'
 
 css_selectors = dict(
-    # ALERTS
     username='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user > span.tv-header__dropdown-wrap.tv-dropdown-behavior__'
              'button > span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
     signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
@@ -124,19 +121,11 @@ css_selectors = dict(
     clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
     btn_dlg_screenshot='#header-toolbar-screenshot',
     dlg_screenshot_url='div[class^="copyForm"] > div > input',
-    dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
-    # SCREENERS
-    btn_filters='tv-screener-toolbar__button--filters',
-    select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
-                    'div.tv-screener-dialog__filter-field-content.tv-screener-dialog__filter-field-content--select.js-filter-field-_content > div > span',
-    select_screener='div.tv-screener-toolbar__button.tv-screener-toolbar__button--with-options.tv-screener-toolbar__button--arrow-down.tv-screener-toolbar__button--with-state.apply-common-tooltip.common-tooltip-fixed.js-filter-sets.tv-dropdown-behavior__button',
-    options_screeners='div.tv-screener-popup__item--presets > div.tv-dropdown-behavior__item',
-    input_screener_search='div.tv-screener-table__search-query.js-search-query.tv-screener-table__search-query--without-description > input',
+    dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]'
 )
 
 class_selectors = dict(
     form_create_alert='js-alert-form',
-    rows_screener_result='tv-screener-table__result-row',
 )
 
 name_selectors = dict(
@@ -844,7 +833,35 @@ def import_watchlist(filepath, filename):
                     log.info('watchlist imported')
                     break
 
-            remove_watchlists(browser, str(filename).replace('.txt', ''))
+            # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
+            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+            time.sleep(DELAY_BREAK)
+            el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+            time.sleep(DELAY_BREAK)
+            j = 0
+            while j < len(el_options):
+                try:
+                    if str(el_options[j].text) == str(filename).replace('.txt', ''):
+                        btn_delete = el_options[j].find_element_by_class_name('icon-delete')
+                        time.sleep(DELAY_BREAK)
+                        browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
+                        time.sleep(DELAY_BREAK)
+                        btn_delete.click()
+                        # handle confirmation dialog
+                        wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
+                        log.info('existing watchlist ' + str(filename).replace('.txt', '') + ' deleted')
+                        # give TV time to remove the watchlist
+                        time.sleep(DELAY_BREAK * 2)
+                        # open the watchlists menu again and update the options to prevent 'element is stale' error
+                        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+                        time.sleep(DELAY_BREAK)
+                        el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+                        time.sleep(DELAY_BREAK)
+                        j = 0
+                except Exception as e:
+                    log.exception(e)
+                    snapshot(browser)
+                j = j + 1
 
         except Exception as e:
             log.info('Cannot import watchlist')
@@ -1028,6 +1045,7 @@ def login(browser):
 
 
 def create_browser(run_in_background):
+    log.info('open new browser')
     options = webdriver.ChromeOptions()
     # options.add_argument('--user-data-dir=C:\\PyCharm Projects\\Kairos\\profile')
     # options.add_argument('--user-data-dir=profile')
@@ -1070,13 +1088,6 @@ def create_browser(run_in_background):
     return browser
 
 
-def destroy_browser(browser):
-    if type(browser) is webdriver.Chrome:
-        close_all_popups(browser)
-        browser.close()
-        browser.quit()
-
-
 def run(file):
     """
         TODO:   multi threading
@@ -1086,7 +1097,6 @@ def run(file):
     browser = None
     tv = None
     has_charts = False
-    has_screeners = False
     global RUN_IN_BACKGROUND
 
     try:
@@ -1104,7 +1114,6 @@ def run(file):
                 try:
                     tv = yaml.safe_load(stream)
                     has_charts = 'charts' in tv
-                    has_screeners = 'screeners' in tv
                 except yaml.YAMLError as err_yaml:
                     log.exception(err_yaml)
         except FileNotFoundError as err_file:
@@ -1112,206 +1121,56 @@ def run(file):
         except OSError as err_os:
             log.exception(err_os)
 
-        RUN_IN_BACKGROUND = config.getboolean('webdriver', 'run_in_background')
-        if 'webdriver' in tv and 'run-in-backrgound' in tv['webdriver']:
-            RUN_IN_BACKGROUND = tv['webdriver']['run-in-backrgound']
-
-        if has_screeners or has_charts:
+        if has_charts:
+            RUN_IN_BACKGROUND = config.getboolean('webdriver', 'run_in_background')
+            if 'webdriver' in tv and 'run-in-backrgound' in tv['webdriver']:
+                RUN_IN_BACKGROUND = tv['webdriver']['run-in-backrgound']
             browser = create_browser(RUN_IN_BACKGROUND)
             login(browser)
 
-            if has_screeners:
-                screeners_yaml = tv['screeners']
-                for screener_yaml in screeners_yaml:
-                    delay_after_update = 5
-                    if 'delay_after_update' in screeners_yaml:
-                        delay_after_update = screeners_yaml['delay_after_update']
-                    markets = get_screener_markets(browser, screener_yaml)
-                    if markets:
-                        update_watchlist(browser, screener_yaml['name'], markets, delay_after_update)
-
-            if has_charts:
-                # do some maintenance on the alert list (removing or restarting)
-                try:
-                    if config.getboolean('tradingview', 'clear_alerts'):
+            # do some maintenance on the alert list (removing or restarting)
+            try:
+                if config.getboolean('tradingview', 'clear_alerts'):
+                    wait_and_click(browser, css_selectors['btn_calendar'])
+                    wait_and_click(browser, css_selectors['btn_alerts'])
+                    wait_and_click(browser, css_selectors['btn_alert_menu'])
+                    wait_and_click(browser, css_selectors['item_clear_alerts'])
+                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                    time.sleep(DELAY_BREAK * 2)
+                else:
+                    if config.getboolean('tradingview', 'restart_inactive_alerts'):
                         wait_and_click(browser, css_selectors['btn_calendar'])
                         wait_and_click(browser, css_selectors['btn_alerts'])
                         wait_and_click(browser, css_selectors['btn_alert_menu'])
-                        wait_and_click(browser, css_selectors['item_clear_alerts'])
+                        wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
                         wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                         time.sleep(DELAY_BREAK * 2)
-                    else:
-                        if config.getboolean('tradingview', 'restart_inactive_alerts'):
-                            wait_and_click(browser, css_selectors['btn_calendar'])
-                            wait_and_click(browser, css_selectors['btn_alerts'])
-                            wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
-                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK * 2)
-                        elif config.getboolean('tradingview', 'clear_inactive_alerts'):
-                            wait_and_click(browser, css_selectors['btn_calendar'])
-                            wait_and_click(browser, css_selectors['btn_alerts'])
-                            wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
-                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK * 2)
-                        # count the number of existing alerts
-                        alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
-                        if type(alerts) is not None:
-                            counter_alerts = len(alerts)
-                except Exception as e:
-                    log.exception(e)
-                # iterate over all items that have an 'alerts' property
-                for file, items in tv.items():
-                    if type(items) is list:
-                        for i in range(len(items)):
-                            if 'alerts' in items[i]:
-                                [counter_alerts, total_alerts] = open_chart(browser, items[i], counter_alerts, total_alerts)
+                    elif config.getboolean('tradingview', 'clear_inactive_alerts'):
+                        wait_and_click(browser, css_selectors['btn_calendar'])
+                        wait_and_click(browser, css_selectors['btn_alerts'])
+                        wait_and_click(browser, css_selectors['btn_alert_menu'])
+                        wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                        time.sleep(DELAY_BREAK * 2)
+                    # count the number of existing alerts
+                    alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
+                    if type(alerts) is not None:
+                        counter_alerts = len(alerts)
+            except Exception as e:
+                log.exception(e)
+            # iterate over all items that have an 'alerts' property
+            for file, items in tv.items():
+                if type(items) is list:
+                    for i in range(len(items)):
+                        if 'alerts' in items[i]:
+                            [counter_alerts, total_alerts] = open_chart(browser, items[i], counter_alerts, total_alerts)
 
-                summary(total_alerts)
-                destroy_browser(browser)
+            summary(total_alerts)
+            destroy_browser(browser)
     except Exception as exc:
         log.exception(exc)
         summary(total_alerts)
         destroy_browser(browser)
-
-
-def get_screener_markets(browser, screener_yaml):
-    markets = []
-
-    close_all_popups(browser)
-    url = unquote(screener_yaml['url'])
-    browser.get(url)
-    time.sleep(DELAY_BREAK * 2)
-
-    wait_and_click(browser, css_selectors['select_screener'])
-    time.sleep(DELAY_BREAK_MINI)
-
-    el_options = browser.find_elements_by_css_selector(css_selectors['options_screeners'])
-    time.sleep(DELAY_BREAK)
-    found = False
-
-    for i in range(len(el_options)):
-        if str(el_options[i].text) == screener_yaml['name']:
-            el_options[i].click()
-            found = True
-            break
-
-    if not found:
-        log.warn("Screener '" + screener_yaml['name'] + "' doesn't exist.")
-        return False
-
-    if 'search' in screener_yaml and screener_yaml['search'] != '':
-        search_box = browser.find_element_by_css_selector(css_selectors['input_screener_search'])
-        set_value(browser, search_box, screener_yaml['search'], True)
-        time.sleep(DELAY_SCREENER_SEARCH)
-
-    el_total_found = browser.find_element_by_class_name('tv-screener-table__field-value--total')
-    match = re.search("(\\d+)", el_total_found.text)
-    html = browser.find_element_by_tag_name('html')
-    chunck_size = 150
-
-    scroll_delay = 2
-    if 'scroll_delay' in screener_yaml and screener_yaml['scroll_delay'] != '':
-        scroll_delay = screener_yaml['scroll_delay']
-
-    if re.Match:
-        number_of_scrolls = math.ceil(int(match.group(1)) / chunck_size) - 1
-        for i in range(number_of_scrolls):
-            for j in range(20):
-                html.send_keys(Keys.PAGE_DOWN)
-                time.sleep(DELAY_BREAK_MINI)
-            time.sleep(scroll_delay)
-
-    rows = browser.find_elements_by_class_name(class_selectors['rows_screener_result'])
-    for i in range(len(rows)):
-        try:
-            market = rows[i].get_attribute('data-symbol')
-        except StaleElementReferenceException:
-            WebDriverWait(browser, 5).until(
-                ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
-            # try again
-            rows = browser.find_elements_by_class_name(class_selectors['rows_screener_result'])
-            market = rows[i].get_attribute('data-symbol')
-        markets.append(market)
-
-    markets = list(sorted(set(markets)))
-    log.debug('found ' + str(len(markets)) + ' unique markets')
-    return markets
-
-
-def update_watchlist(browser, name, markets, delay_after_update):
-
-    try:
-        wait_and_click(browser, css_selectors['btn_calendar'])
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
-        time.sleep(DELAY_BREAK)
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-        time.sleep(DELAY_BREAK)
-
-        input_symbol = browser.find_element_by_class_name('wl-symbol-edit')
-        batches = list(tools.chunks(markets, 20))
-
-        el_general_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
-        time.sleep(DELAY_BREAK)
-        for i in range(len(el_general_options)):
-            if str(el_general_options[i].text).startswith('Create New'):
-                el_general_options[i].click()
-                break
-        time.sleep(DELAY_BREAK)
-
-        input_watchlist_name = browser.find_element_by_css_selector('body > div.tv-dialog.js-dialog.tv-dialog--popup.i-focused.ui-draggable input')
-        set_value(browser, input_watchlist_name, name)
-        input_watchlist_name.send_keys(Keys.ENTER)
-        time.sleep(DELAY_BREAK)
-
-        # insert csv into symbol input box
-        for i in range(len(batches)):
-            csv = ",".join(batches[i])
-            set_value(browser, input_symbol, csv)
-            time.sleep(DELAY_BREAK)
-            input_symbol.send_keys(Keys.ENTER)
-            time.sleep(delay_after_update)
-
-        # remove double watchlist
-        remove_watchlists(browser, name)
-        log.info('updated ' + name + '(' + str(len(markets)) + ' markets)')
-        return True
-    except Exception as e:
-        log.exception(e)
-        snapshot(browser, True)
-
-
-def remove_watchlists(browser, name):
-    # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
-    wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-    time.sleep(DELAY_BREAK)
-    el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-    time.sleep(DELAY_BREAK)
-    j = 0
-    while j < len(el_options):
-        try:
-            if str(el_options[j].text) == name:
-                btn_delete = el_options[j].find_element_by_class_name('icon-delete')
-                time.sleep(DELAY_BREAK)
-                browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
-                time.sleep(DELAY_BREAK)
-                btn_delete.click()
-                # handle confirmation dialog
-                wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
-                # give TV time to remove the watchlist
-                time.sleep(DELAY_BREAK * 2)
-                log.debug('watchlist ' + name + ' removed')
-                # open the watchlists menu again and update the options to prevent 'element is stale' error
-                wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-                time.sleep(DELAY_BREAK)
-                el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-                time.sleep(DELAY_BREAK)
-                j = 0
-        except Exception as e:
-            log.exception(e)
-            snapshot(browser)
-        j = j + 1
 
 
 def summary(total_alerts):
@@ -1321,3 +1180,11 @@ def summary(total_alerts):
         log.info(str(total_alerts) + " alerts set with an average process time of " + avg + " seconds")
     elif total_alerts == 0:
         log.info("No alerts set")
+
+
+def destroy_browser(browser):
+    log.info('close browser')
+    if type(browser) is webdriver.Chrome:
+        close_all_popups(browser)
+        browser.close()
+        browser.quit()
