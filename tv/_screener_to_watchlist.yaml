@@ -1,0 +1,37 @@
+# update / save screeners as a watchlist
+screeners:
+    # Possible values for 'url' are:
+    # - https://www.tradingview.com/crypto-screener/
+    # - https://www.tradingview.com/forex-screener/
+    # - https://www.tradingview.com/screener/
+  - url: https://www.tradingview.com/crypto-screener/
+    # Name of the screener in TradingView
+    # This name will also be used as the Watchlist name.
+    # Warning: Kairos will delete other watchlists of the same name
+    name: BTC
+    # As we cannot save a search value in TradingView's screeners, you can provide one here
+    search: btc
+    # TradingView lists 150 tickers expecting users to scroll down if they want to see the next 150 results.
+    # Depending on how large the result set of the screener is you may want to set this delay higher (or lower).
+    # Kairos will log how many symbols are found - make sure you got them all. If not, set a higher delay.
+    scroll_delay: 2
+    # It will tale TradingView a certain amount of time to add all the symbols to the list.
+    # Set a delay (in seconds) below to make sure all the symbols are added to the watchlist
+    delay_after_update: 5
+  - url: https://www.tradingview.com/crypto-screener/
+    # Name of the screener in TradingView
+    # This name will also be used as the Watchlist name.
+    # Warning: Kairos will delete other watchlists of the same name
+    name: ETH
+    # As we cannot save a search value in TradingView's screeners, you can provide one here
+    search: ethereum
+    # TradingView lists 150 tickers expecting users to scroll down if they want to see the next 150 results.
+    # Depending on how large the result set of the screener is you may want to set this delay higher (or lower). It's a
+    # good idea to test run this yourself. Hit page down as many times as is necessary to see it start loading and
+    # measure the time it takes to load the next 150 results. As the table grows it will increasingly be slower. So,
+    # make sure to scroll down to the end of the list to get a good idea of just how slow the scroll down can be.
+    # Kairos will log how many symbols are found - make sure you got them all
+    scroll_delay: 2
+    # It will tale TradingView a certain amount of time to add all the symbols to the list.
+    # Set a delay (in seconds) below to make sure all the symbols are added to the watchlist
+    delay_after_update: 5
