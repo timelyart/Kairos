@@ -22,6 +22,12 @@ def get_config(current_dir):
     return config
 
 
+def chunks(collection, size):
+    """Yield successive n-sized chunks from l."""
+    for i in range(0, len(collection), size):
+        yield collection[i:i + size]
+
+
 class ConfigParserMultiValues(OrderedDict):
 
     def __setitem__(self, key, value):
