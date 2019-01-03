@@ -244,7 +244,7 @@ def read_mail(browser):
         log.exception(e)
 
 
-def create_watchlist(csv, filename=''):
+def save_watchlist_to_file(csv, filename=''):
     filepath = ''
     if config.has_option('logging', 'watchlist_path'):
         watchlist_dir = config.get('logging', 'watchlist_path')
@@ -370,7 +370,7 @@ def send_mail(summary_config):
         if summary_config and 'watchlist' in summary_config:
             watchlist_config = summary_config['watchlist']
             filename = watchlist_config['name']
-            [filepath, filename] = create_watchlist(csv, filename)
+            [filepath, filename] = save_watchlist_to_file(csv, filename)
             filepath = os.path.join(os.getcwd(), filepath)
             log.info('watchlist ' + filepath + ' created')
             if watchlist_config['import']:
@@ -382,7 +382,7 @@ def send_mail(summary_config):
                 watchlist_att.add_header('Content-Disposition', 'attachment; filename="' + filename + '"')
                 msg.attach(watchlist_att)
         else:
-            [filepath, filename] = create_watchlist(csv)
+            [filepath, filename] = save_watchlist_to_file(csv)
             filepath = os.path.join(os.getcwd(), filepath)
             log.info('watchlist ' + filepath + ' created')
             import_watchlist(filepath, filename)
