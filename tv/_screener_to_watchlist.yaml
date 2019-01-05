@@ -18,6 +18,7 @@ screeners:
     # It will tale TradingView a certain amount of time to add all the symbols to the list.
     # Set a delay (in seconds) below to make sure all the symbols are added to the watchlist
     delay_after_update: 5
+    enabled: no
   - url: https://www.tradingview.com/crypto-screener/
     # Name of the screener in TradingView
     # This name will also be used as the Watchlist name.
@@ -35,3 +36,4 @@ screeners:
     # It will tale TradingView a certain amount of time to add all the symbols to the list.
     # Set a delay (in seconds) below to make sure all the symbols are added to the watchlist
     delay_after_update: 5
+    enabled: no
