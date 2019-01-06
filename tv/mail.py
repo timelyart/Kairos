@@ -287,6 +287,7 @@ def send_mail(summary_config):
         to = [uid]
         cc = []
         bcc = []
+        watchlist_att = None
 
         headers = dict()
         headers['Subject'] = 'TradingView Alert Summary'
@@ -308,9 +309,6 @@ def send_mail(summary_config):
             bcc = email_config['bcc']
         if 'subject' in email_config and email_config['subject'] != '':
             headers['Subject'] = '' + email_config['subject']
-
-        for key in headers:
-            msg[key] = headers[key]
 
         count = 0
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
@@ -372,8 +370,8 @@ def send_mail(summary_config):
         if html[:6].lower() != '<html>':
             html = '<html><body>' + html + '</body></html>'
 
-        msg.attach(MIMEText(text, 'plain'))
-        msg.attach(MIMEText(html, 'html'))
+        # msg.attach(MIMEText(text, 'plain'))
+        # msg.attach(MIMEText(html, 'html'))
 
         # create watchlist
         if summary_config and 'watchlist' in summary_config:
@@ -389,7 +387,6 @@ def send_mail(summary_config):
                 watchlist_att.set_payload(open(filepath, "rb").read())
                 encoders.encode_base64(watchlist_att)
                 watchlist_att.add_header('Content-Disposition', 'attachment; filename="' + filename + '"')
-                msg.attach(watchlist_att)
         else:
             [filepath, filename] = save_watchlist_to_file(csv)
             filepath = os.path.join(os.getcwd(), filepath)
@@ -403,14 +400,30 @@ def send_mail(summary_config):
             with smtplib.SMTP_SSL(smtp_server, context=context) as server:
                 server.login(uid, pwd)
 
-                if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                if 'one-mail-per-recipient' in email_config and email_config['one-mail-per-recipient']:
+                    for i in range(len(recipients)):
+                        recipient = recipients[i]
+                        headers['To'] = str(recipient)
+                        msg = MIMEMultipart('alternative')
+                        msg.attach(MIMEText(text, 'plain'))
+                        msg.attach(MIMEText(html, 'html'))
+                        if watchlist_att:
+                            msg.attach(watchlist_att)
+                        for key in headers:
+                            msg[key] = headers[key]
+
+                        server.sendmail(uid, [recipient], msg.as_string())
+                        log.info("Mail send to: " + str(recipient))
+                else:
+                    msg = MIMEMultipart('alternative')
+                    msg.attach(MIMEText(text, 'plain'))
+                    msg.attach(MIMEText(html, 'html'))
+                    if watchlist_att:
+                        msg.attach(watchlist_att)
+                    for key in headers:
+                        msg[key] = headers[key]
                     server.sendmail(uid, recipients, msg.as_string())
                     log.info("Mail send to: " + str(recipients))
-                else:
-                    for i in range(len(recipients)):
-                        msg['To'] = recipients[i]
-                        server.sendmail(uid, [recipients[i]], msg.as_string())
-                        log.info("Mail send to: " + str(recipients[i]))
 
                 server.quit()
 
