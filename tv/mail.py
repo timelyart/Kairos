@@ -1,9 +1,11 @@
 import datetime
 import email
 import imaplib
+import json
 import os
 import re
 import smtplib
+import ssl
 import time
 from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
@@ -334,21 +336,28 @@ def send_mail(summary_config):
                 csv += symbol
             else:
                 csv += ',' + symbol
-
-            # send signals to webhooks
-            if summary_config and 'webhooks' in summary_config:
-                webhooks_config = summary_config['webhooks']
-                if type(webhooks_config) is list:
-                    for i in range(len(webhooks_config)):
-                        webhooks = webhooks_config[i]['url']
-                        search_criteria = webhooks_config[i]['search_criteria']
-                        send_webhooks(date, symbol, alert, screenshots, url, webhooks, search_criteria)
-            elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-                search_criteria = config.getlist('webhooks', 'search_criteria')
-                webhooks = config.getlist('webhooks', 'webhook')
-                send_webhooks(date, symbol, alert, screenshots, url, webhooks, search_criteria)
-
             count += 1
+
+        # send signals to webhooks
+        if summary_config and 'webhooks' in summary_config:
+            webhooks_config = summary_config['webhooks']
+            if type(webhooks_config) is list:
+                for i in range(len(webhooks_config)):
+                    webhooks = webhooks_config[i]['url']
+                    search_criteria = webhooks_config[i]['search_criteria']
+                    if 'batch_size' in webhooks_config[i]:
+                        batch_size = webhooks_config[i]['batch_size']
+                        send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+                    else:
+                        send_to_webhooks(charts, webhooks, search_criteria)
+        elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
+            search_criteria = config.getlist('webhooks', 'search_criteria')
+            webhooks = config.getlist('webhooks', 'webhook')
+            if config.has_option('webhooks', 'batch_size'):
+                batch_size = config.getint('webhooks', 'batch_size')
+                send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+            else:
+                send_to_webhooks(charts, webhooks, search_criteria)
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
@@ -390,19 +399,20 @@ def send_mail(summary_config):
         recipients = to + cc + bcc
 
         if (not email_config) or ('send' in email_config and email_config['send']):
-            server = smtplib.SMTP_SSL(smtp_server, smtp_port)
-            server.login(uid, pwd)
+            context = ssl.create_default_context()
+            with smtplib.SMTP_SSL(smtp_server, context=context) as server:
+                server.login(uid, pwd)
 
-            if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
-                server.sendmail(uid, recipients, msg.as_string())
-                log.info("Mail send to: " + str(recipients))
-            else:
-                for i in range(len(recipients)):
-                    msg['To'] = recipients[i]
-                    server.sendmail(uid, recipients[i], msg.as_string())
-                    log.info("Mail send to: " + str(recipients[i]))
+                if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                    server.sendmail(uid, recipients, msg.as_string())
+                    log.info("Mail send to: " + str(recipients))
+                else:
+                    for i in range(len(recipients)):
+                        msg['To'] = recipients[i]
+                        server.sendmail(uid, [recipients[i]], msg.as_string())
+                        log.info("Mail send to: " + str(recipients[i]))
 
-            server.quit()
+                server.quit()
 
     except Exception as e:
         log.exception(e)
@@ -444,38 +454,57 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def send_webhooks(date, symbol, alert, screenshots, chart_url, webhooks, search_criteria):
+def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
     result = False
     try:
-        for i in range(len(search_criteria)):
-            if str(alert).find(str(search_criteria[i])) >= 0:
-                for j in range(len(webhooks)):
-                    if webhooks[j]:
-                        screenshot = ''
-                        for chart in screenshots:
-                            if screenshot == '':
-                                screenshot = screenshots[chart]
-                        json = {'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': chart_url, 'screenshot_url': screenshot, 'screenshots': screenshots}
-                        log.debug('webhook: ' + str(webhooks[j]))
-                        log.debug('json: ' + str(json))
-                        r = requests.post(str(webhooks[j]), json=json)
+        batches = []
+        batch = []
+        for url in data:
 
-                        # unfortunately, we cannot always send a raw image (e.g. zapier)
-                        # elif filename:
-                        #     screenshot_bytestream = ''
-                        #     try:
-                        #         fp = open(filename, 'rb')
-                        #         screenshot_bytestream = MIMEImage(fp.read())
-                        #         fp.close()
-                        #     except Exception as send_webhook_error:
-                        #         log.exception(send_webhook_error)
-                        #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+            if len(batch) >= batch_size > 0:
+                batches.append(batch)
+                batch = []
 
-                        result = [r.status_code, r.reason]
-                        if result[0] != 200:
-                            log.warn(str(result[0]) + ' ' + str(result[1]))
-                        else:
-                            log.info(str(result[0]) + ' ' + str(result[1]))
+            symbol = data[url][0]
+            alert = data[url][1]
+            date = data[url][2]
+            screenshots = data[url][3]
+
+            for i in range(len(search_criteria)):
+                if str(alert).find(str(search_criteria[i])) >= 0:
+                    screenshot = ''
+                    for chart in screenshots:
+                        if screenshot == '':
+                            screenshot = screenshots[chart]
+                    batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
+
+        # append the final batch (whatever it's size)
+        batches.append(batch)
+
+        for i in range(len(batches)):
+            json_string = json.dumps({'signals': batches[i]})
+
+            for j in range(len(webhooks)):
+                if webhooks[j]:
+                    log.debug('webhook: ' + str(webhooks[j]))
+                    log.info('json: ' + str(json_string))
+                    result = [200, 'OK']
+                    # r = requests.post(str(webhooks[j]), json=json_string)
+                    # unfortunately, we cannot always send a raw image (e.g. zapier)
+                    # elif filename:
+                    #     screenshot_bytestream = ''
+                    #     try:
+                    #         fp = open(filename, 'rb')
+                    #         screenshot_bytestream = MIMEImage(fp.read())
+                    #         fp.close()
+                    #     except Exception as send_webhook_error:
+                    #         log.exception(send_webhook_error)
+                    #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+                    # result = [r.status_code, r.reason]
+                    if result[0] != 200:
+                        log.warn(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
+                    else:
+                        log.info(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
     except Exception as e:
         log.exception(e)
     return result

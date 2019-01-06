@@ -32,6 +32,8 @@ summary:
   webhooks:
     - url: ['https://hooks.zapier.com/hooks/catch/my_id/<webhook_id>']
       search_criteria: ['search_text', 'second_search_text']
+      # Send the signals in batches. Set to 0 or leave it empty to send all signals at once
+      batch_size: 0
 webdriver:
   # run the webdriver in the background or not (this overrides the setting in the configuration file)
   run-in-backrgound: yes
