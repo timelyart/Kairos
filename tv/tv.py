@@ -11,6 +11,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime
+import getpass
 import math
 import numbers
 import os
@@ -19,7 +20,7 @@ import sys
 import time
 import yaml
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException
+from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException
 from selenium.webdriver import DesiredCapabilities
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -68,6 +69,9 @@ SELECT_ALL = MODIFIER_KEY + 'a'
 CUT = MODIFIER_KEY + 'x'
 PASTE = MODIFIER_KEY + 'v'
 COPY = MODIFIER_KEY + 'c'
+
+TV_UID = ''
+TV_PWD = ''
 
 css_selectors = dict(
     # ALERTS
@@ -125,6 +129,7 @@ css_selectors = dict(
     btn_dlg_screenshot='#header-toolbar-screenshot',
     dlg_screenshot_url='div[class^="copyForm"] > div > input',
     dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
+    btn_watchlist_sort_symbol='div.symbol-list-header.sortable > div.header-symbol',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
     select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
@@ -421,20 +426,26 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     el_options[j].click()
                     watchlist_exists = True
                     log.debug('Watchlist \'' + watchlist + '\' found')
-                    time.sleep(DELAY_WATCHLIST)
                     break
 
             if watchlist_exists:
+                # wait until the list is loaded (unfortuntately sorting doesn't get saved
+                wait_and_click(browser, css_selectors['btn_watchlist_sort_symbol'])
+
                 # extract symbols from watchlist
-                symbols = dict()
-                dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
-                time.sleep(DELAY_WATCHLIST)
-                for j in range(len(dict_symbols)):
-                    symbol = dict_symbols[j]
-                    symbols[j] = symbol.get_attribute('data-symbol-full')
-                    if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
-                        break
-                log.debug(str(len(dict_symbols)) + ' names found for watchlist \'' + watchlist + '\'')
+                symbols = []
+                try:
+                    dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
+                    for j in range(len(dict_symbols)):
+                        symbol = dict_symbols[j]
+                        symbols.append(symbol.get_attribute('data-symbol-full'))
+                        if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
+                            break
+                    symbols = list(sorted(set(symbols)))
+                    log.info(str(len(dict_symbols)) + ' symbols found  \'' + watchlist + '\'')
+                except Exception as e:
+                    log.exception(e)
+
                 dict_watchlist[chart['watchlists'][i]] = symbols
 
         # open alerts tab
@@ -627,10 +638,14 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
             alert = browser.switch_to_alert()
             alert.accept()
             time.sleep(5)
+        except NoAlertPresentException:
+            return take_screenshot(browser, symbol, interval, retry_number + 1)
+        except Exception as e:
+            log.exception(e)
         finally:
             return take_screenshot(browser, symbol, interval, retry_number + 1)
     else:
-        log.error('Max retries reached.')
+        log.warn('Max retries reached.')
 
 
 def create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url='', retry_number=0):
@@ -660,7 +675,6 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             wait_and_click(alert_dialog, css_1st_row_left)
         except Exception as alert_err:
             log.exception(alert_err)
-            snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
 
         # time.sleep(DELAY_BREAK_MINI)
@@ -809,7 +823,10 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         element.click()
 
         time.sleep(DELAY_SUBMIT_ALERT)
-
+    except TimeoutError:
+        log.warn('time out')
+        # on except, refresh and try again
+        return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
     except Exception as exc:
         log.exception(exc)
         snapshot(browser)
@@ -824,7 +841,7 @@ def import_watchlist(filepath, filename):
         log.warn('Cannot import watchlists unless clipboard is set to yes in the configuration file.')
     else:
         browser = create_browser(False)
-        login(browser)
+        login(browser, TV_UID, TV_PWD)
 
         try:
             wait_and_click(browser, css_selectors['btn_calendar'])
@@ -843,7 +860,13 @@ def import_watchlist(filepath, filename):
                     time.sleep(DELAY_BREAK * 2)
                     log.info('watchlist imported')
                     break
-
+            # sort the watchlist
+            try:
+                wait_and_click(browser, css_selectors['btn_watchlist_sort_symbol'])
+                time.sleep(DELAY_BREAK * 2)
+            except Exception as e:
+                log.exception(e)
+            # remove other watchlists with the same
             remove_watchlists(browser, str(filename).replace('.txt', ''))
 
         except Exception as e:
@@ -929,6 +952,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         return create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number + 1)
     else:
         log.error('Max retries reached.')
+        snapshot(browser)
         return False
 
 
@@ -986,45 +1010,69 @@ def set_expiration(browser, _alert_dialog, alert_config):
     set_value(browser, input_time, time_value, True)
 
 
-def login(browser):
-    url = 'https://www.tradingview.com'
-    uid = config.get('tradingview', 'username')
-    pwd = config.get('tradingview', 'password')
-    browser.get(url)
+def login(browser, uid='', pwd='', retry_login=False):
+    global TV_UID
+    global TV_PWD
+    if uid == '' and config.has_option('tradingview', 'username'):
+        uid = config.get('tradingview', 'username')
+    if pwd == '' and config.has_option('tradingview', 'password'):
+        pwd = config.get('tradingview', 'password')
 
-    # if logged in under a different username or not logged in at all log out and then log in again
-    elem_username = browser.find_element_by_css_selector(css_selectors['username'])
-    if type(elem_username) is WebElement and elem_username.text != '' and elem_username.text == uid:
-        wait_and_click(browser, css_selectors['username'])
-        wait_and_click(browser, css_selectors['signout'])
+    if not retry_login:
+        url = 'https://www.tradingview.com'
+        browser.get(url)
 
-    wait_and_click(browser, css_selectors['signin'])
-
-    input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
-    input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
-    if input_username.get_attribute('value') == '' or input_password.get_attribute('value') == '':
-        # put credentials in if defined
-        if uid and pwd:
-            set_value(browser, input_username, config.get('tradingview', 'username'))
-            time.sleep(DELAY_BREAK_MINI)
-            set_value(browser, input_password, config.get('tradingview', 'password'))
-            time.sleep(DELAY_BREAK_MINI)
-        # if there are no user credentials and it is run in the background, then exit
-        elif config.getboolean('webdriver', 'run_in_background'):
-            log.warn("You are running Kairos in the background but haven't set your TV credentials. Please, do so in the config file or don't run Kairos in the background so you can manually enter your TV credentials on login.")
-            exit(0)
-        # otherwise give user time to set password
-        else:
-            log.info("Please finish setting your credentials within 60 seconds. No need to press the login button (doing so will slow down Kairos).")
-            time.sleep(60)
+        # if logged in under a different username or not logged in at all log out and then log in again
+        elem_username = browser.find_element_by_css_selector(css_selectors['username'])
+        if type(elem_username) is WebElement and elem_username.text != '' and elem_username.text == uid:
+            wait_and_click(browser, css_selectors['username'])
+            wait_and_click(browser, css_selectors['signout'])
+        wait_and_click(browser, css_selectors['signin'])
 
     try:
+        input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+        if input_username.get_attribute('value') == '' or retry_login:
+            while uid == '':
+                uid = input("Type your TradingView username and press enter: ")
+
+        input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
+        if input_password.get_attribute('value') == '' or retry_login:
+            while pwd == '':
+                pwd = getpass.getpass("Type your TradingView password and press enter: ")
+
+        # set credentials on website login page
+        if uid != '' and pwd != '':
+            set_value(browser, input_username, uid)
+            time.sleep(DELAY_BREAK_MINI)
+            set_value(browser, input_password, pwd)
+            time.sleep(DELAY_BREAK_MINI)
+        # if there are no user credentials then exit
+        else:
+            log.info("No credentials provided.")
+            exit(0)
+
         wait_and_click(browser, css_selectors['btn_login'])
+
     except Exception as e:
         log.error(e)
         snapshot(browser)
-    finally:
+        exit(0)
+
+    # noinspection PyBroadException
+    try:
+        error = browser.find_element_by_css_selector('body > div.tv-dialog__modal-wrap > div > div > div > div.tv-dialog__error.tv-dialog__error--dark')
+        if error:
+            print(error.get_attribute('innerText'))
+            login(browser, '', '', True)
+    except NoSuchElementException:
+        TV_UID = uid
+        TV_PWD = pwd
+        log.info("logged in successfully at tradingview.com")
         time.sleep(DELAY_BREAK * 5)
+    except Exception as e:
+        log.error(e)
+        snapshot(browser)
+        exit(0)
 
 
 def create_browser(run_in_background):
@@ -1037,7 +1085,7 @@ def create_browser(run_in_background):
     options.add_argument('--disable-session-crashed-bubble')
     # options.add_argument('--disable-infobars https://www.tradingview.com')
     # options.add_argument('--disable-restore-session-state')
-    options.add_argument('--no-sandbox')
+    # options.add_argument('--no-sandbox')
     # options.add_argument("--disable-dev-shm-usage")
     options.add_argument('--window-size=' + RESOLUTION)
 
@@ -1118,17 +1166,27 @@ def run(file):
 
         if has_screeners or has_charts:
             browser = create_browser(RUN_IN_BACKGROUND)
-            login(browser)
+            login(browser, TV_UID, TV_PWD)
 
             if has_screeners:
-                screeners_yaml = tv['screeners']
-                for screener_yaml in screeners_yaml:
-                    delay_after_update = 5
-                    if 'delay_after_update' in screeners_yaml:
-                        delay_after_update = screeners_yaml['delay_after_update']
-                    markets = get_screener_markets(browser, screener_yaml)
-                    if markets:
-                        update_watchlist(browser, screener_yaml['name'], markets, delay_after_update)
+                try:
+                    screeners_yaml = tv['screeners']
+
+                    for screener_yaml in screeners_yaml:
+                        if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
+                            log.info('create/update watchlist \'' + screener_yaml['name'] + '\' from screener. \r\n\t\t\t\t\t\t\t\t\t\tplease be patient, this may take several minutes ...')
+                            delay_after_update = 5
+                            if 'delay_after_update' in screeners_yaml:
+                                delay_after_update = screeners_yaml['delay_after_update']
+                            markets = get_screener_markets(browser, screener_yaml)
+                            if markets:
+                                if update_watchlist(browser, screener_yaml['name'], markets, delay_after_update):
+                                    log.info('watchlist ' + screener_yaml['name'] + ' updated (' + str(len(markets)) + ' markets)')
+                            else:
+                                log.info('no markets to update')
+                except Exception as e:
+                    log.exception(e)
+                    snapshot(browser)
 
             if has_charts:
                 # do some maintenance on the alert list (removing or restarting)
@@ -1198,7 +1256,7 @@ def get_screener_markets(browser, screener_yaml):
             break
 
     if not found:
-        log.warn("Screener '" + screener_yaml['name'] + "' doesn't exist.")
+        log.warn("screener '" + screener_yaml['name'] + "' doesn't exist.")
         return False
 
     if 'search' in screener_yaml and screener_yaml['search'] != '':
@@ -1235,7 +1293,8 @@ def get_screener_markets(browser, screener_yaml):
             market = rows[i].get_attribute('data-symbol')
         markets.append(market)
 
-    markets = list(sorted(set(markets)))
+    # markets = list(sorted(set(markets)))
+    markets = list(set(markets))
     log.debug('found ' + str(len(markets)) + ' unique markets')
     return markets
 
@@ -1273,13 +1332,19 @@ def update_watchlist(browser, name, markets, delay_after_update):
             input_symbol.send_keys(Keys.ENTER)
             time.sleep(delay_after_update)
 
+        # sort the watchlist
+        try:
+            wait_and_click(browser, css_selectors['btn_watchlist_sort_symbol'])
+            time.sleep(DELAY_BREAK * 2)
+        except Exception as e:
+            log.exception(e)
+
         # remove double watchlist
         remove_watchlists(browser, name)
-        log.info('updated ' + name + '(' + str(len(markets)) + ' markets)')
         return True
     except Exception as e:
         log.exception(e)
-        snapshot(browser, True)
+        snapshot(browser)
 
 
 def remove_watchlists(browser, name):
