@@ -501,8 +501,8 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
                 if webhooks[j]:
                     log.debug('webhook: ' + str(webhooks[j]))
                     log.info('json: ' + str(json_string))
-                    result = [200, 'OK']
-                    # r = requests.post(str(webhooks[j]), json=json_string)
+                    # result = [200, 'OK']
+                    r = requests.post(str(webhooks[j]), json=json_string)
                     # unfortunately, we cannot always send a raw image (e.g. zapier)
                     # elif filename:
                     #     screenshot_bytestream = ''
@@ -513,7 +513,7 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
                     #     except Exception as send_webhook_error:
                     #         log.exception(send_webhook_error)
                     #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
-                    # result = [r.status_code, r.reason]
+                    result = [r.status_code, r.reason]
                     if result[0] != 200:
                         log.warn(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
                     else:
