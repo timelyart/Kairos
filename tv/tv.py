@@ -1077,6 +1077,13 @@ def login(browser, uid='', pwd='', retry_login=False):
 
 def create_browser(run_in_background):
     options = webdriver.ChromeOptions()
+
+    if config.has_option('webdriver', 'profile_path'):
+        profile_path = config.get('webdriver', 'profile_path')
+        if OS == 'windows':
+            profile_path = str(profile_path).replace('\\', '\\\\')
+        log.info(profile_path)
+        options.add_argument('--user-data-dir=' + profile_path)
     # options.add_argument('--user-data-dir=C:\\PyCharm Projects\\Kairos\\profile')
     # options.add_argument('--user-data-dir=profile')
     options.add_argument('--disable-extensions')
@@ -1110,6 +1117,9 @@ def create_browser(run_in_background):
         browser = webdriver.Chrome(executable_path=chromedriver_file, chrome_options=options, desired_capabilities=DesiredCapabilities.CHROME, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
     except WebDriverException as web_err:
         log.exception(web_err)
+        exit(0)
+    except Exception as e:
+        log.exception(e)
         exit(0)
 
     browser.implicitly_wait(WAIT_TIME_IMPLICIT)
