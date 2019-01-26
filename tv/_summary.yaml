@@ -31,6 +31,7 @@ summary:
   # Send individual signals to one or more lists webhooks when one out of a list of search_criteria is met
   webhooks:
     - url: ['https://hooks.zapier.com/hooks/catch/my_id/<webhook_id>']
+      # Only send signals of alerts that contain one of the following of the keywords. If the list is empty, signals will always be send.
       search_criteria: ['search_text', 'second_search_text']
       # Send the signals in batches. Set to 0 or leave it empty to send all signals at once
       batch_size: 0
