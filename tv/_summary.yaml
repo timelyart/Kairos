@@ -35,6 +35,23 @@ summary:
       search_criteria: ['search_text', 'second_search_text']
       # Send the signals in batches. Set to 0 or leave it empty to send all signals at once
       batch_size: 0
+      # Enabled? (yes / no)
+      enabled: yes
+  # Export data to Google Sheets
+  # Note that you will need to setup permissions as explained here:
+  # - https://www.twilio.com/blog/2017/02/an-easy-way-to-read-and-write-to-a-google-spreadsheet-in-python.html (part 'Google Drive API and Service Accounts')
+  # Data will be exported in the following order: timestamp, chart, alert, exchange, symbol
+  google_sheets:
+    # File name
+    - name: 'name'
+      # Sheet name
+      sheet: 'sheet'
+      # Index, i.e. the row number where the data should be inserted. Use 1 for the top row, or 2 if the top row contains your column titles.
+      index: 2
+      # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
+      search_criteria: ['search_text', 'second_search_text']
+      # Enabled? (yes / no)
+      enabled: yes
 webdriver:
-  # run the webdriver in the background or not (this overrides the setting in the configuration file)
+  # Run the webdriver in the background or not (this overrides the setting in the configuration file)
   run-in-backrgound: yes

@@ -13,7 +13,8 @@ from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from urllib.parse import unquote
-
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 import requests
 import yaml
 from bs4 import BeautifulSoup
@@ -344,13 +345,17 @@ def send_mail(summary_config):
                 for i in range(len(webhooks_config)):
                     webhooks = webhooks_config[i]['url']
                     search_criteria = []
+                    batch_size = 0
+                    enabled = True
+
                     if 'search_criteria' in webhooks_config[i]:
                         search_criteria = webhooks_config[i]['search_criteria']
-                    batch_size = 0
                     if 'batch_size' in webhooks_config[i]:
                         batch_size = webhooks_config[i]['batch_size']
-
-                    send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+                    if 'enabled' in webhooks_config[i]:
+                        enabled = webhooks_config[i]['enabled']
+                    if enabled:
+                        send_to_webhooks(charts, webhooks, search_criteria, batch_size)
         elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
             webhooks = config.getlist('webhooks', 'webhook')
             search_criteria = []
@@ -360,6 +365,28 @@ def send_mail(summary_config):
             if config.has_option('webhooks', 'batch_size'):
                 batch_size = config.getint('webhooks', 'batch_size')
             send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+
+        # send signals to Google Spreadsheet
+        if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
+            google_api_creds = config.get('api', 'google')
+            google_sheets_config = summary_config['google_sheets']
+            if type(google_sheets_config) is list:
+                for i in range(len(google_sheets_config)):
+                    name = google_sheets_config[i]['name']
+                    sheet = ''
+                    search_criteria = []
+                    enabled = True
+                    index = 1
+                    if 'sheet' in google_sheets_config[i]:
+                        sheet = google_sheets_config[i]['sheet']
+                    if 'index' in google_sheets_config[i]:
+                        index = google_sheets_config[i]['index']
+                    if 'search_criteria' in google_sheets_config[i]:
+                        search_criteria = google_sheets_config[i]['search_criteria']
+                    if 'enabled' in google_sheets_config[i]:
+                        enabled = google_sheets_config[i]['enabled']
+                    if enabled:
+                        export_to_google_sheet(google_api_creds, charts, name, sheet, index, search_criteria)
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
@@ -498,6 +525,7 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
                 for i in range(len(search_criteria)):
                     if str(alert).find(str(search_criteria[i])) >= 0:
                         batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
+                        break
 
         # append the final batch (whatever it's size)
         batches.append(batch)
@@ -531,6 +559,43 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
     except Exception as e:
         log.exception(e)
     return result
+
+
+def export_to_google_sheet(google_api_file, data, name, sheet='', index=1, search_criteria=''):
+    try:
+        result = ''
+        scope = ['https://spreadsheets.google.com/feeds',
+                 'https://www.googleapis.com/auth/drive']
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_file, scope)
+        client = gspread.authorize(credentials)
+        sheet = client.open(name).worksheet(sheet)
+
+        for url in data:
+
+            symbol = data[url][0]
+            alert = data[url][1]
+            date = data[url][2]
+            screenshots = data[url][3]
+
+            [exchange, market] = symbol.split(':')
+
+            screenshot = ''
+            for chart in screenshots:
+                if screenshot == '':
+                    screenshot = screenshots[chart]
+
+            row = [date, alert, screenshot, exchange, market]
+            if len(search_criteria) == 0:
+                result = sheet.insert_row(row, index)
+            else:
+                for i in range(len(search_criteria)):
+                    if str(alert).find(str(search_criteria[i])) >= 0:
+                        result = sheet.insert_row(row, index)
+                        break
+            if result:
+                log.debug(str(result))
+    except Exception as e:
+        log.exception(e)
 
 
 def run(delay, file):

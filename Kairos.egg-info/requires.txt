@@ -8,6 +8,8 @@ pip>=18.1
 Pillow
 requests
 pyautogui
+gspread
+google-api-python-client
 
 [platform_system == "Darwin"]
 pyobjc-core
