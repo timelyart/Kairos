@@ -1,22 +1,23 @@
 import datetime
 import email
 import imaplib
-import json
 import os
 import re
 import smtplib
 import ssl
 import time
+from email import encoders
+from email import policy
 from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from email import policy
-from email import encoders
 from urllib.parse import unquote
+
 import requests
 import yaml
 from bs4 import BeautifulSoup
+
 from kairos import tools
 from tv import tv
 
@@ -342,20 +343,23 @@ def send_mail(summary_config):
             if type(webhooks_config) is list:
                 for i in range(len(webhooks_config)):
                     webhooks = webhooks_config[i]['url']
-                    search_criteria = webhooks_config[i]['search_criteria']
+                    search_criteria = []
+                    if 'search_criteria' in webhooks_config[i]:
+                        search_criteria = webhooks_config[i]['search_criteria']
+                    batch_size = 0
                     if 'batch_size' in webhooks_config[i]:
                         batch_size = webhooks_config[i]['batch_size']
-                        send_to_webhooks(charts, webhooks, search_criteria, batch_size)
-                    else:
-                        send_to_webhooks(charts, webhooks, search_criteria)
+
+                    send_to_webhooks(charts, webhooks, search_criteria, batch_size)
         elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-            search_criteria = config.getlist('webhooks', 'search_criteria')
             webhooks = config.getlist('webhooks', 'webhook')
+            search_criteria = []
+            if config.has_option('webhooks', 'search_criteria'):
+                search_criteria = config.getlist('webhooks', 'search_criteria')
+            batch_size = 0
             if config.has_option('webhooks', 'batch_size'):
                 batch_size = config.getint('webhooks', 'batch_size')
-                send_to_webhooks(charts, webhooks, search_criteria, batch_size)
-            else:
-                send_to_webhooks(charts, webhooks, search_criteria)
+            send_to_webhooks(charts, webhooks, search_criteria, batch_size)
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
@@ -483,13 +487,17 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
             date = data[url][2]
             screenshots = data[url][3]
 
-            for i in range(len(search_criteria)):
-                if str(alert).find(str(search_criteria[i])) >= 0:
-                    screenshot = ''
-                    for chart in screenshots:
-                        if screenshot == '':
-                            screenshot = screenshots[chart]
-                    batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
+            screenshot = ''
+            for chart in screenshots:
+                if screenshot == '':
+                    screenshot = screenshots[chart]
+
+            if len(search_criteria) == 0:
+                batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
+            else:
+                for i in range(len(search_criteria)):
+                    if str(alert).find(str(search_criteria[i])) >= 0:
+                        batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
 
         # append the final batch (whatever it's size)
         batches.append(batch)
