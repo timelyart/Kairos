@@ -10,6 +10,7 @@ requests
 pyautogui
 gspread
 google-api-python-client
+oauth2client
 
 [platform_system == "Darwin"]
 pyobjc-core
