@@ -584,9 +584,9 @@ def export_to_google_sheet(google_api_file, data, name, sheet='', index=1, searc
                 if screenshot == '':
                     screenshot = screenshots[chart]
 
-            row = [date, alert, screenshot, exchange, market]
+            row = [date, alert, url, screenshot, exchange, market]
             if len(search_criteria) == 0:
-                result = sheet.insert_row(row, index)
+                result = sheet.insert_row(row, index, 'RAW')
             else:
                 for i in range(len(search_criteria)):
                     if str(alert).find(str(search_criteria[i])) >= 0:

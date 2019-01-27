@@ -40,7 +40,7 @@ summary:
   # Export data to Google Sheets
   # Note that you will need to setup permissions as explained here:
   # - https://www.twilio.com/blog/2017/02/an-easy-way-to-read-and-write-to-a-google-spreadsheet-in-python.html (part 'Google Drive API and Service Accounts')
-  # Data will be exported in the following order: timestamp, chart, alert, exchange, symbol
+  # Data will be exported in the following order: timestamp, alert, chart, screenshot, exchange, symbol
   google_sheets:
     # File name
     - name: 'name'
