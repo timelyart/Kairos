@@ -54,4 +54,4 @@ summary:
       enabled: yes
 webdriver:
   # Run the webdriver in the background or not (this overrides the setting in the configuration file)
-  run-in-backrgound: yes
+  run-in-background: yes

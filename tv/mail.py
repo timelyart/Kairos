@@ -616,8 +616,8 @@ def run(delay, file):
                 data = yaml.safe_load(stream)
                 if 'summary' in data:
                     summary_config = data['summary']
-                if 'webdriver' in data and 'run_in_background' in data['webdriver']:
-                    run_in_background = data['webdriver']['run_in_background']
+                if 'webdriver' in data and 'run-in-background' in data['webdriver']:
+                    run_in_background = data['webdriver']['run-in-background']
             except Exception as err_yaml:
                 log.exception(err_yaml)
 

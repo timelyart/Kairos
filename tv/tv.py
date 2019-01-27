@@ -1171,8 +1171,8 @@ def run(file):
             log.exception(err_os)
 
         RUN_IN_BACKGROUND = config.getboolean('webdriver', 'run_in_background')
-        if 'webdriver' in tv and 'run-in-backrgound' in tv['webdriver']:
-            RUN_IN_BACKGROUND = tv['webdriver']['run-in-backrgound']
+        if 'webdriver' in tv and 'run-in-background' in tv['webdriver']:
+            RUN_IN_BACKGROUND = tv['webdriver']['run-in-background']
 
         if has_screeners or has_charts:
             browser = create_browser(RUN_IN_BACKGROUND)

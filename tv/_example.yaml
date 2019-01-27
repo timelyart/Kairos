@@ -142,4 +142,4 @@ summary:
       search_criteria: ['search_text', 'second_search_text']
 webdriver:
   # run the webdriver in the background or not (this overrides the setting in the configuration file)
-  run-in-backrgound: yes
+  run-in-background: yes
