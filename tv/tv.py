@@ -886,6 +886,11 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     global alert_dialog
 
     try:
+        if retry_number == 0:
+            html = browser.find_element_by_css_selector('html')
+            html.send_keys(Keys.ALT + "a")
+        else:
+            wait_and_click(browser, css_selectors['btn_create_alert'])
         time.sleep(DELAY_BREAK)
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
