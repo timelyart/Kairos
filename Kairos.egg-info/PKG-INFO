@@ -270,5 +270,5 @@ Description: # Kairos #
         
 Platform: UNKNOWN
 Provides-Extra: platform_system == "Windows"
-Provides-Extra: platform_system == "Darwin"
 Provides-Extra: platform_system == "Linux"
+Provides-Extra: platform_system == "Darwin"

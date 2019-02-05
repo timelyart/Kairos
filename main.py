@@ -1,6 +1,8 @@
 import sys
 from tv import mail
 
+TEST = True
+
 
 def print_disclaimer():
     print("DISCLAIMER")
@@ -53,10 +55,11 @@ def main():
                 print("No such argument: " + str(sys.argv[i]))
             i += 1
 
+        triggered_signals = []
         if len(yaml) > 0:
-            tv.run(yaml)
+            triggered_signals = tv.run(yaml)
         if send_summary:
-            mail.run(delay_summary, yaml)
+            mail.run(delay_summary, yaml, triggered_signals)
     except Exception as e:
         print(e)
     finally:

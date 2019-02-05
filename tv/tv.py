@@ -18,20 +18,25 @@ import os
 import re
 import sys
 import time
+from urllib.parse import unquote
+
+import pyautogui
 import yaml
+from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException
-from selenium.webdriver import DesiredCapabilities
+from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
+
 from kairos import timing
 from kairos import tools
-from PIL import Image
-from urllib.parse import unquote
-import pyautogui
+
+TEST = False
+triggered_signals = []
 
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
@@ -374,6 +379,124 @@ def set_delays(chart):
             DELAY_KEYSTROKE = config.getfloat('delays', 'keystroke')
 
 
+def get_indicator_values(browser, indicator, retry_number=0):
+    result = []
+    chart_index = 0
+    pane_index = 0
+
+    try:
+        if 'chart_index' in indicator:
+            chart_index = indicator['chart_index']
+        if 'pane_index' in indicator:
+            pane_index = indicator['pane_index']
+
+        css = '.chart-container'
+        charts = browser.find_elements_by_css_selector(css)
+        if 0 <= chart_index < len(charts):
+            panes = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')
+            if 0 <= pane_index < len(panes):
+                pane = panes[pane_index]
+                studies = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')
+                for i in range(len(studies)):
+                    study_name = str(browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[i].find_element_by_class_name('pane-legend-title__description').text)
+                    log.debug('Found ' + study_name)
+                    if study_name.startswith(indicator['name']):
+                        # move the mouse to the top right side of the pane
+                        size = pane.size
+                        x_offset = size['width'] - 5
+                        y_offset = 5
+                        action = ActionChains(browser)
+                        action.move_to_element_with_offset(pane, x_offset, y_offset)
+                        # action.click()
+                        action.perform()
+
+                        # get the elements that hold the values
+                        elem_values = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[i].find_elements_by_class_name('pane-legend-item-value')
+                        for j in range(len(elem_values)):
+                            result.append(elem_values[j].text)
+                        break
+        log.debug(result)
+    except StaleElementReferenceException:
+        result = retry_get_indicator_values(browser, indicator, retry_number)
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def retry_get_indicator_values(browser, indicator, retry_number):
+    if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+        browser.refresh()
+        try:
+            alert = browser.switch_to_alert()
+            alert.accept()
+            time.sleep(0.5)
+        except NoAlertPresentException:
+            return get_indicator_values(browser, indicator, retry_number + 1)
+        except Exception as e:
+            log.exception(e)
+        finally:
+            return get_indicator_values(browser, indicator, retry_number + 1)
+
+
+def is_indicator_triggered(indicator, values):
+    result = False
+    try:
+        if 'trigger' in indicator:
+            comparison = '='
+            lhs = ''
+            rhs = ''
+
+            if 'type' in indicator['trigger']:
+                comparison = indicator['trigger']['type']
+            if 'left-hand-side' in indicator['trigger']:
+                if 'index' in indicator['trigger']['left-hand-side'] and indicator['trigger']['left-hand-side']['index']:
+                    ignore = []
+                    if 'ignore' in indicator['trigger']['left-hand-side']:
+                        ignore = indicator['trigger']['left-hand-side']['ignore']
+                    index = int(indicator['trigger']['left-hand-side']['index'])
+                    if index <= len(values) and not (values[index] in ignore):
+                        lhs = values[index]
+                if not lhs and indicator['trigger']['left-hand-side']['value']:
+                    lhs = indicator['trigger']['left-hand-side']['value']
+            if 'right-hand-side' in indicator['trigger']:
+                if 'index' in indicator['trigger']['right-hand-side'] and indicator['trigger']['right-hand-side']['index']:
+                    ignore = []
+                    if 'ignore' in indicator['trigger']['right-hand-side']:
+                        ignore = indicator['trigger']['right-hand-side']['ignore']
+                    index = int(indicator['trigger']['right-hand-side']['index'])
+                    if index <= len(values) and not (values[index] in ignore):
+                        rhs = values[index]
+                if not rhs and indicator['trigger']['right-hand-side']['value']:
+                    rhs = indicator['trigger']['right-hand-side']['value']
+
+            if lhs and rhs:
+                if comparison == '=':
+                    result = lhs == rhs
+                elif comparison == '!=':
+                    result = lhs != rhs
+                elif comparison == '>=':
+                    result = lhs >= rhs
+                elif comparison == '>':
+                    result = lhs > rhs
+                elif comparison == '<=':
+                    result = lhs <= rhs
+                elif comparison == '<':
+                    result = lhs < rhs
+            else:
+                if not lhs:
+                    lhs = 'undefined'
+                if not rhs:
+                    rhs = 'undefined'
+            log.debug('(' + str(lhs) + ' ' + comparison + ' ' + str(rhs) + ') returned ' + str(result))
+
+        else:
+            log.debug('No trigger information found, returning True')
+            result = True
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
 def open_chart(browser, chart, counter_alerts, total_alerts):
     """
     :param browser:
@@ -384,7 +507,6 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
     TODO:   remember original setting of opened chart, and place them back when finished
     """
-
     try:
         # load the chart
         close_all_popups(browser)
@@ -429,7 +551,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     break
 
             if watchlist_exists:
-                # wait until the list is loaded (unfortuntately sorting doesn't get saved
+                # wait until the list is loaded (unfortunately sorting doesn't get saved
                 wait_and_click(browser, css_selectors['btn_watchlist_sort_symbol'])
 
                 # extract symbols from watchlist
@@ -486,33 +608,134 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         log.exception(err)
                         snapshot(browser)
 
-                    for l in range(len(chart['alerts'])):
-                        if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
-                            # try clean inactive alerts first
-                            time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
-                            wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
-                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK * 4)
-                            # update counter
-                            alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
-                            if type(alerts) is list:
-                                counter_alerts = len(alerts)
+                    if 'signals' in chart:
+                        for l in range(len(chart['signals'])):
+                            signal = chart['signals'][l]
+                            signal_triggered = False
+                            triggered = []
+                            indicators = signal['indicators']
+                            timestamp = time.time()
 
-                        if counter_alerts >= config.getint('tradingview', 'max_alerts'):
-                            log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
-                            return [counter_alerts, total_alerts]
-                        try:
-                            screenshot_url = ''
-                            if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
-                                screenshot_url = take_screenshot(browser, symbol, interval)[0]
-                            create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], screenshot_url)
-                            counter_alerts += 1
+                            data = dict()
+                            data['timestamp'] = timestamp
+                            data['date_utc'] = datetime.datetime.utcfromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S") + ' +0000'
+                            data['date'] = datetime.datetime.fromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S %z") + tools.get_timezone()
+                            data['timeframe'] = timeframe
+                            data['symbol'] = symbol
+                            [data['exchange'], data['ticker']] = str(symbol).split(':')
+                            data['name'] = signal['name']
+
+                            interval = ''
+                            match = re.search("(\\d+)\\s(\\w\\w\\w)", timeframe)
+                            if match:
+                                interval = match.group(1)
+                                unit = match.group(2)
+                                if unit == 'day':
+                                    interval += 'D'
+                                elif unit == 'wee':
+                                    interval += 'W'
+                                elif unit == 'mon':
+                                    interval += 'M'
+                                elif unit == 'hou':
+                                    interval += 'H'
+                                elif unit == 'min':
+                                    interval += ''
+                            data['interval'] = interval
+                            url = browser.current_url + '?symbol=' + symbol
+                            multi_time_frame_layout = False
+                            try:
+                                multi_time_frame_layout = signal['multi_time_frame_layout']
+                            except KeyError:
+                                if log.level == 10:
+                                    log.warn('charts: multi_time_frame_layout not set in yaml, defaulting to multi_time_frame_layout = no')
+                            if type(interval) is str and len(interval) > 0 and not multi_time_frame_layout:
+                                url += '&interval=' + str(interval)
+                            data['url'] = url
+
+                            for m in range(len(indicators)):
+                                indicator = indicators[m]
+                                values = get_indicator_values(browser, indicator)
+                                signal['indicators'][m]['values'] = values
+                                indicator_triggered = is_indicator_triggered(indicator, values)
+                                signal['indicators'][m]['triggered'] = indicator_triggered
+                                triggered.append(indicator_triggered)
+                                if 'data' in indicator:
+                                    for n in range(len(indicator['data'])):
+                                        for _key in indicator['data'][n]:
+                                            index = indicator['data'][n][_key]
+                                            if index <= len(values) and not (_key in data):
+                                                data[_key] = values[index]
+
+                            for m in range(len(triggered)):
+                                if triggered[m]:
+                                    signal_triggered = True
+                                else:
+                                    signal_triggered = False
+                                    break
+                            signal['triggered'] = signal_triggered
+
+                            if signal_triggered:
+                                screenshots = dict()
+                                filenames = dict()
+                                screenshots_url = []
+                                try:
+                                    for m in range(len(signal['include_screenshots_of_charts'])):
+                                        screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
+                                        [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
+                                        if screenshot_url != '':
+                                            screenshots[screenshot_chart] = screenshot_url
+                                            screenshots_url.append(screenshot_url)
+                                            if m == 0:
+                                                data['screenshot'] = screenshot_url
+                                        if filename != '':
+                                            filenames[screenshot_chart] = filename
+                                except ValueError as value_error:
+                                    log.exception(value_error)
+                                    snapshot(browser)
+                                except KeyError:
+                                    if log.level == 10:
+                                        log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+                                data['screenshots_url'] = screenshots_url
+                                data['screenshots'] = screenshots
+                                data['filenames'] = filenames
+                                if 'labels' in signal:
+                                    for n in range(len(signal['labels'])):
+                                        for _key in signal['labels'][n]:
+                                            if not (_key in data):
+                                                data[_key] = signal['labels'][n][_key]
+                                data['signal'] = signal
+                                log.info('"' + signal['name'] + '" triggered.')
+                                triggered_signals.append(data)
                             total_alerts += 1
-                        except Exception as err:
-                            log.error("Could not set alert: " + symbols[k] + " " + chart['alerts'][l]['name'])
-                            log.exception(err)
-                            snapshot(browser)
+
+                    if 'alerts' in chart:
+                        for l in range(len(chart['alerts'])):
+                            if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
+                                # try clean inactive alerts first
+                                time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
+                                wait_and_click(browser, css_selectors['btn_alert_menu'])
+                                wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                                time.sleep(DELAY_BREAK * 4)
+                                # update counter
+                                alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
+                                if type(alerts) is list:
+                                    counter_alerts = len(alerts)
+
+                            if counter_alerts >= config.getint('tradingview', 'max_alerts'):
+                                log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
+                                return [counter_alerts, total_alerts]
+                            try:
+                                screenshot_url = ''
+                                if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
+                                    screenshot_url = take_screenshot(browser, symbol, interval)[0]
+                                create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], screenshot_url)
+                                counter_alerts += 1
+                                total_alerts += 1
+                            except Exception as err:
+                                log.error("Could not set alert: " + symbols[k] + " " + chart['alerts'][l]['name'])
+                                log.exception(err)
+                                snapshot(browser)
 
     except Exception as exc:
         log.exception(exc)
@@ -663,7 +886,6 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     global alert_dialog
 
     try:
-        wait_and_click(browser, css_selectors['btn_create_alert'])
         time.sleep(DELAY_BREAK)
         alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
@@ -729,7 +951,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                             found = True
                             break
                     if not found:
-                        log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+                        log.error("Invalid condition (" + str(current_condition + 1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
                         return False
             elif inputs[i].tag_name == 'input':
                 set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
@@ -805,7 +1027,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             try:
                 screenshot_urls = []
                 for i in range(len(alert_config['include_screenshots_of_charts'])):
-                    screenshot_urls.append(alert_config['include_screenshots_of_charts'][i]+'?symbol='+ticker_id)
+                    screenshot_urls.append(alert_config['include_screenshots_of_charts'][i] + '?symbol=' + ticker_id)
                 text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
             except ValueError as value_error:
                 log.exception(value_error)
@@ -896,7 +1118,7 @@ def select(alert_config, current_condition, el_options, ticker_id):
             found = True
             break
     if not found:
-        log.error("Invalid condition (" + str(current_condition+1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+        log.error("Invalid condition (" + str(current_condition + 1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
     return found
 
 
@@ -917,7 +1139,6 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
 
 
 def set_value(browser, element, string, use_clipboard=False, use_send_keys=False, interval=DELAY_KEYSTROKE):
-
     if use_send_keys:
         send_keys(element, string, interval)
     else:
@@ -934,7 +1155,7 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
 
 def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        log.info('Trying again (' + str(retry_number+1) + ')')
+        log.info('Trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
         # Switching to Alert
         alert = browser.switch_to_alert()
@@ -1145,6 +1366,7 @@ def run(file):
     tv = None
     has_charts = False
     has_screeners = False
+
     global RUN_IN_BACKGROUND
 
     try:
@@ -1229,12 +1451,18 @@ def run(file):
                             counter_alerts = len(alerts)
                 except Exception as e:
                     log.exception(e)
-                # iterate over all items that have an 'alerts' property
+                # iterate over all items that have an 'alerts' or 'signals' property
                 for file, items in tv.items():
                     if type(items) is list:
                         for i in range(len(items)):
-                            if 'alerts' in items[i]:
+                            if 'alerts' in items[i] or 'signals' in items[i]:
                                 [counter_alerts, total_alerts] = open_chart(browser, items[i], counter_alerts, total_alerts)
+
+                if 'summary' in tv:
+                    from tv import mail
+                    log.info('Triggered signals: ' + str(len(triggered_signals)))
+                    mail.post_process_signals(triggered_signals, tv['summary'])
+                    log.info('Triggered signals: ' + str(len(triggered_signals)))
 
                 summary(total_alerts)
                 destroy_browser(browser)
@@ -1242,6 +1470,7 @@ def run(file):
         log.exception(exc)
         summary(total_alerts)
         destroy_browser(browser)
+    return triggered_signals
 
 
 def get_screener_markets(browser, screener_yaml):
@@ -1310,7 +1539,6 @@ def get_screener_markets(browser, screener_yaml):
 
 
 def update_watchlist(browser, name, markets, delay_after_update):
-
     try:
         wait_and_click(browser, css_selectors['btn_calendar'])
         wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
@@ -1393,6 +1621,6 @@ def summary(total_alerts):
     if total_alerts > 0:
         elapsed = timing.clock() - timing.start
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
-        log.info(str(total_alerts) + " alerts set with an average process time of " + avg + " seconds")
+        log.info(str(total_alerts) + " alerts and/or signals set with an average process time of " + avg + " seconds")
     elif total_alerts == 0:
         log.info("No alerts set")

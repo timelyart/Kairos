@@ -1,5 +1,8 @@
 # File: tools.py
 import os
+from datetime import datetime, timedelta
+import time
+
 from kairos import debug
 from collections import OrderedDict
 from configparser import RawConfigParser
@@ -53,3 +56,45 @@ class Switch:
     def __exit__(self, type, value, traceback): return False
 
     def __call__(self, *mconds): return self._val in mconds
+
+
+def to_csv(data, delimeter=','):
+    result = ''
+    log.info(str(type(data)) + ': ' + str(data))
+    if isinstance(data, dict):
+        for _key in data:
+            if result == '':
+                result = to_csv(data[_key])
+            else:
+                result = delimeter + to_csv(data[_key], delimeter)
+    elif isinstance(data, list):
+        for i in range(len(data)):
+            if result == '':
+                result = to_csv(data[i])
+            else:
+                result = delimeter + to_csv(data[i], delimeter)
+    else:
+        result = data
+    return result
+
+
+def get_timezone():
+    timestamp = time.time()
+    date_utc = datetime.utcfromtimestamp(timestamp)
+    date_local = datetime.fromtimestamp(timestamp)
+    date_delta = max(date_utc, date_local) - min(date_utc, date_local)
+    timezone = '{0:0{width}}'.format(int(date_delta.seconds / 60 / 60), width=2) + '00'
+    if date_local > date_utc:
+        timezone = '+' + timezone
+    elif date_local < date_utc:
+        timezone = '-' + timezone
+    return timezone
+
+
+def dt_parse(t):
+    ret = datetime.strptime(t[0:16], '%Y-%m-%dT%H:%M')
+    if t[17] == '+':
+        ret -= timedelta(hours=int(t[18:20]), minutes=int(t[20:]))
+    elif t[17] == '-':
+        ret += timedelta(hours=int(t[18:20]), minutes=int(t[20:]))
+    return ret

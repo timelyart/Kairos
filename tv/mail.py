@@ -1,6 +1,7 @@
 import datetime
 import email
 import imaplib
+import json
 import os
 import re
 import smtplib
@@ -20,6 +21,7 @@ import yaml
 from bs4 import BeautifulSoup
 
 from kairos import tools
+# from tools import to_csv
 from tv import tv
 
 # -------------------------------------------------
@@ -28,6 +30,7 @@ from tv import tv
 #
 # ------------------------------------------------
 
+TEST = False
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
@@ -194,8 +197,8 @@ def process_body(msg, browser):
                 if filename != '':
                     filenames[screenshot_chart] = filename
                 tv.close_all_popups(browser)
-
-        charts[url] = [symbol, alert, date, screenshots, filenames]
+        is_signal = False
+        charts[url] = [symbol, alert, date, screenshots, filenames, is_signal]
     except Exception as e:
         log.exception(e)
 
@@ -229,7 +232,7 @@ def read_mail(browser):
             mail_ids = data[0]
             id_list = mail_ids.split()
             if len(id_list) == 0:
-                log.info('No mail to process')
+                log.info('no TradingView alerts found in mailbox ' + mailbox)
             else:
                 for mail_id in id_list:
                     result, data = mail.fetch(mail_id, '(RFC822)')
@@ -278,8 +281,7 @@ def save_watchlist_to_file(csv, filename=''):
     return [filepath, filename]
 
 
-def send_mail(summary_config):
-
+def send_mail(summary_config, signals):
     try:
         msg = MIMEMultipart('alternative')
         text = ''
@@ -316,14 +318,16 @@ def send_mail(summary_config):
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '<table><thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
 
-        for url in charts:
-            symbol = charts[url][0]
-            alert = charts[url][1]
-            date = charts[url][2]
-            screenshots = charts[url][3]
+        # merge charts and signals (in case of duplicates, the charts is overwritten with signals)
+        merged = {**charts, **signals}
+        for url in merged:
+            symbol = merged[url][0]
+            alert = merged[url][1]
+            date = merged[url][2]
+            screenshots = merged[url][3]
             filenames = []
-            if len(charts[url]) >= 4:
-                filenames = charts[url][4]
+            if len(merged[url]) >= 5:
+                filenames = merged[url][4]
 
             if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
                 html += generate_table_row(date, symbol, alert, screenshots, url)
@@ -338,7 +342,7 @@ def send_mail(summary_config):
                 csv += ',' + symbol
             count += 1
 
-        # send signals to webhooks
+        # send alerts to webhooks
         if summary_config and 'webhooks' in summary_config:
             webhooks_config = summary_config['webhooks']
             if type(webhooks_config) is list:
@@ -355,7 +359,7 @@ def send_mail(summary_config):
                     if 'enabled' in webhooks_config[i]:
                         enabled = webhooks_config[i]['enabled']
                     if enabled:
-                        send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+                        send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
         elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
             webhooks = config.getlist('webhooks', 'webhook')
             search_criteria = []
@@ -364,9 +368,9 @@ def send_mail(summary_config):
             batch_size = 0
             if config.has_option('webhooks', 'batch_size'):
                 batch_size = config.getint('webhooks', 'batch_size')
-            send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+            send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
 
-        # send signals to Google Spreadsheet
+        # send alerts to Google Spreadsheet
         if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
             google_api_creds = config.get('api', 'google')
             google_sheets_config = summary_config['google_sheets']
@@ -386,7 +390,7 @@ def send_mail(summary_config):
                     if 'enabled' in google_sheets_config[i]:
                         enabled = google_sheets_config[i]['enabled']
                     if enabled:
-                        export_to_google_sheet(google_api_creds, charts, name, sheet, index, search_criteria)
+                        send_alert_to_google_sheet(google_api_creds, charts, name, sheet, index, search_criteria)
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
@@ -498,7 +502,142 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
+def post_process_signals(signals, summary_config):
+    export_data = []
+
+    # for signal in signals:
+    for i in range(len(signals)):
+        data = signals[i]
+        signal = data['signal']
+        screenshots = data['screenshots']
+        symbol = data['symbol']
+        alert = signal['name'] + ', ' + data['timeframe'] + ': ' + symbol
+        data['alert'] = alert
+
+        # generate text, csv, json and search_text according to signals yaml
+        csv = ''
+        text = ''
+        json_string = []
+        search_text = ''
+        if 'csv' in signal:
+            csv = signal['csv']
+        if 'text' in signal:
+            text = signal['text']
+        if 'json' in signal:
+            json_string = str(signal['json'])
+        if 'search_text' in signal:
+            search_text = signal['search_text']
+        for _key in data:
+            if _key == 'signal':
+                continue
+            value = data[_key]
+            if isinstance(value, str):
+                json_string = json_string.replace('%' + _key.upper(), str(value))
+            else:
+                json_string = json_string.replace('\'%' + _key.upper() + '\'', str(value))
+                json_string = json_string.replace('"%' + _key.upper() + '"', str(value))
+
+            if str(_key).upper() == 'SCREENSHOTS':
+                value_csv = ''
+                value_text = ''
+                for chart in screenshots:
+                    screenshot = screenshots[chart]
+                    if value_csv == '':
+                        value_csv += screenshot
+                        value_text += screenshot
+                    else:
+                        value_csv += ";" + screenshot
+                        value_text += "\\n" + screenshot
+                csv = csv.replace('%' + _key.upper(), str(value_csv))
+                text = text.replace('%' + _key.upper(), str(value_text))
+            else:
+                csv = csv.replace('%' + _key.upper(), str(value))
+                text = text.replace('%' + _key.upper(), str(value))
+                search_text = search_text.replace('%' + _key.upper(), str(value))
+
+        json_yaml = yaml.safe_load(json_string)
+        json_data = json.dumps(json_yaml)
+
+        data['text'] = text
+        data['csv'] = csv
+        data['json'] = json_data
+        data['search_text'] = search_text
+        data.pop('signal')
+        export_data.append(data)
+
+    export(summary_config, export_data)
+    return export_data
+
+
+def export(summary_config, data):
+    # log.info(data)
+    # send to webhooks
+    if summary_config and 'webhooks' in summary_config:
+        webhooks_config = summary_config['webhooks']
+        if type(webhooks_config) is list:
+            for i in range(len(webhooks_config)):
+                webhooks = webhooks_config[i]['url']
+                search_criteria = []
+                batch_size = 0
+                enabled = True
+                if 'search_criteria' in webhooks_config[i]:
+                    search_criteria = webhooks_config[i]['search_criteria']
+                if 'batch_size' in webhooks_config[i]:
+                    batch_size = webhooks_config[i]['batch_size']
+                if 'enabled' in webhooks_config[i]:
+                    enabled = webhooks_config[i]['enabled']
+                if enabled:
+                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size)
+    elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
+        webhooks = config.getlist('webhooks', 'webhook')
+        search_criteria = []
+        if config.has_option('webhooks', 'search_criteria'):
+            search_criteria = config.getlist('webhooks', 'search_criteria')
+        batch_size = 0
+        if config.has_option('webhooks', 'batch_size'):
+            batch_size = config.getint('webhooks', 'batch_size')
+        send_signals_to_webhooks(data, webhooks, search_criteria, batch_size)
+
+    # send to Google Sheet
+    if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
+        google_api_creds = config.get('api', 'google')
+        google_sheets_config = summary_config['google_sheets']
+        send_signals_to_google_sheet(google_api_creds, data, google_sheets_config)
+
+
+def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
+    result = False
+    try:
+        batches = []
+        batch = []
+        for i in range(len(data)):
+            signal = data[i]
+            json_data = json.loads(signal['json'])
+            search_text = signal['search_text']
+            if len(batch) >= batch_size > 0:
+                batches.append(batch)
+                batch = []
+
+            if len(search_criteria) == 0:
+                batch.append(json_data)
+            else:
+                for j in range(len(search_criteria)):
+                    if str(search_text).find(str(search_criteria[j])) >= 0:
+                        batch.append(json_data)
+                        break
+
+        # append the final batch if it contains items
+        if len(batch) > 0:
+            batches.append(batch)
+        # send batches to webhooks
+        if len(batches) > 0:
+            send_webhooks(webhooks, batches)
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
     result = False
     try:
         batches = []
@@ -529,54 +668,131 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
 
         # append the final batch (whatever it's size)
         batches.append(batch)
+        # send batches to webhooks
+        if len(batches) > 0:
+            send_webhooks(webhooks, batches)
+    except Exception as e:
+        log.exception(e)
+    return result
 
+
+def send_webhooks(webhooks, batches):
+    try:
         for i in range(len(batches)):
-
             for j in range(len(webhooks)):
                 if webhooks[j]:
                     json_data = {'signals': batches[i]}
-                    log.debug(repr(json_data))
-                    # result = [200, 'OK']
-                    # r = requests.post(str(webhooks[j]), json=json_string)
-                    r = requests.post(str(webhooks[j]), json=json_data)
+                    if TEST:
+                        log.info(repr(json_data))
+                        result = [200, 'OK']
+                    else:
+                        log.debug(repr(json_data))
+                        r = requests.post(str(webhooks[j]), json=json_data)
+                        # unfortunately, we cannot always send a raw image (e.g. zapier)
+                        # elif filename:
+                        #     screenshot_bytestream = ''
+                        #     try:
+                        #         fp = open(filename, 'rb')
+                        #         screenshot_bytestream = MIMEImage(fp.read())
+                        #         fp.close()
+                        #     except Exception as send_webhook_error:
+                        #         log.exception(send_webhook_error)
+                        #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+                        result = [r.status_code, r.reason]
 
-                    # unfortunately, we cannot always send a raw image (e.g. zapier)
-                    # elif filename:
-                    #     screenshot_bytestream = ''
-                    #     try:
-                    #         fp = open(filename, 'rb')
-                    #         screenshot_bytestream = MIMEImage(fp.read())
-                    #         fp.close()
-                    #     except Exception as send_webhook_error:
-                    #         log.exception(send_webhook_error)
-                    #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
-
-                    result = [r.status_code, r.reason]
                     if result[0] != 200:
                         log.warn(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
                     else:
                         log.info(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
     except Exception as e:
         log.exception(e)
-    return result
 
 
-def export_to_google_sheet(google_api_file, data, name, sheet='', index=1, search_criteria=''):
+def send_signals_to_google_sheet(google_api_creds, data, google_sheets_config):
+        results = []
+
+        limit = 100
+        if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
+            limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
+        inserted = 0
+
+        for i in range(len(google_sheets_config)):
+            try:
+                name = google_sheets_config[i]['name']
+                sheet = ''
+                search_criteria = []
+                enabled = True
+                index = 1
+                if 'sheet' in google_sheets_config[i]:
+                    sheet = google_sheets_config[i]['sheet']
+                if 'index' in google_sheets_config[i]:
+                    index = google_sheets_config[i]['index']
+                if 'search_criteria' in google_sheets_config[i]:
+                    search_criteria = google_sheets_config[i]['search_criteria']
+                if 'enabled' in google_sheets_config[i]:
+                    enabled = google_sheets_config[i]['enabled']
+                if enabled:
+                    result = ''
+                    scope = ['https://spreadsheets.google.com/feeds',
+                             'https://www.googleapis.com/auth/drive']
+                    credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
+                    loglevel = log.level
+                    if loglevel == 20:
+                        log.level = 30
+                    client = gspread.authorize(credentials)
+                    log.level = loglevel
+                    sheet = client.open(name).worksheet(sheet)
+
+                    for j in range(len(data)):
+                        csv = data[j]['csv']
+                        search_text = data[j]['search_text']
+                        row = csv.split(';')
+                        if TEST:
+                            log.info(row)
+                        else:
+                            if len(search_criteria) == 0:
+                                result = sheet.insert_row(row, index, 'RAW')
+                            else:
+                                for k in range(len(search_criteria)):
+                                    if str(search_text).find(str(search_criteria[k])) >= 0:
+                                        result = sheet.insert_row(row, index, 'RAW')
+                                        break
+                            if result:
+                                results.append(result)
+                                log.debug(str(result))
+                            inserted += 1
+                            if inserted == 100:
+                                log.info('API limit reached. Waiting ' + str(limit) + ' seconds before continuing...')
+                                time.sleep(limit)
+                                inserted = 0
+                    if len(results) == 1:
+                        log.info(str(len(results)) + ' row inserted')
+                    else:
+                        log.info(str(len(results)) + ' rows inserted')
+            except Exception as e:
+                log.exception(e)
+
+
+def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, search_criteria=''):
     try:
         result = ''
         scope = ['https://spreadsheets.google.com/feeds',
                  'https://www.googleapis.com/auth/drive']
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_file, scope)
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
         client = gspread.authorize(credentials)
         sheet = client.open(name).worksheet(sheet)
 
-        for url in data:
+        limit = 100
+        if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
+            limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
 
+        inserted = 0
+        for url in data:
+            log.info(data[url])
             symbol = data[url][0]
             alert = data[url][1]
             date = data[url][2]
             screenshots = data[url][3]
-
             [exchange, market] = symbol.split(':')
 
             screenshot = ''
@@ -585,20 +801,28 @@ def export_to_google_sheet(google_api_file, data, name, sheet='', index=1, searc
                     screenshot = screenshots[chart]
 
             row = [date, alert, url, screenshot, exchange, market]
-            if len(search_criteria) == 0:
-                result = sheet.insert_row(row, index, 'RAW')
+            if TEST:
+                log.info(row)
             else:
-                for i in range(len(search_criteria)):
-                    if str(alert).find(str(search_criteria[i])) >= 0:
-                        result = sheet.insert_row(row, index)
-                        break
-            if result:
-                log.debug(str(result))
+                if len(search_criteria) == 0:
+                    result = sheet.insert_row(row, index, 'RAW')
+                else:
+                    for i in range(len(search_criteria)):
+                        if str(alert).find(str(search_criteria[i])) >= 0:
+                            result = sheet.insert_row(row, index)
+                            break
+                if result:
+                    log.debug(str(result))
+                inserted += 1
+                if inserted == 100:
+                    log.info('API limit reached. Waiting ' + str(limit) + ' seconds before continuing...')
+                    time.sleep(limit)
+                    inserted = 0
     except Exception as e:
         log.exception(e)
 
 
-def run(delay, file):
+def run(delay, file, triggered_signals):
     log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
 
@@ -626,5 +850,17 @@ def run(delay, file):
     login(browser)
     read_mail(browser)
     destroy_browser(browser)
-    if len(charts) > 0:
-        send_mail(summary_config)
+    signals = dict()
+    for i in range(len(triggered_signals)):
+        data = triggered_signals[i]
+        url = data['url']
+        symbol = data['symbol']
+        alert = data['alert']
+        date = data['date']
+        screenshots = data['screenshots']
+        filenames = data['filenames']
+        log.info(url)
+        signals[url] = [symbol, alert, date, screenshots, filenames]
+
+    if len(charts) > 0 or len(signals) > 0:
+        send_mail(summary_config, signals)
