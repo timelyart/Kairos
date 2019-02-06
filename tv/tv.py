@@ -1361,7 +1361,7 @@ def destroy_browser(browser):
         browser.quit()
 
 
-def run(file):
+def run(file, export_signals_immediately):
     """
         TODO:   multi threading
     """
@@ -1463,11 +1463,8 @@ def run(file):
                             if 'alerts' in items[i] or 'signals' in items[i]:
                                 [counter_alerts, total_alerts] = open_chart(browser, items[i], counter_alerts, total_alerts)
 
-                if 'summary' in tv:
-                    from tv import mail
-                    log.info('Triggered signals: ' + str(len(triggered_signals)))
-                    mail.post_process_signals(triggered_signals, tv['summary'])
-                    log.info('Triggered signals: ' + str(len(triggered_signals)))
+                from tv import mail
+                mail.post_process_signals(triggered_signals, tv, export_signals_immediately)
 
                 summary(total_alerts)
                 destroy_browser(browser)

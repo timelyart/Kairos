@@ -502,7 +502,7 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def post_process_signals(signals, summary_config):
+def post_process_signals(signals, config_yaml, export_signals):
     export_data = []
 
     # for signal in signals:
@@ -513,6 +513,7 @@ def post_process_signals(signals, summary_config):
         symbol = data['symbol']
         alert = signal['name'] + ', ' + data['timeframe'] + ': ' + symbol
         data['alert'] = alert
+        data['chart'] = data['url']
 
         # generate text, csv, json and search_text according to signals yaml
         csv = ''
@@ -565,7 +566,8 @@ def post_process_signals(signals, summary_config):
         data.pop('signal')
         export_data.append(data)
 
-    export(summary_config, export_data)
+    if 'summary' in config_yaml and export_signals:
+        export(config_yaml['summary'], export_data)
     return export_data
 
 

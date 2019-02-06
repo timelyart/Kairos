@@ -57,7 +57,8 @@ def main():
 
         triggered_signals = []
         if len(yaml) > 0:
-            triggered_signals = tv.run(yaml)
+            send_signals_immediately = not send_summary
+            triggered_signals = tv.run(yaml, send_signals_immediately)
         if send_summary:
             mail.run(delay_summary, yaml, triggered_signals)
     except Exception as e:
