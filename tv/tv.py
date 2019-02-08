@@ -704,7 +704,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                                             if not (_key in data):
                                                 data[_key] = signal['labels'][n][_key]
                                 data['signal'] = signal
-                                log.info('"' + signal['name'] + '" triggered.')
+                                log.info('"' + signal['name'] + '" triggered')
                                 triggered_signals.append(data)
                             total_alerts += 1
 
@@ -854,7 +854,7 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
 
 def retry_take_screenshot(browser, symbol, interval, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        log.info('Trying again (' + str(retry_number + 1) + ')')
+        log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
         # Switching to Alert
         try:
@@ -868,7 +868,7 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
         finally:
             return take_screenshot(browser, symbol, interval, retry_number + 1)
     else:
-        log.warn('Max retries reached.')
+        log.warn('max retries reached')
 
 
 def create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url='', retry_number=0):
@@ -1160,7 +1160,7 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
 
 def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        log.info('Trying again (' + str(retry_number + 1) + ')')
+        log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
         # Switching to Alert
         alert = browser.switch_to_alert()

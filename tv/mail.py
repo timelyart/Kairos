@@ -572,7 +572,8 @@ def post_process_signals(signals, config_yaml, export_signals):
 
 
 def export(summary_config, data):
-    # log.info(data)
+    if TEST:
+        log.info(data)
     # send to webhooks
     if summary_config and 'webhooks' in summary_config:
         webhooks_config = summary_config['webhooks']
@@ -668,8 +669,9 @@ def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
                         batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
                         break
 
-        # append the final batch (whatever it's size)
-        batches.append(batch)
+        # append the final batch
+        if len(batch) > 0:
+            batches.append(batch)
         # send batches to webhooks
         if len(batches) > 0:
             send_webhooks(webhooks, batches)
@@ -852,6 +854,10 @@ def run(delay, file, triggered_signals):
     login(browser)
     read_mail(browser)
     destroy_browser(browser)
+
+    if summary_config and triggered_signals and len(triggered_signals) > 0:
+        export(summary_config, triggered_signals)
+
     signals = dict()
     for i in range(len(triggered_signals)):
         data = triggered_signals[i]
@@ -861,7 +867,6 @@ def run(delay, file, triggered_signals):
         date = data['date']
         screenshots = data['screenshots']
         filenames = data['filenames']
-        log.info(url)
         signals[url] = [symbol, alert, date, screenshots, filenames]
 
     if len(charts) > 0 or len(signals) > 0:
