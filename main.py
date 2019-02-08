@@ -1,8 +1,6 @@
 import sys
 from tv import mail
 
-TEST = True
-
 
 def print_disclaimer():
     print("DISCLAIMER")
