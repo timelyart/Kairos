@@ -28,25 +28,18 @@ ext_options = dict(
     extra_link_args=extra_link_args,
     extra_compile_args=extra_compile_args)
 
+# When building from a repo, Cython is required.
+if not cythonize:
+    print('Cython.Build.cythonize not found. ')
+    print('Cython is required to generate C code.')
+    sys.exit(1)
+
 # Define the extension modules.
-ext_modules = []
-if "build" in sys.argv:
-    # When building from a repo, Cython is required.
-    if not cythonize:
-        print('Cython.Build.cythonize not found. ')
-        print('Cython is required to generate C code.')
-        sys.exit(1)
-    ext_modules = cythonize([
-        Extension('tv.tv', ['tv//tv.py'], **ext_options),
-        # Extension('mail.tv', ['tv//mail.pyx'], **ext_options),
-        ],
-        compiler_directives={"language_level": "3"}
-    )
-else:
-    # Otherwise we just specify .c files.
-    ext_modules = [
-        Extension('tv.tv', ['tv/tv.pyd'], **ext_options),
-    ]
+ext_modules = cythonize([
+    Extension('tv.tv', ['tv//tv.py'], **ext_options),
+    ],
+    compiler_directives={"language_level": "3"}
+)
 
 setup(
     name='Kairos',
