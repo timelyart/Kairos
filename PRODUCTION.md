@@ -14,9 +14,12 @@ For each python file you wish to generate C for, do the following:
 * If you want to obfuscate the source code, add it to process.bat again in the following format: `del <basename>.py`, for example: `del tv.py`
 
 ## Generate C code
-Generate C code:
-
-`python setup.py build_ext --inplace`
+To generate the C code do the following:
+1. Rename setup.py to _setup.py
+2. Rename cython.py to setup.py
+3. Run: `python setup.py build_ext --inplace`
+4. Rename setup.py to cython.py
+5. Rename _setup.py to setup.py
 
 ## Install dependencies 
 Install dependencies: 
@@ -29,4 +32,5 @@ Process the generated files by running (Windows CMD): `process.bat`
 The script will do the following:
 * Rename \<basename>.cp37-win32.pyd files to \<basename>.pyd
 * Remove source files
+* Remove cython.py
 * Remove unnecessary files 
