@@ -1,4 +1,4 @@
-# Create Kairos Distribution for public use
+# Create Kairos distribution for public use
 1. [File preparation](#python-file-preparation)
 2. [Generate C code](#generate-c-code)
 3. [Install](#install-dependencies)
