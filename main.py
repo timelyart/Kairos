@@ -6,13 +6,13 @@ def print_disclaimer():
     print("DISCLAIMER")
     print("You are permitted to load the Kairos software (for example a PC, laptop, mobile or tablet) under your control. You are responsible for ensuring your device meets the minimum requirements of the Kairos software.")
     print("You are not permitted to:")
-    print("* Edit, alter, modify, adapt, translate or otherwise change the whole or any part of the Software nor permit the whole or any part of the Software to be combined with or become incorporated in any other software, nor decompile, disassemble or reverse engineer the Software or attempt to "
-          "do any such things")
-    print("* Reproduce, copy, distribute, resell or otherwise use the Software for any commercial purpose")
-    print("* Allow any third party to use the Software on behalf of or for the benefit of any third party")
-    print("* Use the Software in any way which breaches any applicable local, national or international law")
-    print("* use the Software for any purpose that Sanne Appel considers is a breach of the EULA agreement")
-    print("You should have received a copy of the EULA agreement along with this program (LICENSE.md), If not, see https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A")
+    print("\t* Edit, alter, modify, adapt, translate or otherwise change the whole or any part of the Software nor permit the whole or any part of the Software to be combined with or become incorporated in any other software, nor decompile, disassemble or reverse engineer the Software or attempt "
+          "to do any such things")
+    print("\t* Reproduce, copy, distribute, resell or otherwise use the Software for any commercial purpose")
+    print("\t* Allow any third party to use the Software on behalf of or for the benefit of any third party")
+    print("\t* Use the Software in any way which breaches any applicable local, national or international law")
+    print("\t* use the Software for any purpose that Sanne Appel considers is a breach of the EULA agreement")
+    print("You should have received a copy of the EULA agreement along with this program (LICENSE.md), If not, see https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A\n")
 
 
 def print_help():
@@ -31,7 +31,7 @@ def main():
     try:
         print_disclaimer()
         print("USAGE:\npython main.py [<file>] [-s|-s <minutes>] [-h] [-d]")
-        print("For help, type: python main.py -h\n\n")
+        print("For help, type: python main.py -h\n")
         # test_mongodb()
         yaml = ""
         send_summary = False
