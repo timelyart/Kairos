@@ -1,7 +1,7 @@
 # Create Kairos Distribution for public use #
 1. [File preparation](#python-file-preparation)
 2. [Generate C code](#generate-c-code)
-3. [Install](#install)
+3. [Install](#install-dependencies)
 4. [Clean up](#clean-up)
 
 Alternatively, you can automate steps 2-4 by running (Windows CMD):
