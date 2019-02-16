@@ -1340,7 +1340,7 @@ def create_browser(run_in_background):
     chromedriver_file.replace('.exe', '')
 
     try:
-        browser = webdriver.Chrome(executable_path=chromedriver_file, chrome_options=options, desired_capabilities=DesiredCapabilities.CHROME, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
+        browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=DesiredCapabilities.CHROME, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
     except WebDriverException as web_err:
         log.exception(web_err)
         exit(0)
