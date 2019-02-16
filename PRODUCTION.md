@@ -1,10 +1,9 @@
 # Create Kairos Distribution for public use #
 1. File preparation
 2. Generate C code
-3. Rename <basename>.cp37-win32.pyd to <basename>.pyd
-4. Link to .pyd files
-5. Install
-6. Clean up
+3. Link to .pyd files
+4. Install
+5. Clean up
 
 Alternatively, you can run steps 2-5 automated(Windows CMD):
 `build_public.bat`

@@ -30,7 +30,7 @@ ext_options = dict(
 
 # Define the extension modules.
 ext_modules = []
-if "generate" in sys.argv:
+if "build" in sys.argv:
     # When building from a repo, Cython is required.
     if not cythonize:
         print('Cython.Build.cythonize not found. ')
@@ -51,8 +51,8 @@ else:
 setup(
     name='Kairos',
     packages=find_packages(),
-    url='https://github.com/timelyart/Kairos-v2/',
-    license='GNU General Public License v3.0',
+    url='https://github.com/timelyart/',
+    license='End-User License Agreement: https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A',
     author='timelyart',
     version=release,
     author_email='timelyart@protonmail.com',

@@ -1,3 +1,4 @@
+import ast
 import datetime
 import email
 import imaplib
@@ -21,7 +22,7 @@ import yaml
 from bs4 import BeautifulSoup
 
 from kairos import tools
-# from tools import to_csv
+from kairos import mongodb
 from tv import tv
 
 # -------------------------------------------------
@@ -607,6 +608,16 @@ def export(summary_config, data):
         google_sheets_config = summary_config['google_sheets']
         send_signals_to_google_sheet(google_api_creds, data, google_sheets_config)
 
+    # send to MongoDB
+    if config.has_option('mongodb', 'connection_string') and summary_config and 'mongodb' in summary_config:
+        try:
+            connection_string = config.get('mongodb', 'connection_string')
+            client = mongodb.connect(connection_string)
+            for mongodb_item in summary_config['mongodb']:
+                send_json_to_mongodb(client, mongodb_item, data)
+        except Exception as e:
+            log.exception(e)
+
 
 def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
     result = False
@@ -678,6 +689,75 @@ def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
     except Exception as e:
         log.exception(e)
     return result
+
+
+def send_json_to_mongodb(client, mongodb_config, data):
+    result = False
+
+    if 'enabled' in mongodb_config and not mongodb_config['enabled']:
+        return False
+
+    if 'collection' in mongodb_config:
+        collection = mongodb_config['collection']
+    else:
+        log.exception('unable to connect to mongoddb: collection undefined')
+        return False
+
+    search_criteria = ''
+    if 'search_criteria' in mongodb_config:
+        search_criteria = mongodb_config['search_criteria']
+    batch_size = 0
+    if 'batch_size' in mongodb_config:
+        search_criteria = int(mongodb_config['batch_size'])
+
+    try:
+        batches = []
+        batch = []
+        for i in range(len(data)):
+            entry = data[i]
+            json_string = entry['json']
+            # json_string = json.dumps()
+            json_data = ast.literal_eval(str(entry['json']))
+            # log.info(json_string)
+            # log.info(str(json_string))
+            log.info(json_string)
+            log.info(json_data)
+            search_text = entry['search_text']
+            if len(batch) >= batch_size > 0:
+                batches.append(batch)
+                batch = []
+
+            if len(search_criteria) == 0:
+                batch.append(json_data)
+            else:
+                for j in range(len(search_criteria)):
+                    if str(search_text).find(str(search_criteria[j])) >= 0:
+                        batch.append(json_data)
+                        break
+
+        # append the final batch if it contains items
+        if len(batch) > 0:
+            batches.append(batch)
+        # send batches to webhooks
+        if len(batches) > 0:
+            send_mongodb(client, collection, batches)
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def send_mongodb(client, collection, batches):
+    try:
+        collection = mongodb.get_collection(client, collection)
+        for i in range(len(batches)):
+            batch = batches[i]
+            many = len(batch) > 1
+            json_data = json.loads(json.dumps(batch))
+            log.info(json_data)
+            ids = mongodb.post(collection, json_data, many)
+            log.info(ids)
+    except Exception as e:
+        log.exception(e)
 
 
 def send_webhooks(webhooks, batches):

@@ -1,16 +1,20 @@
 @echo off
 ren setup.py _setup.py
 ren cython.py setup.py
+@echo on
 REM Generating C code
-python setup.py build_ext --inplace generate
-REM Renaming files and cleaning source code
-process.bat
+python setup.py build_ext --inplace build
 REM Linking C code
 python setup.py build_ext --inplace
-:: REM Removing unnecessary files
-:: TODO remove unnecessary files
-::del setup.py
+@echo off
+:: Rename setup.py to cython.py and _setup.py to setup.py
 ren setup.py cython.py
 ren _setup.py setup.py
-REM Installing Kairos (test)
+:: Remove cython.py (optional)
+del setup.py
+@echo on
+:: Clean up the distribution
+call process.bat
+del process.bat
+REM Installing Kairos
 python setup.py install

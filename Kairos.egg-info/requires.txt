@@ -11,6 +11,7 @@ pyautogui
 gspread
 google-api-python-client
 oauth2client
+pymongo
 
 [platform_system == "Darwin"]
 pyobjc-core

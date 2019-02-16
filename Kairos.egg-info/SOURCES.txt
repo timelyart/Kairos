@@ -20,6 +20,7 @@ img/300_Ethereum_QR_code.png
 img/300_ZCASH_QR_code.png
 kairos/__init__.py
 kairos/debug.py
+kairos/mongodb.py
 kairos/timing.py
 kairos/tools.py
 tv/__init__.py
