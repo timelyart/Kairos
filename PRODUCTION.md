@@ -1,11 +1,10 @@
 # Create Kairos Distribution for public use #
-1. File preparation
-2. Generate C code
-3. Link to .pyd files
-4. Install
-5. Clean up
+1. [File preparation](#python-file-preparation)
+2. [Generate C code](#generate-c-code)
+3. [Install](#install)
+4. [Clean up](#clean-up)
 
-Alternatively, you can run steps 2-5 automated(Windows CMD):
+Alternatively, you can automate steps 2-4 by running (Windows CMD):
 `build_public.bat`
 
 ## Python file preparation ##
@@ -17,22 +16,17 @@ For each python file you wish to generate C for, do the following:
 ## Generate C code ##
 Generate C code:
 
-`python setup.py build_ext --inplace generate`
+`python setup.py build_ext --inplace`
 
-## Process:
+## Install dependencies 
+Install dependencies: 
+
+`python setup.py install`
+
+## Clean up:
 Process the generated files by running (Windows CMD): `process.bat`
 
 The script will do the following:
 * Rename \<basename>.cp37-win32.pyd files to \<basename>.pyd
 * Remove source files
 * Remove unnecessary files 
-
-## Link to .pyd
-Link to .pyd files:
-
-`python setup.py build_ext --inplace`
-
-## Install Kairos
-Strictly speaking this isn't necessary but it tests if the build is setup correctly.  
-
-`python setup.py install`
