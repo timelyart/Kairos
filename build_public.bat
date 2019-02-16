@@ -11,7 +11,7 @@ python setup.py build_ext --inplace
 ren setup.py cython.py
 ren _setup.py setup.py
 :: Remove cython.py (optional)
-del setup.py
+del cython.py
 @echo on
 :: Clean up the distribution
 call process.bat
