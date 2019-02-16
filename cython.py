@@ -8,14 +8,45 @@
 from setuptools import setup, find_packages, Extension
 from pkg_resources import get_distribution
 from os import path
+import sys
+from Cython.Build import cythonize
+
 release = get_distribution('kairos').version
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md')) as f:
     long_description = f.read()
 
-ext_modules = [
-    Extension('tv.tv', ['tv/tv.pyd']),
-]
+include_dirs = []
+library_dirs = []
+libraries = []
+extra_link_args = []
+extra_compile_args = []
+ext_options = dict(
+    include_dirs=include_dirs,
+    library_dirs=library_dirs,
+    libraries=libraries,
+    extra_link_args=extra_link_args,
+    extra_compile_args=extra_compile_args)
+
+# Define the extension modules.
+ext_modules = []
+if "generate" in sys.argv:
+    # When building from a repo, Cython is required.
+    if not cythonize:
+        print('Cython.Build.cythonize not found. ')
+        print('Cython is required to generate C code.')
+        sys.exit(1)
+    ext_modules = cythonize([
+        Extension('tv.tv', ['tv//tv.py'], **ext_options),
+        # Extension('mail.tv', ['tv//mail.pyx'], **ext_options),
+        ],
+        compiler_directives={"language_level": "3"}
+    )
+else:
+    # Otherwise we just specify .c files.
+    ext_modules = [
+        Extension('tv.tv', ['tv/tv.pyd'], **ext_options),
+    ]
 
 setup(
     name='Kairos',
@@ -33,5 +64,6 @@ setup(
         'platform_system == "Linux"': ['python3-Xlib'],
         'platform_system == "Darwin"': ['pyobjc-core', 'pyobjc']
     },
+    zip_safe=False,
     ext_modules=ext_modules
 )
