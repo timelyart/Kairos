@@ -13,8 +13,8 @@ ren _setup.py setup.py
 :: Remove cython.py (optional)
 del cython.py
 @echo on
-:: Clean up the distribution
-call process.bat
-del process.bat
 REM Installing Kairos
 python setup.py install
+REM Clean up the distribution
+call process.bat
+del process.bat
