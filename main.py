@@ -30,7 +30,7 @@ def main():
 
     try:
         print_disclaimer()
-        print("USAGE:\npython main.py [<file>] [-s|-s <minutes>] [-h] [-d]")
+        print("USAGE\npython main.py [<file>] [-s|-s <minutes>] [-h] [-d]")
         print("For help, type: python main.py -h\n")
         # test_mongodb()
         yaml = ""
