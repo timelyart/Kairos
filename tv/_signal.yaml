@@ -42,12 +42,12 @@ charts:
           # - value: a literal value which can be anything
           # If both index and value are set, then index will take precedence
           left-hand-side:
-            index: 1
+            index: 0
             value:
             # list of values to ignore, e.g. you can use this to ignore 'n/a' values
             ignore: [n/a, 0.00000000]
           right-hand-side:
-            index: 3
+            index: 1
             value:
             ignore: [n/a, 0.00000000]
           # Define how the equation should be processed. Possible values are: =, <=, >=, <, >, != (use quotation marks)
@@ -55,7 +55,7 @@ charts:
         # Optional. Add values at certain indices in the form of <key>:<index>.
         # You can use any string for a key. All keys with their values defined here are keywords that can be used with 'text'and 'csv' (see further below).
         # Note: that names for keys need to be unique among all indicators defined within this signal
-        data: [entry: 3]
+        data: [entry: 2]
     # List of charts (url's) to include
     # You can use %SYMBOL and %TIMEFRAME as keywords to make the link more specific (use quotation marks)
     include_screenshots_of_charts: ["https://www.tradingview.com/chart/<my_chart>/"]
