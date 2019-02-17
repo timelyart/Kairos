@@ -460,8 +460,11 @@ def is_indicator_triggered(indicator, values):
                     if 'ignore' in indicator['trigger']['left-hand-side']:
                         ignore = indicator['trigger']['left-hand-side']['ignore']
                     index = int(indicator['trigger']['left-hand-side']['index'])
-                    if index <= len(values) and not (values[index] in ignore):
-                        lhs = values[index]
+                    try:
+                        if index < len(values) and not (values[index] in ignore):
+                            lhs = values[index]
+                    except IndexError:
+                        log.exception('YAML value trigger -> left-hand-side -> index is out of range. Index is ' + str(index) + ' but must be between 0 and ' + str(len(values)-1))
                 if not lhs and indicator['trigger']['left-hand-side']['value']:
                     lhs = indicator['trigger']['left-hand-side']['value']
             if 'right-hand-side' in indicator['trigger']:
@@ -470,8 +473,11 @@ def is_indicator_triggered(indicator, values):
                     if 'ignore' in indicator['trigger']['right-hand-side']:
                         ignore = indicator['trigger']['right-hand-side']['ignore']
                     index = int(indicator['trigger']['right-hand-side']['index'])
-                    if index <= len(values) and not (values[index] in ignore):
-                        rhs = values[index]
+                    try:
+                        if index < len(values) and not (values[index] in ignore):
+                            rhs = values[index]
+                    except IndexError:
+                        log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is ' + str(index) + ' but must be between 0 and ' + str(len(values)-1))
                 if not rhs and indicator['trigger']['right-hand-side']['value']:
                     rhs = indicator['trigger']['right-hand-side']['value']
 
@@ -669,7 +675,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                                     for n in range(len(indicator['data'])):
                                         for _key in indicator['data'][n]:
                                             index = indicator['data'][n][_key]
-                                            if index <= len(values) and not (_key in data):
+                                            if index < len(values) and not (_key in data):
                                                 data[_key] = values[index]
 
                             for m in range(len(triggered)):
