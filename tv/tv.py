@@ -87,8 +87,6 @@ css_selectors = dict(
     input_password='#signin-form > div.tv-signin-dialog__forget-wrap > div.tv-control-error > div.tv-control-material-input__wrap > input',
     btn_login='#signin-form > div.tv-signin-dialog__footer.tv-signin-dialog__footer--login > div:nth-child(2) > button',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
-    # options_timeframe='#__outside-render-0 > div > div > div > div > div > div > div',
-    # options_timeframe='div[id^="__outside-render-"] div[class^="item"]',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     btn_watchlist_menu_menu='input.wl-symbol-edit + a.button',
@@ -113,16 +111,25 @@ css_selectors = dict(
     options_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
     selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
     checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
-    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item:nth-child(1) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
-    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item:nth-child(2) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    # Notify on App
+    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item:nth-child(1) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    # Show Popup
+    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item:nth-child(2) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    # Send Email
+    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item:nth-child(3) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    # Toggle more actions
+    btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
+    # Play Sound
+    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-wrapper.js-fieldset-wrapper.i-active > div > div:nth-child(1) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    # Sound options
     dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
     options_dlg_create_alert_ringtone='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
     dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
     options_dlg_create_alert_sound_duration='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
-    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item:nth-child(4) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
-    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item:nth-child(5) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
-    clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-value-item:nth-child(6) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
-    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item:nth-child(7) > label:nth-child(1) > span:nth-child(1) > span:nth-child(3)',
+    # Send Email-to-SMS
+    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-wrapper.js-fieldset-wrapper.i-active > div > div:nth-child(3) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    # Send SMS
+    clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-wrapper.js-fieldset-wrapper.i-active > div > div:nth-child(4) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
     btn_alerts='div[data-name="alerts"]',
     btn_calendar='div[data-name="calendar"]',
@@ -969,6 +976,10 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
         # Expiration
         set_expiration(browser, alert_dialog, alert_config)
+
+        # Toggle 'more actions'
+        wait_and_click(alert_dialog, css_selectors['btn_toggle_more_actions'])
+
         # Show popup
         checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
         if is_checkbox_checked(checkbox) != alert_config['show_popup']:
