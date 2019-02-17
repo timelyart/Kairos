@@ -107,24 +107,24 @@ css_selectors = dict(
     selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
     checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
     # Notify on App
-    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item:nth-child(1) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-push"] + span + span.tv-control-checkbox__ripple',
     # Show Popup
-    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item:nth-child(2) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="show-popup"] + span + span.tv-control-checkbox__ripple',
     # Send Email
-    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item:nth-child(3) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-email"] + span + span.tv-control-checkbox__ripple',
     # Toggle more actions
     btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
     # Play Sound
-    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-wrapper.js-fieldset-wrapper.i-active > div > div:nth-child(1) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="play-sound"] + span + span.tv-control-checkbox__ripple',
     # Sound options
     dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
     options_dlg_create_alert_ringtone='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
     dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
     options_dlg_create_alert_sound_duration='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
     # Send Email-to-SMS
-    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-wrapper.js-fieldset-wrapper.i-active > div > div:nth-child(3) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-sms"] + span + span.tv-control-checkbox__ripple',
     # Send SMS
-    clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-wrapper.js-fieldset-wrapper.i-active > div > div:nth-child(4) > label > span.tv-control-checkbox > span.tv-control-checkbox__ripple.js-ripple',
+    clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-true-sms"] + span + span.tv-control-checkbox__ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
     btn_alerts='div[data-name="alerts"]',
     btn_calendar='div[data-name="calendar"]',
