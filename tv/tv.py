@@ -1574,7 +1574,8 @@ def update_watchlist(browser, name, markets, delay_after_update):
                 break
         time.sleep(DELAY_BREAK)
 
-        input_watchlist_name = browser.find_element_by_css_selector('body > div.tv-dialog.js-dialog.tv-dialog--popup.i-focused.ui-draggable input')
+        css = '#overlap-manager-root > div > div > div.tv-dialog__scroll-wrap.i-with-actions > div > div > div > label > input'
+        input_watchlist_name = browser.find_element_by_css_selector(css)
         set_value(browser, input_watchlist_name, name)
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
