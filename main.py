@@ -12,7 +12,7 @@ def print_disclaimer():
     print("\t* Allow any third party to use the Software on behalf of or for the benefit of any third party")
     print("\t* Use the Software in any way which breaches any applicable local, national or international law")
     print("\t* use the Software for any purpose that Sanne Appel considers is a breach of the EULA agreement")
-    print("You should have received a copy of the EULA agreement along with this program (LICENSE.md), If not, see https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A\n")
+    print("You should have received a copy of the EULA agreement along with this program (LICENSE.md). If not, see https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A\n")
 
 
 def print_help():
