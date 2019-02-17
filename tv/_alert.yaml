@@ -7,7 +7,7 @@ charts:
   # Define for which time frames you want to generate alerts
   timeframes: [1 day]
   # Define one or more watchlists
-  watchlists: [<my_watchlist>]
+  watchlists: ["<my_watchlist>"]
   # Create alerts on TradingView
   # Alert listed under alerts must be available from the chart which is loaded through the 'url' parameter
   # This particular example assumes you have the Golden Cross by Chuckytuh on your chart
@@ -19,7 +19,7 @@ charts:
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
     # List of charts (url's) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
-    include_screenshots_of_charts: [https://www.tradingview.com/chart/<my_chart>]
+    include_screenshots_of_charts: ["https://www.tradingview.com/chart/<my_chart>"]
     # Kairos tries to find conditions based upon the values you provide below.
     # Set the conditions as you would do manually in order from left to right and from top to bottom
     # It is sufficient to only set the first word for each condition.

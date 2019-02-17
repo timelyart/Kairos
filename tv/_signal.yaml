@@ -10,7 +10,7 @@ charts:
   # Define for which time frames you want to generate signals
   timeframes: [1 day]
   # Define one or more watchlists
-  watchlists: [<my_watchlist>]
+  watchlists: ["<my_watchlist>"]
   # Signals listed must be available from the chart which is loaded through the 'url' parameter
   # The chart has to be configured to 'Auto (Fits Data To Screen)'. If it isn't then you may get false positives.
   # Note that signal results are communicated immediately if a 'summary' section is found in this file.
