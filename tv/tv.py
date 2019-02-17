@@ -570,7 +570,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                         if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
                             break
                     symbols = list(sorted(set(symbols)))
-                    log.info(str(len(dict_symbols)) + ' symbols found  \'' + watchlist + '\'')
+                    log.info(str(len(dict_symbols)) + ' symbols found for \'' + watchlist + '\'')
                 except Exception as e:
                     log.exception(e)
 
