@@ -75,8 +75,7 @@ TV_PWD = ''
 
 css_selectors = dict(
     # ALERTS
-    username='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user > span.tv-header__dropdown-wrap.tv-dropdown-behavior__'
-             'button > span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
+    username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
     signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
     input_username='#signin-form > div.tv-control-error > div.tv-control-material-input__wrap > input',
     input_password='#signin-form > div.tv-signin-dialog__forget-wrap > div.tv-control-error > div.tv-control-material-input__wrap > input',
@@ -1039,7 +1038,7 @@ def login(browser, uid='', pwd='', retry_login=False):
 
         # if logged in under a different username or not logged in at all log out and then log in again
         elem_username = browser.find_element_by_css_selector(css_selectors['username'])
-        if type(elem_username) is WebElement and elem_username.text != '' and elem_username.text == uid:
+        if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
             wait_and_click(browser, css_selectors['username'])
             wait_and_click(browser, css_selectors['signout'])
         wait_and_click(browser, css_selectors['signin'])
@@ -1073,17 +1072,22 @@ def login(browser, uid='', pwd='', retry_login=False):
         snapshot(browser)
         exit(0)
 
-    # noinspection PyBroadException
     try:
-        error = browser.find_element_by_css_selector('body > div.tv-dialog__modal-wrap > div > div > div > div.tv-dialog__error.tv-dialog__error--dark')
-        if error:
-            print(error.get_attribute('innerText'))
-            login(browser, '', '', True)
-    except NoSuchElementException:
-        TV_UID = uid
-        TV_PWD = pwd
-        log.info("logged in successfully at tradingview.com")
-        time.sleep(DELAY_BREAK * 5)
+        wait_and_click(browser, css_selectors['username'])
+        elem_username = browser.find_element_by_css_selector(css_selectors['username'])
+        if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
+            TV_UID = uid
+            TV_PWD = pwd
+            log.info("logged in successfully at tradingview.com as " + elem_username.get_attribute('textContent'))
+        else:
+            if elem_username.get_attribute('textContent') == '' or elem_username.get_attribute('textContent') == 'Guest':
+                log.warn("not logged in at tradingview.com")
+            elif elem_username.get_attribute('textContent') != uid:
+                log.warn("logged in under a different username at tradingview.com")
+            error = browser.find_element_by_css_selector('body > div.tv-dialog__modal-wrap > div > div > div > div.tv-dialog__error.tv-dialog__error--dark')
+            if error:
+                print(error.get_attribute('innerText'))
+                login(browser, '', '', True)
     except Exception as e:
         log.error(e)
         snapshot(browser)
