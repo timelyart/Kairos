@@ -4,6 +4,11 @@ cd tv
 ren tv.cp37-win32.pyd tv.pyd
 del tv.py
 del tv.c
+:: remove old example files
+del _browse.yaml
+del _example.yaml
+del _example_davo.yaml
+del _screener_to_watchlist.yaml
 cd ..
 rmdir /Q /S img
 rmdir /Q /S build
