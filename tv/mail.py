@@ -282,7 +282,7 @@ def save_watchlist_to_file(csv, filename=''):
     return [filepath, filename]
 
 
-def send_mail(summary_config, signals):
+def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=True):
     try:
         msg = MIMEMultipart('alternative')
         text = ''
@@ -319,8 +319,25 @@ def send_mail(summary_config, signals):
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '<table><thead><tr><th>Date</th><th>Symbol</th><th>Alert</th><th>Screenshot</th><th>Chart</th></tr></thead><tbody>'
 
+        signals = dict()
+        for i in range(len(triggered_signals)):
+            data = triggered_signals[i]
+            url = data['url']
+            symbol = data['symbol']
+            alert = data['alert']
+            date = data['date']
+            screenshots = data['screenshots']
+            filenames = data['filenames']
+            signals[url] = [symbol, alert, date, screenshots, filenames]
+
         # merge charts and signals (in case of duplicates, the charts is overwritten with signals)
-        merged = {**charts, **signals}
+        merged = dict()
+        if send_alerts and send_signals:
+            merged = {**charts, **signals}
+        elif send_alerts:
+            merged = {**charts}
+        elif send_signals:
+            merged = {**signals}
         for url in merged:
             symbol = merged[url][0]
             alert = merged[url][1]
@@ -503,12 +520,12 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def post_process_signals(signals, config_yaml, export_signals):
+def post_process_signals(triggered_signals, config_yaml, export_signals):
     export_data = []
 
     # for signal in signals:
-    for i in range(len(signals)):
-        data = signals[i]
+    for i in range(len(triggered_signals)):
+        data = triggered_signals[i]
         signal = data['signal']
         screenshots = data['screenshots']
         symbol = data['symbol']
@@ -938,16 +955,5 @@ def run(delay, file, triggered_signals):
     if summary_config and triggered_signals and len(triggered_signals) > 0:
         export(summary_config, triggered_signals)
 
-    signals = dict()
-    for i in range(len(triggered_signals)):
-        data = triggered_signals[i]
-        url = data['url']
-        symbol = data['symbol']
-        alert = data['alert']
-        date = data['date']
-        screenshots = data['screenshots']
-        filenames = data['filenames']
-        signals[url] = [symbol, alert, date, screenshots, filenames]
-
-    if len(charts) > 0 or len(signals) > 0:
-        send_mail(summary_config, signals)
+    if len(charts) > 0 or len(triggered_signals) > 0:
+        send_mail(summary_config, triggered_signals, len(charts) > 0, len(triggered_signals) > 0)

@@ -1486,6 +1486,10 @@ def run(file, export_signals_immediately):
 
                 from tv import mail
                 mail.post_process_signals(triggered_signals, tv, export_signals_immediately)
+                if export_signals_immediately and 'summary' in tv:
+                    mail.send_mail(tv['summary'], triggered_signals, False)
+                    # we've send the signals, let's make sure they aren't send a 2nd time
+                    triggered_signals.clear()
 
                 summary(total_alerts)
                 destroy_browser(browser)
