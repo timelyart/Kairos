@@ -16,3 +16,5 @@ call process.bat
 del process.bat
 :: Remove cython.py (optional)
 del cython.py
+:: Remove this batch file
+del build_public.bat
