@@ -870,7 +870,7 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
         browser.refresh()
         # Switching to Alert
         try:
-            alert = browser.switch_to_alert()
+            alert = browser.switch_to.alert()
             alert.accept()
             time.sleep(5)
         except NoAlertPresentException:
@@ -1179,7 +1179,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
         # Switching to Alert
-        alert = browser.switch_to_alert()
+        alert = browser.switch_to.alert()
         alert.accept()
         time.sleep(5)
         # change symbol
@@ -1301,8 +1301,7 @@ def login(browser, uid='', pwd='', retry_login=False):
         exit(0)
 
     try:
-        wait_and_click(browser, css_selectors['username'])
-        elem_username = browser.find_element_by_css_selector(css_selectors['username'])
+        elem_username = wait_and_get(browser, css_selectors['username'])
         if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
             TV_UID = uid
             TV_PWD = pwd
