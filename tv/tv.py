@@ -457,7 +457,7 @@ def is_indicator_triggered(indicator, values):
             if 'left-hand-side' in indicator['trigger']:
                 if 'index' in indicator['trigger']['left-hand-side'] and str(indicator['trigger']['left-hand-side']['index']).isdigit():
                     ignore = []
-                    if 'ignore' in indicator['trigger']['left-hand-side']:
+                    if 'ignore' in indicator['trigger']['left-hand-side'] and isinstance(indicator['trigger']['left-hand-side']['ignore'], list):
                         ignore = indicator['trigger']['left-hand-side']['ignore']
                     index = int(indicator['trigger']['left-hand-side']['index'])
                     try:
@@ -470,7 +470,7 @@ def is_indicator_triggered(indicator, values):
             if 'right-hand-side' in indicator['trigger']:
                 if 'index' in indicator['trigger']['right-hand-side'] and str(indicator['trigger']['right-hand-side']['index']).isdigit():
                     ignore = []
-                    if 'ignore' in indicator['trigger']['right-hand-side']:
+                    if 'ignore' in indicator['trigger']['right-hand-side'] and isinstance(indicator['trigger']['right-hand-side']['ignore'], list):
                         ignore = indicator['trigger']['right-hand-side']['ignore']
                     index = int(indicator['trigger']['right-hand-side']['index'])
                     try:
