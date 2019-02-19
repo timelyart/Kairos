@@ -6,7 +6,7 @@ configparser
 tools
 pip>=18.1
 Pillow
-requests
+requests>=2.21
 pyautogui
 gspread
 google-api-python-client
