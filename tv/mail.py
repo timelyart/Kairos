@@ -284,7 +284,6 @@ def save_watchlist_to_file(csv, filename=''):
 
 def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=True):
     try:
-        msg = MIMEMultipart('alternative')
         text = ''
         list_html = ''
         html = ''
@@ -292,6 +291,7 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
         to = [uid]
         cc = []
         bcc = []
+        mime_images = []
         watchlist_att = None
 
         headers = dict()
@@ -350,7 +350,7 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
             if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
                 html += generate_table_row(date, symbol, alert, screenshots, url)
             else:
-                list_html += generate_list_entry(msg, alert, screenshots, filenames, url, count)
+                list_html += generate_list_entry(mime_images, alert, screenshots, filenames, url, count)
 
             text += generate_text(date, symbol, alert, screenshots, url)
 
@@ -423,9 +423,6 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
         if html[:6].lower() != '<html>':
             html = '<html><body>' + html + '</body></html>'
 
-        # msg.attach(MIMEText(text, 'plain'))
-        # msg.attach(MIMEText(html, 'html'))
-
         # create watchlist
         if summary_config and 'watchlist' in summary_config:
             watchlist_config = summary_config['watchlist']
@@ -458,6 +455,8 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
                         recipient = recipients[i]
                         headers['To'] = str(recipient)
                         msg = MIMEMultipart('alternative')
+                        for mime_image in mime_images:
+                            msg.attach(mime_image)
                         msg.attach(MIMEText(text, 'plain'))
                         msg.attach(MIMEText(html, 'html'))
                         if watchlist_att:
@@ -469,6 +468,8 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
                         log.info("Mail send to: " + str(recipient))
                 else:
                     msg = MIMEMultipart('alternative')
+                    for mime_image in mime_images:
+                        msg.attach(mime_image)
                     msg.attach(MIMEText(text, 'plain'))
                     msg.attach(MIMEText(html, 'html'))
                     if watchlist_att:
@@ -491,7 +492,7 @@ def generate_text(date, symbol, alert, screenshots, url):
     return result
 
 
-def generate_list_entry(msg, alert, screenshots, filenames, url, count):
+def generate_list_entry(mime_images, alert, screenshots, filenames, url, count):
     result = '<hr><h3>' + alert + '</h3><h4>Alert generated on chart: <a href="' + url + '">' + url + '<a></h4>'
     if len(screenshots) > 0:
         for chart in screenshots:
@@ -501,10 +502,10 @@ def generate_list_entry(msg, alert, screenshots, filenames, url, count):
             try:
                 screenshot_id = str(count + 1)
                 fp = open(filenames[chart], 'rb')
-                msgImage = MIMEImage(fp.read())
+                mime_image = MIMEImage(fp.read())
                 fp.close()
-                msgImage.add_header('Content-ID', '<screenshot' + screenshot_id + '>')
-                msg.attach(msgImage)
+                mime_image.add_header('Content-ID', '<screenshot' + screenshot_id + '>')
+                mime_images.append(mime_image)
                 result += '<p><a href="' + chart + '"><img src="cid:screenshot' + screenshot_id + '"/></a><br/>' + filenames[chart] + '</p>'
             except Exception as send_mail_error:
                 log.exception(send_mail_error)
