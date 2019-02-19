@@ -23,7 +23,7 @@ charts:
     # Kairos tries to find conditions based upon the values you provide below.
     # Set the conditions as you would do manually in order from left to right and from top to bottom
     # It is sufficient to only set the first word for each condition.
-    conditions: ["Golden", "Plot", "Crossing", "Golden", "Plot"]
+    conditions: ["Golden", "Plot", "Crossing Up", "Golden", "Plot"]
     # The options below correspond with the options on the Alert dialog, as are the available values for each option.
     # How often is the alert allowed to triggers?
     options: "Only Once"

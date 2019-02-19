@@ -42,16 +42,16 @@ charts:
           # - value: a literal value which can be anything
           # If both index and value are set, then index will take precedence
           left-hand-side:
-            index: 0
+            index: 2
             value:
             # list of values to ignore, e.g. you can use this to ignore 'n/a' values
-            ignore: [n/a, 0.00000000]
+            ignore: [n/a, 0.0000]
           right-hand-side:
-            index: 1
-            value:
-            ignore: [n/a, 0.00000000]
+            index:
+            value: "n/a"
+            ignore:
           # Define how the equation should be processed. Possible values are: =, <=, >=, <, >, != (use quotation marks)
-          type: '>'
+          type: "!='
         # Optional. Add values at certain indices in the form of <key>:<index>.
         # You can use any string for a key. All keys with their values defined here are keywords that can be used with 'text'and 'csv' (see further below).
         # Note: that names for keys need to be unique among all indicators defined within this signal
