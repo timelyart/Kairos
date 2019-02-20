@@ -426,6 +426,7 @@ def get_indicator_values(browser, indicator, retry_number=0):
         result = retry_get_indicator_values(browser, indicator, retry_number)
     except Exception as e:
         log.exception(e)
+        snapshot(browser)
     return result
 
 
@@ -433,13 +434,14 @@ def retry_get_indicator_values(browser, indicator, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         browser.refresh()
         try:
-            alert = browser.switch_to_alert
+            alert = browser.switch_to.alert
             alert.accept()
             time.sleep(0.5)
         except NoAlertPresentException:
             return get_indicator_values(browser, indicator, retry_number + 1)
         except Exception as e:
             log.exception(e)
+            snapshot(browser)
         finally:
             return get_indicator_values(browser, indicator, retry_number + 1)
 
@@ -579,6 +581,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     log.info(str(len(dict_symbols)) + ' symbols found for \'' + watchlist + '\'')
                 except Exception as e:
                     log.exception(e)
+                    snapshot(browser)
 
                 dict_watchlist[chart['watchlists'][i]] = symbols
 
@@ -1109,6 +1112,7 @@ def import_watchlist(filepath, filename):
                 time.sleep(DELAY_BREAK * 2)
             except Exception as e:
                 log.exception(e)
+                snapshot(browser)
             # remove other watchlists with the same
             remove_watchlists(browser, str(filename).replace('.txt', ''))
 
