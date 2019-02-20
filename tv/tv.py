@@ -433,7 +433,7 @@ def retry_get_indicator_values(browser, indicator, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         browser.refresh()
         try:
-            alert = browser.switch_to_alert()
+            alert = browser.switch_to_alert
             alert.accept()
             time.sleep(0.5)
         except NoAlertPresentException:
@@ -870,7 +870,7 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
         browser.refresh()
         # Switching to Alert
         try:
-            alert = browser.switch_to.alert()
+            alert = browser.switch_to.alert
             alert.accept()
             time.sleep(5)
         except NoAlertPresentException:
@@ -1179,7 +1179,7 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
         # Switching to Alert
-        alert = browser.switch_to.alert()
+        alert = browser.switch_to.alert
         alert.accept()
         time.sleep(5)
         # change symbol
