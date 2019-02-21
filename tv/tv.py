@@ -387,40 +387,46 @@ def set_delays(chart):
 
 def get_indicator_values(browser, indicator, retry_number=0):
     result = []
-    chart_index = 0
-    pane_index = 0
+    chart_index = -1
+    pane_index = -1
+    indicator_index = -1
 
     try:
-        if 'chart_index' in indicator:
+        if 'chart_index' in indicator and str(indicator['chart_index']).isdigit():
             chart_index = indicator['chart_index']
-        if 'pane_index' in indicator:
+        if 'pane_index' in indicator and str(indicator['pane_index']).isdigit():
             pane_index = indicator['pane_index']
+        if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
+            indicator_index = indicator['indicator_index']
 
         css = '.chart-container'
         charts = browser.find_elements_by_css_selector(css)
         if 0 <= chart_index < len(charts):
             panes = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')
             if 0 <= pane_index < len(panes):
-                pane = panes[pane_index]
                 studies = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')
-                for i in range(len(studies)):
-                    study_name = str(browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[i].find_element_by_class_name('pane-legend-title__description').text)
-                    log.debug('Found ' + study_name)
-                    if study_name.startswith(indicator['name']):
-                        # move the mouse to the top right side of the pane
-                        size = pane.size
-                        x_offset = size['width'] - 5
-                        y_offset = 5
-                        action = ActionChains(browser)
-                        action.move_to_element_with_offset(pane, x_offset, y_offset)
-                        # action.click()
-                        action.perform()
+                if indicator_index < 0:
+                    for i in range(len(studies)):
+                        study_name = str(browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[i].find_element_by_class_name('pane-legend-title__description').text)
+                        log.debug('Found ' + study_name)
+                        if study_name.startswith(indicator['name']):
+                            indicator_index = i
+                            break
+                if 0 <= indicator_index < len(studies):
+                    pane = panes[pane_index]
+                    # move the mouse to the top right side of the pane
+                    size = pane.size
+                    x_offset = size['width'] - 5
+                    y_offset = 5
+                    action = ActionChains(browser)
+                    action.move_to_element_with_offset(pane, x_offset, y_offset)
+                    # action.click()
+                    action.perform()
 
-                        # get the elements that hold the values
-                        elem_values = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[i].find_elements_by_class_name('pane-legend-item-value')
-                        for j in range(len(elem_values)):
-                            result.append(elem_values[j].text)
-                        break
+                    # get the elements that hold the values
+                    elem_values = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[indicator_index].find_elements_by_class_name('pane-legend-item-value')
+                    for j in range(len(elem_values)):
+                        result.append(elem_values[j].text)
         log.debug(result)
     except StaleElementReferenceException:
         result = retry_get_indicator_values(browser, indicator, retry_number)

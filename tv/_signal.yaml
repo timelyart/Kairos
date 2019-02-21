@@ -33,6 +33,10 @@ charts:
         # Use 0 for the 1st pane on your chart, 1 for the 2nd pane, etc. The top pane has always index 0.
         # Unlike the chart_index above, panes are consistently ordered from top to bottom with the top pane being 0.
         pane_index: 0
+        # Optional. Find the index based upon it's number instead of name (see above). The index takes precedence over the name.
+        # If you have multiple indicators with the same name, e.g. EMA, then you'll need to define the index as well as the name.
+        # NOTE: if you remove and then add an indicator the order and indices of indicators will most likely have changed.
+        indicator_index: 0
         # Optional. Define how this indicator will (partly) trigger the signal.
         # A trigger is defined by equating a left-hand side with a right-hand side.
         # Although optional, at least one of the indicators should have a trigger defined.
