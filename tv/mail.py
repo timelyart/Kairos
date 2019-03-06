@@ -354,8 +354,10 @@ def send_mail(summary_config):
                         batch_size = webhooks_config[i]['batch_size']
                     if 'enabled' in webhooks_config[i]:
                         enabled = webhooks_config[i]['enabled']
+                    if 'headers' in webhooks_config[i]:
+                        headers = webhooks_config[i]['headers']
                     if enabled:
-                        send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+                        send_to_webhooks(charts, webhooks, search_criteria, batch_size, headers)
         elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
             webhooks = config.getlist('webhooks', 'webhook')
             search_criteria = []
@@ -499,7 +501,7 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
+def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None):
     result = False
     try:
         batches = []
@@ -539,7 +541,7 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
                     log.debug(repr(json_data))
                     # result = [200, 'OK']
                     # r = requests.post(str(webhooks[j]), json=json_string)
-                    r = requests.post(str(webhooks[j]), json=json_data)
+                    r = requests.post(str(webhooks[j]), json=json_data, headers=headers)
 
                     # unfortunately, we cannot always send a raw image (e.g. zapier)
                     # elif filename:
