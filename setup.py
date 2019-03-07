@@ -16,7 +16,7 @@ setup(
     author_email='sjappel@protonmail.com',
     description='Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.',
     long_description=long_description,
-    install_requires=['pyyaml', 'beautifulsoup4', 'urllib3', 'selenium', 'configparser', 'tools', 'pip>=18.1', 'Pillow', 'requests>=2.21', 'pyautogui', 'gspread', 'google-api-python-client', 'oauth2client', 'pymongo'],
+    install_requires=['pyyaml', 'beautifulsoup4', 'urllib3', 'selenium', 'configparser', 'tools', 'pip>=18.1', 'Pillow', 'requests>=2.21', 'pyautogui', 'gspread', 'google-api-python-client', 'oauth2client', 'pymongo', 'dill', 'IPython'],
     extras_require={
         'platform_system == "Windows"': [],
         'platform_system == "Linux"': ['python3-Xlib'],

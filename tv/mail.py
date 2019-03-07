@@ -602,14 +602,17 @@ def export(summary_config, data):
                 search_criteria = []
                 batch_size = 0
                 enabled = True
+                headers = None
                 if 'search_criteria' in webhooks_config[i]:
                     search_criteria = webhooks_config[i]['search_criteria']
                 if 'batch_size' in webhooks_config[i]:
                     batch_size = webhooks_config[i]['batch_size']
                 if 'enabled' in webhooks_config[i]:
                     enabled = webhooks_config[i]['enabled']
+                if 'headers' in webhooks_config[i]:
+                    headers = webhooks_config[i]['headers']
                 if enabled:
-                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size)
+                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size, headers)
     elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
         webhooks = config.getlist('webhooks', 'webhook')
         search_criteria = []
@@ -637,7 +640,7 @@ def export(summary_config, data):
             log.exception(e)
 
 
-def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
+def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None):
     result = False
     try:
         batches = []
@@ -663,7 +666,7 @@ def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
             batches.append(batch)
         # send batches to webhooks
         if len(batches) > 0:
-            send_webhooks(webhooks, batches)
+            send_webhooks(webhooks, batches, headers)
     except Exception as e:
         log.exception(e)
     return result
@@ -778,7 +781,7 @@ def send_mongodb(client, collection, batches):
         log.exception(e)
 
 
-def send_webhooks(webhooks, batches):
+def send_webhooks(webhooks, batches, headers=None):
     try:
         for i in range(len(batches)):
             for j in range(len(webhooks)):
@@ -786,10 +789,11 @@ def send_webhooks(webhooks, batches):
                     json_data = {'signals': batches[i]}
                     if TEST:
                         log.info(repr(json_data))
+                        log.info(headers)
                         result = [200, 'OK']
                     else:
                         log.debug(repr(json_data))
-                        r = requests.post(str(webhooks[j]), json=json_data)
+                        r = requests.post(str(webhooks[j]), json=json_data, headers=headers)
                         # unfortunately, we cannot always send a raw image (e.g. zapier)
                         # elif filename:
                         #     screenshot_bytestream = ''

@@ -1,6 +1,8 @@
 import sys
 from tv import mail
 
+BATCHES = list()
+
 
 def print_disclaimer():
     print("DISCLAIMER")
@@ -21,6 +23,7 @@ def print_help():
     print("<file>\t\t YAML file with alert definitions and/or summary option")
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
+    print("-m\t\t Flag. Run in multiprocessing mode. This requires setting up Selenium Grid. More information can be found here: https://www.seleniumhq.org/docs/07_selenium_grid.jsp\n")
     print("-h\t\t Flag. Show this help.")
     print("-d\t\t Flag. Show disclaimer.\n")
 
@@ -34,6 +37,7 @@ def main():
         print("For help, type: python main.py -h\n")
         # test_mongodb()
         yaml = ""
+        multi_threading = False
         send_summary = False
         delay_summary = 0
         i = 1
@@ -46,6 +50,8 @@ def main():
                 print_help()
             elif str(sys.argv[i]) == '-d':
                 print_disclaimer()
+            elif str(sys.argv[i]) == '-m':
+                multi_threading = True
             elif i > 1 and str(sys.argv[(i-1)]) == '-s':
                 delay_summary = int(sys.argv[i])
             elif not str(sys.argv[i]).endswith('main.py'):
@@ -53,9 +59,10 @@ def main():
             i += 1
 
         triggered_signals = []
+        # print(__name__)
         if len(yaml) > 0:
             send_signals_immediately = not send_summary
-            triggered_signals = tv.run(yaml, send_signals_immediately)
+            triggered_signals = tv.run(yaml, send_signals_immediately, multi_threading)
         if send_summary:
             mail.run(delay_summary, yaml, triggered_signals)
     except Exception as e:

@@ -18,10 +18,12 @@ import os
 import re
 import sys
 import time
-from urllib.parse import unquote
 
+import dill
 import pyautogui
 import yaml
+
+from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException
@@ -31,13 +33,20 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
+from multiprocessing import Pool
 
 from kairos import timing
 from kairos import tools
 
+pyautogui.FAILSAFE = False
 TEST = False
+
 triggered_signals = []
 
+EXECUTOR = 'http://192.168.0.140:4444/wd/hub'
+FILENAME = 'webdriver.instance'
+COUNTER_ALERTS = 0
+TOTAL_ALERTS = 0
 CURRENT_DIR = os.path.curdir
 TEXT = 'text'
 CHECKBOX = 'checkbox'
@@ -60,7 +69,7 @@ DELAY_WATCHLIST = 0.5
 DELAY_TIMEFRAME = 0.5
 DELAY_SCREENER_SEARCH = 2
 RUN_IN_BACKGROUND = False
-
+MULTI_THREADING = False
 ALERT_NUMBER = 0
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
@@ -91,6 +100,7 @@ css_selectors = dict(
     btn_watchlist_menu_menu='input.wl-symbol-edit + a.button',
     options_watchlist='div.charts-popup-list > a.item.first',
     input_symbol='#header-toolbar-symbol-search > div > input',
+    asset='div.pane-legend-title__description',
     btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
     item_clear_alerts='div.charts-popup-list > a.item:last-child',
     item_clear_inactive_alerts='div.charts-popup-list > a.item:nth-child(8)',
@@ -596,171 +606,194 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         # set the time frame
         for i in range(len(chart['timeframes'])):
             timeframe = chart['timeframes'][i]
-            interval = get_interval(timeframe)
             set_timeframe(browser, timeframe)
+
+            if MULTI_THREADING:
+                save_browser_state(browser)
+
             time.sleep(DELAY_TIMEFRAME)
 
             # iterate over each symbol per watchlist
             for j in range(len(chart['watchlists'])):
                 log.info("Opening watchlist " + chart['watchlists'][j])
                 try:
+                    number_of_windows = 2
                     symbols = dict_watchlist[chart['watchlists'][j]]
+
+                    log.info(__name__)
+                    if MULTI_THREADING:
+                        batch_size = math.ceil(len(symbols) / number_of_windows)
+                        batches = list(tools.chunks(symbols, batch_size))
+
+                        browsers = dict()
+
+                        if __name__ == 'tv.tv':
+                            pool = Pool(number_of_windows)  # use all available cores, otherwise specify the number you want as an argument
+                            for k in range(len(batches)):
+                                batch = batches[k]
+                                if k == 0:
+                                    browsers[k] = browser
+                                else:
+                                    browsers[k] = get_browser_instance()
+                                result = pool.apply_async(process_symbol, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
+                                log.info(result)
+                                # [counter_alerts, total_alerts]
+                                # pool.apply_async(process_symbol, args=(browser, chart, batch, timeframe))
+                            pool.close()
+                            pool.join()
+                    else:
+                        [counter_alerts, total_alerts] = process_symbol(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
+                        # process_symbol(browser, chart, symbols[k], timeframe)
+                    # pickle.dump(browser, 'webdriver.instance')
+                    # TODO create batches of symbols and assign
                 except KeyError:
                     log.error(chart['watchlists'][j] + " doesn't exist")
                     break
-
-                # open each symbol within the watchlist
-                for k in range(len(symbols)):
-                    symbol = symbols[k]
-                    log.info(symbol)
-
-                    # change symbol
-                    try:
-                        # might be useful for multi threading set the symbol by going to different url like this:
-                        # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-                        input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-                        set_value(browser, input_symbol, symbol)
-                        input_symbol.send_keys(Keys.ENTER)
-                        time.sleep(DELAY_CHANGE_SYMBOL)
-
-                    except Exception as err:
-                        log.debug('Unable to change to symbol at index ' + str(k) + ' in list of symbols:')
-                        log.debug(str(symbols))
-                        log.exception(err)
-                        snapshot(browser)
-
-                    if 'signals' in chart:
-                        for l in range(len(chart['signals'])):
-                            signal = chart['signals'][l]
-                            signal_triggered = False
-                            triggered = []
-                            indicators = signal['indicators']
-                            timestamp = time.time()
-
-                            data = dict()
-                            data['timestamp'] = timestamp
-                            data['date_utc'] = datetime.datetime.utcfromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S") + ' +0000'
-                            data['date'] = datetime.datetime.fromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S %z") + tools.get_timezone()
-                            data['timeframe'] = timeframe
-                            data['symbol'] = symbol
-                            [data['exchange'], data['ticker']] = str(symbol).split(':')
-                            data['name'] = signal['name']
-
-                            interval = ''
-                            match = re.search("(\\d+)\\s(\\w\\w\\w)", timeframe)
-                            if match:
-                                interval = match.group(1)
-                                unit = match.group(2)
-                                if unit == 'day':
-                                    interval += 'D'
-                                elif unit == 'wee':
-                                    interval += 'W'
-                                elif unit == 'mon':
-                                    interval += 'M'
-                                elif unit == 'hou':
-                                    interval += 'H'
-                                elif unit == 'min':
-                                    interval += ''
-                            data['interval'] = interval
-                            url = browser.current_url + '?symbol=' + symbol
-                            multi_time_frame_layout = False
-                            try:
-                                multi_time_frame_layout = signal['multi_time_frame_layout']
-                            except KeyError:
-                                if log.level == 10:
-                                    log.warn('charts: multi_time_frame_layout not set in yaml, defaulting to multi_time_frame_layout = no')
-                            if type(interval) is str and len(interval) > 0 and not multi_time_frame_layout:
-                                url += '&interval=' + str(interval)
-                            data['url'] = url
-
-                            for m in range(len(indicators)):
-                                indicator = indicators[m]
-                                values = get_indicator_values(browser, indicator)
-                                signal['indicators'][m]['values'] = values
-                                indicator_triggered = is_indicator_triggered(indicator, values)
-                                signal['indicators'][m]['triggered'] = indicator_triggered
-                                triggered.append(indicator_triggered)
-                                if 'data' in indicator:
-                                    for n in range(len(indicator['data'])):
-                                        for _key in indicator['data'][n]:
-                                            index = indicator['data'][n][_key]
-                                            if index < len(values) and not (_key in data):
-                                                data[_key] = values[index]
-
-                            for m in range(len(triggered)):
-                                if triggered[m]:
-                                    signal_triggered = True
-                                else:
-                                    signal_triggered = False
-                                    break
-                            signal['triggered'] = signal_triggered
-
-                            if signal_triggered:
-                                screenshots = dict()
-                                filenames = dict()
-                                screenshots_url = []
-                                try:
-                                    for m in range(len(signal['include_screenshots_of_charts'])):
-                                        screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
-                                        [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
-                                        if screenshot_url != '':
-                                            screenshots[screenshot_chart] = screenshot_url
-                                            screenshots_url.append(screenshot_url)
-                                            if m == 0:
-                                                data['screenshot'] = screenshot_url
-                                        if filename != '':
-                                            filenames[screenshot_chart] = filename
-                                except ValueError as value_error:
-                                    log.exception(value_error)
-                                    snapshot(browser)
-                                except KeyError:
-                                    if log.level == 10:
-                                        log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-                                data['screenshots_url'] = screenshots_url
-                                data['screenshots'] = screenshots
-                                data['filenames'] = filenames
-                                if 'labels' in signal:
-                                    for n in range(len(signal['labels'])):
-                                        for _key in signal['labels'][n]:
-                                            if not (_key in data):
-                                                data[_key] = signal['labels'][n][_key]
-                                data['signal'] = signal
-                                log.info('"' + signal['name'] + '" triggered')
-                                triggered_signals.append(data)
-                            total_alerts += 1
-
-                    if 'alerts' in chart:
-                        for l in range(len(chart['alerts'])):
-                            if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
-                                # try clean inactive alerts first
-                                time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
-                                wait_and_click(browser, css_selectors['btn_alert_menu'])
-                                wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
-                                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                                time.sleep(DELAY_BREAK * 4)
-                                # update counter
-                                alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
-                                if type(alerts) is list:
-                                    counter_alerts = len(alerts)
-
-                            if counter_alerts >= config.getint('tradingview', 'max_alerts'):
-                                log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
-                                return [counter_alerts, total_alerts]
-                            try:
-                                screenshot_url = ''
-                                if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
-                                    screenshot_url = take_screenshot(browser, symbol, interval)[0]
-                                create_alert(browser, chart['alerts'][l], timeframe, interval, symbols[k], screenshot_url)
-                                counter_alerts += 1
-                                total_alerts += 1
-                            except Exception as err:
-                                log.error("Could not set alert: " + symbols[k] + " " + chart['alerts'][l]['name'])
-                                log.exception(err)
-                                snapshot(browser)
-
     except Exception as exc:
         log.exception(exc)
         snapshot(browser)
+    return [counter_alerts, total_alerts]
+
+
+def process_symbol(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
+    # open each symbol within the watchlist
+    for k in range(len(symbols)):
+        symbol = symbols[k]
+        log.info(symbol)
+
+        # change symbol
+        try:
+            # might be useful for multi threading set the symbol by going to different url like this:
+            # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
+            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+            set_value(browser, input_symbol, symbol)
+            input_symbol.send_keys(Keys.ENTER)
+            time.sleep(DELAY_CHANGE_SYMBOL)
+
+        except Exception as err:
+            log.debug('Unable to change to symbol')
+            log.exception(err)
+            snapshot(browser)
+
+        if 'signals' in chart:
+            for l in range(len(chart['signals'])):
+                signal = chart['signals'][l]
+                signal_triggered = False
+                triggered = []
+                indicators = signal['indicators']
+                timestamp = time.time()
+
+                data = dict()
+                data['timestamp'] = timestamp
+                data['date_utc'] = datetime.datetime.utcfromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S") + ' +0000'
+                data['date'] = datetime.datetime.fromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S %z") + tools.get_timezone()
+                data['timeframe'] = timeframe
+                data['symbol'] = symbol
+                [data['exchange'], data['ticker']] = str(symbol).split(':')
+                data['name'] = signal['name']
+
+                interval = get_interval(timeframe)
+                data['interval'] = interval
+                url = browser.current_url + '?symbol=' + symbol
+                multi_time_frame_layout = False
+                try:
+                    multi_time_frame_layout = signal['multi_time_frame_layout']
+                except KeyError:
+                    if log.level == 10:
+                        log.warn('charts: multi_time_frame_layout not set in yaml, defaulting to multi_time_frame_layout = no')
+                if type(interval) is str and len(interval) > 0 and not multi_time_frame_layout:
+                    url += '&interval=' + str(interval)
+                data['url'] = url
+
+                for m in range(len(indicators)):
+                    indicator = indicators[m]
+                    values = get_indicator_values(browser, indicator)
+                    signal['indicators'][m]['values'] = values
+                    indicator_triggered = is_indicator_triggered(indicator, values)
+                    signal['indicators'][m]['triggered'] = indicator_triggered
+                    triggered.append(indicator_triggered)
+                    if 'data' in indicator:
+                        for n in range(len(indicator['data'])):
+                            for _key in indicator['data'][n]:
+                                index = indicator['data'][n][_key]
+                                if index < len(values) and not (_key in data):
+                                    data[_key] = values[index]
+
+                for m in range(len(triggered)):
+                    if triggered[m]:
+                        signal_triggered = True
+                    else:
+                        signal_triggered = False
+                        break
+                signal['triggered'] = signal_triggered
+
+                if signal_triggered:
+                    screenshots = dict()
+                    filenames = dict()
+                    screenshots_url = []
+                    el_asset_name = browser.find_element_by_css_selector(css_selectors['asset'])
+                    asset = el_asset_name.text
+                    log.info(asset)
+                    try:
+                        for m in range(len(signal['include_screenshots_of_charts'])):
+                            screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
+                            [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
+                            if screenshot_url != '':
+                                screenshots[screenshot_chart] = screenshot_url
+                                screenshots_url.append(screenshot_url)
+                                if m == 0:
+                                    data['screenshot'] = screenshot_url
+                            if filename != '':
+                                filenames[screenshot_chart] = filename
+                    except ValueError as value_error:
+                        log.exception(value_error)
+                        snapshot(browser)
+                    except KeyError:
+                        if log.level == 10:
+                            log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+                    data['screenshots_url'] = screenshots_url
+                    data['screenshots'] = screenshots
+                    data['filenames'] = filenames
+                    data['asset'] = asset
+                    if 'labels' in signal:
+                        for n in range(len(signal['labels'])):
+                            for _key in signal['labels'][n]:
+                                if not (_key in data):
+                                    data[_key] = signal['labels'][n][_key]
+                    data['signal'] = signal
+                    log.info('"' + signal['name'] + '" triggered')
+                    triggered_signals.append(data)
+                total_alerts += 1
+
+        if 'alerts' in chart:
+            interval = get_interval(timeframe)
+            for l in range(len(chart['alerts'])):
+                if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
+                    # try clean inactive alerts first
+                    time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
+                    wait_and_click(browser, css_selectors['btn_alert_menu'])
+                    wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                    time.sleep(DELAY_BREAK * 4)
+                    # update counter
+                    alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
+                    if type(alerts) is list:
+                        counter_alerts = len(alerts)
+
+                if counter_alerts >= config.getint('tradingview', 'max_alerts'):
+                    log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
+                    return [counter_alerts, total_alerts]
+                try:
+                    screenshot_url = ''
+                    if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
+                        screenshot_url = take_screenshot(browser, symbol, interval)[0]
+                    create_alert(browser, chart['alerts'][l], timeframe, interval, symbol, screenshot_url)
+                    counter_alerts += 1
+                    total_alerts += 1
+                except Exception as err:
+                    log.error("Could not set alert: " + symbol + " " + chart['alerts'][l]['name'])
+                    log.exception(err)
+                    snapshot(browser)
     return [counter_alerts, total_alerts]
 
 
@@ -1331,9 +1364,10 @@ def login(browser, uid='', pwd='', retry_login=False):
         exit(0)
 
 
-def create_browser(run_in_background):
-    options = webdriver.ChromeOptions()
+def create_browser(run_in_background,):
+    capabilities = DesiredCapabilities.CHROME.copy()
 
+    options = webdriver.ChromeOptions()
     if config.has_option('webdriver', 'profile_path'):
         profile_path = config.get('webdriver', 'profile_path')
         if OS == 'windows':
@@ -1352,7 +1386,7 @@ def create_browser(run_in_background):
     # options.add_argument("--disable-dev-shm-usage")
     options.add_argument('--window-size=' + RESOLUTION)
 
-    prefs = {'profile.default_content_setting_values.notifications': 2}
+    prefs = {'profile.default_content_setting_values.notifications': 2, 'disk-cache-size': 52428800}
     options.add_experimental_option('prefs', prefs)
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
     # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
@@ -1370,7 +1404,14 @@ def create_browser(run_in_background):
     chromedriver_file.replace('.exe', '')
 
     try:
-        browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=DesiredCapabilities.CHROME, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
+        # Create webdriver.remote
+        # Note, we cannot serialize webdriver.Chrome
+        if MULTI_THREADING:
+            browser = webdriver.Remote(command_executor=EXECUTOR, options=options, desired_capabilities=capabilities)
+        else:
+            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
+        browser.implicitly_wait(WAIT_TIME_IMPLICIT)
+        browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
     except WebDriverException as web_err:
         log.exception(web_err)
         exit(0)
@@ -1378,10 +1419,23 @@ def create_browser(run_in_background):
         log.exception(e)
         exit(0)
 
-    browser.implicitly_wait(WAIT_TIME_IMPLICIT)
-    browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-
     return browser
+
+
+def save_browser_state(browser):
+    # Serialize and save on disk
+    fp = open(FILENAME, 'wb')
+    # pickle()
+    dill.dump(browser, fp)
+    fp.close()
+
+
+def get_browser_instance(browser=None):
+    result = browser
+    if os.path.exists(FILENAME):
+
+        result = dill.load(open(FILENAME, 'rb'))
+    return result
 
 
 def destroy_browser(browser):
@@ -1391,7 +1445,7 @@ def destroy_browser(browser):
         browser.quit()
 
 
-def run(file, export_signals_immediately):
+def run(file, export_signals_immediately, multi_threading=False):
     """
         TODO:   multi threading
     """
@@ -1403,6 +1457,8 @@ def run(file, export_signals_immediately):
     has_screeners = False
 
     global RUN_IN_BACKGROUND
+    global MULTI_THREADING
+    MULTI_THREADING = multi_threading
 
     try:
         if len(file) > 1:
