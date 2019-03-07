@@ -98,3 +98,7 @@ def dt_parse(t):
     elif t[17] == '-':
         ret += timedelta(hours=int(t[18:20]), minutes=int(t[20:]))
     return ret
+
+
+def remove_empty_lines(text):
+    return "".join([s for s in text.splitlines(True) if s.strip("\r\n")])

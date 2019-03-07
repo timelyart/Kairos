@@ -620,7 +620,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                     number_of_windows = 2
                     symbols = dict_watchlist[chart['watchlists'][j]]
 
-                    log.info(__name__)
+                    # log.info(__name__)
                     if MULTI_THREADING:
                         batch_size = math.ceil(len(symbols) / number_of_windows)
                         batches = list(tools.chunks(symbols, batch_size))
@@ -733,7 +733,6 @@ def process_symbol(browser, chart, symbols, timeframe, counter_alerts, total_ale
                     screenshots_url = []
                     el_asset_name = browser.find_element_by_css_selector(css_selectors['asset'])
                     asset = el_asset_name.text
-                    log.info(asset)
                     try:
                         for m in range(len(signal['include_screenshots_of_charts'])):
                             screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
@@ -1452,9 +1451,9 @@ def run(file, export_signals_immediately, multi_threading=False):
     counter_alerts = 0
     total_alerts = 0
     browser = None
-    tv = None
-    has_charts = False
-    has_screeners = False
+    # tv = None
+    # has_charts = False
+    # has_screeners = False
 
     global RUN_IN_BACKGROUND
     global MULTI_THREADING
@@ -1470,18 +1469,12 @@ def run(file, export_signals_immediately, multi_threading=False):
             raise FileNotFoundError
 
         # get the user defined settings file
-        try:
-            with open(file, 'r') as stream:
-                try:
-                    tv = yaml.safe_load(stream)
-                    has_charts = 'charts' in tv
-                    has_screeners = 'screeners' in tv
-                except yaml.YAMLError as err_yaml:
-                    log.exception(err_yaml)
-        except FileNotFoundError as err_file:
-            log.exception(err_file)
-        except OSError as err_os:
-            log.exception(err_os)
+        tv = get_yaml_config(file, True)
+        f = open(file + '.tmp', 'w')
+        f.write(yaml.dump(tv))
+        f.close()
+        has_charts = 'charts' in tv
+        has_screeners = 'screeners' in tv
 
         RUN_IN_BACKGROUND = config.getboolean('webdriver', 'run_in_background')
         if 'webdriver' in tv and 'run-in-background' in tv['webdriver']:
@@ -1717,3 +1710,54 @@ def summary(total_alerts):
         log.info(str(total_alerts) + " alerts and/or signals set with an average process time of " + avg + " seconds")
     elif total_alerts == 0:
         log.info("No alerts set")
+
+
+def get_yaml_config(file, root=False):
+    # get the user defined settings file
+    result = None
+    string_yaml = ""
+    try:
+        with open(file, 'r') as stream:
+            try:
+                temp_yaml = yaml.safe_load(stream)
+                string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
+                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'.:>-]+)(}?)$", string_yaml, re.MULTILINE)
+                if root:
+                    log.debug(snippets)
+                for i in range(len(snippets)):
+                    indentation = str(snippets[i][0]).replace("-", " ")
+                    search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
+                    filename = snippets[i][3]
+                    # recursively find and replace snippets
+                    snippet_yaml = get_yaml_config(filename)
+                    string_snippet_yaml = yaml.dump(snippet_yaml)
+
+                    # split snippet yaml into lines (platform independent)
+                    lines = string_snippet_yaml.splitlines(True)
+                    for j in range(len(lines)):
+                        # don't indent the first line, only indent the 2nd line and above
+                        if j > 0:
+                            lines[j] = indentation + lines[j]
+                    # join the lines again to form the yaml with indentation
+                    string_snippet_yaml = "".join(lines)
+                    # some debugging info
+                    log.debug(search)
+                    log.debug(string_snippet_yaml)
+                    # replace the search value with the snippet
+                    string_yaml = string_yaml.replace(search, string_snippet_yaml, 1)
+
+                # clear any empty lines
+                string_yaml = tools.remove_empty_lines(string_yaml)
+                log.debug(string_yaml)
+                result = yaml.safe_load(string_yaml)
+            except yaml.YAMLError as err_yaml:
+                log.exception(err_yaml)
+                f = open(file + ".err", 'w')
+                f.write(string_yaml)
+                f.close()
+    except FileNotFoundError as err_file:
+        log.exception(err_file)
+    except OSError as err_os:
+        log.exception(err_os)
+
+    return result
