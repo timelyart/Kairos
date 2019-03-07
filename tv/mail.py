@@ -366,27 +366,35 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
             if type(webhooks_config) is list:
                 for i in range(len(webhooks_config)):
                     webhooks = webhooks_config[i]['url']
-                    search_criteria = []
-                    batch_size = 0
                     enabled = True
-
-                    if 'search_criteria' in webhooks_config[i]:
-                        search_criteria = webhooks_config[i]['search_criteria']
-                    if 'batch_size' in webhooks_config[i]:
-                        batch_size = webhooks_config[i]['batch_size']
                     if 'enabled' in webhooks_config[i]:
                         enabled = webhooks_config[i]['enabled']
                     if enabled:
-                        send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
-        elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-            webhooks = config.getlist('webhooks', 'webhook')
-            search_criteria = []
-            if config.has_option('webhooks', 'search_criteria'):
-                search_criteria = config.getlist('webhooks', 'search_criteria')
-            batch_size = 0
-            if config.has_option('webhooks', 'batch_size'):
-                batch_size = config.getint('webhooks', 'batch_size')
-            send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
+                        search_criteria = []
+                        batch_size = 0
+                        headers = None
+                        headers_by_request = None
+                        if 'search_criteria' in webhooks_config[i]:
+                            search_criteria = webhooks_config[i]['search_criteria']
+                        if 'batch_size' in webhooks_config[i]:
+                            batch_size = webhooks_config[i]['batch_size']
+                        if 'headers' in webhooks_config[i]:
+                            headers = webhooks_config[i]['headers']
+                        if 'set_headers_by_request' in webhooks_config[i]:
+                            if not headers:
+                                headers = {}
+                            headers_by_request = webhooks_config[i]['set_headers_by_request']
+                            headers = set_headers_by_request(headers, headers_by_request)
+                        send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size, headers, headers_by_request)
+        # elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
+        #     webhooks = config.getlist('webhooks', 'webhook')
+        #     search_criteria = []
+        #     if config.has_option('webhooks', 'search_criteria'):
+        #         search_criteria = config.getlist('webhooks', 'search_criteria')
+        #     batch_size = 0
+        #     if config.has_option('webhooks', 'batch_size'):
+        #         batch_size = config.getint('webhooks', 'batch_size')
+        #     send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
 
         # send alerts to Google Spreadsheet
         if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
@@ -592,6 +600,7 @@ def post_process_signals(triggered_signals, config_yaml, export_signals):
 
 def export(summary_config, data):
     if TEST:
+        log.info("RUNNING IN TEST MODE")
         log.info(data)
     # send to webhooks
     if summary_config and 'webhooks' in summary_config:
@@ -599,29 +608,35 @@ def export(summary_config, data):
         if type(webhooks_config) is list:
             for i in range(len(webhooks_config)):
                 webhooks = webhooks_config[i]['url']
-                search_criteria = []
-                batch_size = 0
                 enabled = True
-                headers = None
-                if 'search_criteria' in webhooks_config[i]:
-                    search_criteria = webhooks_config[i]['search_criteria']
-                if 'batch_size' in webhooks_config[i]:
-                    batch_size = webhooks_config[i]['batch_size']
                 if 'enabled' in webhooks_config[i]:
                     enabled = webhooks_config[i]['enabled']
-                if 'headers' in webhooks_config[i]:
-                    headers = webhooks_config[i]['headers']
                 if enabled:
-                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size, headers)
-    elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-        webhooks = config.getlist('webhooks', 'webhook')
-        search_criteria = []
-        if config.has_option('webhooks', 'search_criteria'):
-            search_criteria = config.getlist('webhooks', 'search_criteria')
-        batch_size = 0
-        if config.has_option('webhooks', 'batch_size'):
-            batch_size = config.getint('webhooks', 'batch_size')
-        send_signals_to_webhooks(data, webhooks, search_criteria, batch_size)
+                    search_criteria = []
+                    batch_size = 0
+                    headers = None
+                    headers_by_request = None
+                    if 'search_criteria' in webhooks_config[i]:
+                        search_criteria = webhooks_config[i]['search_criteria']
+                    if 'batch_size' in webhooks_config[i]:
+                        batch_size = webhooks_config[i]['batch_size']
+                    if 'headers' in webhooks_config[i]:
+                        headers = webhooks_config[i]['headers']
+                    if 'set_headers_by_request' in webhooks_config[i]:
+                        if not headers:
+                            headers = {}
+                        headers_by_request = webhooks_config[i]['set_headers_by_request']
+                        headers = set_headers_by_request(headers, headers_by_request)
+                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request)
+    # elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
+    #     webhooks = config.getlist('webhooks', 'webhook')
+    #     search_criteria = []
+    #     if config.has_option('webhooks', 'search_criteria'):
+    #         search_criteria = config.getlist('webhooks', 'search_criteria')
+    #     batch_size = 0
+    #     if config.has_option('webhooks', 'batch_size'):
+    #         batch_size = config.getint('webhooks', 'batch_size')
+    #     send_signals_to_webhooks(data, webhooks, search_criteria, batch_size)
 
     # send to Google Sheet
     if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
@@ -640,7 +655,7 @@ def export(summary_config, data):
             log.exception(e)
 
 
-def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None):
+def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None):
     result = False
     try:
         batches = []
@@ -666,13 +681,13 @@ def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, h
             batches.append(batch)
         # send batches to webhooks
         if len(batches) > 0:
-            send_webhooks(webhooks, batches, headers)
+            send_webhooks(webhooks, batches, headers, headers_by_request)
     except Exception as e:
         log.exception(e)
     return result
 
 
-def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
+def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None):
     result = False
     try:
         batches = []
@@ -706,7 +721,7 @@ def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0):
             batches.append(batch)
         # send batches to webhooks
         if len(batches) > 0:
-            send_webhooks(webhooks, batches)
+            send_webhooks(webhooks, batches, headers, headers_by_request)
     except Exception as e:
         log.exception(e)
     return result
@@ -781,19 +796,24 @@ def send_mongodb(client, collection, batches):
         log.exception(e)
 
 
-def send_webhooks(webhooks, batches, headers=None):
+def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
     try:
-        for i in range(len(batches)):
+        i = 0
+        count_batches = 0
+        total_batches = str(len(batches))
+        while len(batches) > 0:
+            count_batches += 1
             for j in range(len(webhooks)):
                 if webhooks[j]:
                     json_data = {'signals': batches[i]}
+                    data = json.dumps(json_data)
                     if TEST:
-                        log.info(repr(json_data))
-                        log.info(headers)
+                        print(data)
+                        print(headers)
                         result = [200, 'OK']
                     else:
-                        log.debug(repr(json_data))
-                        r = requests.post(str(webhooks[j]), json=json_data, headers=headers)
+                        log.debug(repr(data))
+                        r = requests.post(str(webhooks[j]), data=data, headers=headers)
                         # unfortunately, we cannot always send a raw image (e.g. zapier)
                         # elif filename:
                         #     screenshot_bytestream = ''
@@ -805,11 +825,17 @@ def send_webhooks(webhooks, batches, headers=None):
                         #         log.exception(send_webhook_error)
                         #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
                         result = [r.status_code, r.reason]
-
-                    if result[0] != 200:
-                        log.warn(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
+                    if 200 <= result[0] <= 226:
+                        log.info(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]))
+                    elif (result[0] == 401 or result[0] == 403) and headers_by_request:
+                        log.warn(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]))
+                        log.info("authorization failed, updating headers")
+                        headers = set_headers_by_request(headers, headers_by_request)
+                        return send_webhooks(webhooks, batches, headers)
                     else:
-                        log.info(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
+                        log.warn(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]))
+
+            batches.remove(batches[i])
     except Exception as e:
         log.exception(e)
 
@@ -928,7 +954,60 @@ def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, 
         log.exception(e)
 
 
+def set_headers_by_request(headers, configs):
+
+    yaml_ok = True
+
+    for a_config in configs:
+        mandatory = ['request']
+        for i in range(len(mandatory)):
+            if not mandatory[i] in a_config:
+                log.warn("'" + str(mandatory[i]) + "' not declared in YAML")
+                yaml_ok = False
+
+        request_config = a_config['request']
+        mandatory = ['url', 'type', 'headers', 'body', 'response_values']
+        for i in range(len(mandatory)):
+            if not mandatory[i] in request_config:
+                log.warn("'" + str(mandatory[i]) + "' not declared in YAML")
+                yaml_ok = False
+
+        if not yaml_ok:
+            log.info(str(a_config))
+            log.warn("Incomplete YAML")
+            return headers
+
+        request_url = request_config['url']
+        request_type = request_config['type']
+        request_headers = request_config['headers']
+        request_body = request_config['body']
+        response_values = request_config['response_values']
+
+        try:
+            status = [501, 'Not Implemented: ' + str(request_type)]
+            result = ""
+            if request_type == 'POST':
+                r = requests.post(request_url, data=json.dumps(request_body), headers=request_headers)
+                status = [r.status_code, r.reason]
+                for header in response_values:
+                    if r.json:
+                        result = r.json()
+                        result = result[response_values[header]]
+                    elif r.text:
+                        result = r.text
+                    headers[header] = result
+            if 200 <= status[0] <= 226:
+                log.info(str(request_url) + ' ' + str(status[0]) + ' ' + str(status[1]))
+            else:
+                log.warn(str(request_url) + ' ' + str(status[0]) + ' ' + str(status[1]))
+        except Exception as e:
+            log.exception(e)
+    return headers
+
+
 def run(delay, file, triggered_signals):
+    if TEST:
+        log.info("RUNNING IN TEST MODE")
     log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
     time.sleep(delay*60)
 
