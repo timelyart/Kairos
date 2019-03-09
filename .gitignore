@@ -6,6 +6,8 @@ kairos.cfg
 dist/*
 *.egg-info/
 tv/*.yaml
+*.tmp
+*.err
 build/
 *.png
 venv/
@@ -14,12 +16,16 @@ watchlists/
 test/
 .eggs/
 desktop.ini
-!tv/_*.yaml
+*.json
+*.instance
 !tv/refresh.yaml
+!tv/root.yaml
+!tv/branch_in_branch.yaml
+!tv/branch.yaml
+!tv/.yaml
 !img/300_Bitcoin_QR_code.png
 !img/300_Dash_QR_code.png
 !img/300_Ethereum_QR_code.png
 !img/300_ZCASH_QR_code.png
-*.json
 !process.bat
 !build_public.bat
