@@ -66,10 +66,6 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
     return tv.take_screenshot(browser, symbol, interval, retry_number)
 
 
-def import_watchlist(filepath, filename):
-    return tv.import_watchlist(filepath, filename)
-
-
 def process_data(data, browser):
     for response_part in data:
         if isinstance(response_part, tuple):
@@ -282,6 +278,19 @@ def save_watchlist_to_file(csv, filename=''):
     return [filepath, filename]
 
 
+def update_watchlist(browser, filename, markets, delay_after_update):
+    cleanup_browser = False
+    if not browser:
+        browser = tv.create_browser(tv.RUN_IN_BACKGROUND)
+        login(browser)
+        cleanup_browser = True
+
+    result = tv.update_watchlist(browser, filename, markets, delay_after_update)
+    if cleanup_browser:
+        tv.destroy_browser(browser)
+    return result
+
+
 def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=True):
     try:
         text = ''
@@ -361,7 +370,7 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
             count += 1
 
         # send alerts to webhooks
-        if summary_config and 'webhooks' in summary_config:
+        if summary_config and 'webhooks' in summary_config and len(charts) > 0:
             webhooks_config = summary_config['webhooks']
             if type(webhooks_config) is list:
                 for i in range(len(webhooks_config)):
@@ -431,6 +440,7 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
         if html[:6].lower() != '<html>':
             html = '<html><body>' + html + '</body></html>'
 
+        delay_after_update = 5
         # create watchlist
         if summary_config and 'watchlist' in summary_config:
             watchlist_config = summary_config['watchlist']
@@ -438,18 +448,21 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
             [filepath, filename] = save_watchlist_to_file(csv, filename)
             filepath = os.path.join(os.getcwd(), filepath)
             log.info('watchlist ' + filepath + ' created')
+            if 'delay_after_update' in watchlist_config:
+                delay_after_update = watchlist_config['delay_after_update']
             if watchlist_config['import']:
-                import_watchlist(filepath, filename)
+                watchlist_name = filename.replace('.txt', '')
+                if update_watchlist(None, watchlist_name, csv, delay_after_update):
+                    log.info("watchlist imported into TradingView as '" + watchlist_name + "'")
             if watchlist_config['attach-to-email']:
                 watchlist_att = MIMEBase('application', "octet-stream")
                 watchlist_att.set_payload(open(filepath, "rb").read())
                 encoders.encode_base64(watchlist_att)
                 watchlist_att.add_header('Content-Disposition', 'attachment; filename="' + filename + '"')
         else:
-            [filepath, filename] = save_watchlist_to_file(csv)
-            filepath = os.path.join(os.getcwd(), filepath)
+            result = save_watchlist_to_file(csv)
+            filepath = os.path.join(os.getcwd(), result[0])
             log.info('watchlist ' + filepath + ' created')
-            import_watchlist(filepath, filename)
 
         recipients = to + cc + bcc
 
@@ -603,19 +616,19 @@ def export(summary_config, data):
         log.info("RUNNING IN TEST MODE")
         log.info(data)
     # send to webhooks
-    if summary_config and 'webhooks' in summary_config:
+    if summary_config and 'webhooks' in summary_config and len(data) > 0:
         webhooks_config = summary_config['webhooks']
         if type(webhooks_config) is list:
             for i in range(len(webhooks_config)):
                 webhooks = webhooks_config[i]['url']
+                batch_size = 0
+                search_criteria = []
+                headers = None
+                headers_by_request = None
                 enabled = True
                 if 'enabled' in webhooks_config[i]:
                     enabled = webhooks_config[i]['enabled']
                 if enabled:
-                    search_criteria = []
-                    batch_size = 0
-                    headers = None
-                    headers_by_request = None
                     if 'search_criteria' in webhooks_config[i]:
                         search_criteria = webhooks_config[i]['search_criteria']
                     if 'batch_size' in webhooks_config[i]:
