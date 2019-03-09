@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 2.0.2
+Version: 2.0.10
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 Home-page: UNKNOWN
 Author: Sanne Appel
@@ -225,6 +225,6 @@ Description: # Kairos #
         [https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A](https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A) 
         
 Platform: UNKNOWN
-Provides-Extra: platform_system == "Darwin"
 Provides-Extra: platform_system == "Windows"
+Provides-Extra: platform_system == "Darwin"
 Provides-Extra: platform_system == "Linux"

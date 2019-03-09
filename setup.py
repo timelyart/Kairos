@@ -12,7 +12,7 @@ setup(
     packages=find_packages(),
     license='End-User License Agreement: https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A',
     author='Sanne Appel',
-    version=release,
+    version='2.0.10',
     author_email='sjappel@protonmail.com',
     description='Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.',
     long_description=long_description,
