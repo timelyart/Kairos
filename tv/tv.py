@@ -18,9 +18,8 @@ import os
 import re
 import sys
 import time
-
+import errno
 import dill
-import pyautogui
 import yaml
 
 from urllib.parse import unquote
@@ -38,7 +37,6 @@ from multiprocessing import Pool
 from kairos import timing
 from kairos import tools
 
-pyautogui.FAILSAFE = False
 TEST = False
 
 triggered_signals = []
@@ -635,14 +633,14 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                                     browsers[k] = browser
                                 else:
                                     browsers[k] = get_browser_instance()
-                                result = pool.apply_async(process_symbol, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
+                                result = pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
                                 log.info(result)
                                 # [counter_alerts, total_alerts]
-                                # pool.apply_async(process_symbol, args=(browser, chart, batch, timeframe))
+                                # pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe))
                             pool.close()
                             pool.join()
                     else:
-                        [counter_alerts, total_alerts] = process_symbol(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
+                        [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
                         # process_symbol(browser, chart, symbols[k], timeframe)
                     # pickle.dump(browser, 'webdriver.instance')
                     # TODO create batches of symbols and assign
@@ -655,26 +653,31 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def process_symbol(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
+def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
+    log.info(timeframe)
     # open each symbol within the watchlist
     for k in range(len(symbols)):
-        symbol = symbols[k]
-        log.info(symbol)
+        [counter_alerts, total_alerts] = process_symbol(browser, chart, symbols[k], timeframe, counter_alerts, total_alerts)
+    return [counter_alerts, total_alerts]
 
-        # change symbol
-        try:
-            # might be useful for multi threading set the symbol by going to different url like this:
-            # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-            set_value(browser, input_symbol, symbol)
-            input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
 
-        except Exception as err:
-            log.debug('Unable to change to symbol')
-            log.exception(err)
-            snapshot(browser)
+def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number=0):
+    log.info(symbol)
+    # change symbol
+    try:
+        # might be useful for multi threading set the symbol by going to different url like this:
+        # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
+        input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+        set_value(browser, input_symbol, symbol)
+        input_symbol.send_keys(Keys.ENTER)
+        time.sleep(DELAY_CHANGE_SYMBOL)
 
+    except Exception as err:
+        log.debug('Unable to change to symbol')
+        log.exception(err)
+        snapshot(browser)
+
+    try:
         if 'signals' in chart:
             for l in range(len(chart['signals'])):
                 signal = chart['signals'][l]
@@ -793,7 +796,32 @@ def process_symbol(browser, chart, symbols, timeframe, counter_alerts, total_ale
                     log.error("Could not set alert: " + symbol + " " + chart['alerts'][l]['name'])
                     log.exception(err)
                     snapshot(browser)
+    except Exception as e:
+        log.exception(e)
+        return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
     return [counter_alerts, total_alerts]
+
+
+def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number=0):
+    if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+        log.info('trying again (' + str(retry_number + 1) + ')')
+        browser.refresh()
+        try:
+            # might be useful for multi threading set the symbol by going to different url like this:
+            # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
+            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+            set_value(browser, input_symbol, symbol)
+            input_symbol.send_keys(Keys.ENTER)
+            time.sleep(DELAY_CHANGE_SYMBOL)
+        except Exception as err:
+            log.debug('Unable to change to symbol')
+            log.exception(err)
+            snapshot(browser)
+        return process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number + 1)
+    else:
+        log.error('Max retries reached.')
+        snapshot(browser)
+        return False
 
 
 def snapshot(browser, quit_program=False, name=''):
@@ -924,14 +952,14 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
         log.warn('max retries reached')
 
 
-def create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url='', retry_number=0):
+def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_url='', retry_number=0):
     """
     Create an alert based upon user specified yaml configuration.
     :param browser:         The webdriver.
     :param alert_config:    The config for this specific alert.
     :param timeframe:       Timeframe, e.g. 1 day, 2 days, 4 hours, etc.
     :param interval:        TV's short format, e.g. 2 weeks = 2W, 1 day = 1D, 4 hours =4H, 5 minutes = 5M.
-    :param ticker_id:       Ticker / Symbol, e.g. COINBASE:BTCUSD.
+    :param symbol:          Ticker / Symbol, e.g. COINBASE:BTCUSD.
     :param screenshot_url:  URL of TV's screenshot feature
     :param retry_number:    Optional. Number of retries if for some reason the alert wasn't created.
     :return: true, if successful
@@ -955,11 +983,11 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             wait_and_click(alert_dialog, css_1st_row_left)
         except Exception as alert_err:
             log.exception(alert_err)
-            return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
+            return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # time.sleep(DELAY_BREAK_MINI)
         el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_first_item'])
-        if not select(alert_config, current_condition, el_options, ticker_id):
+        if not select(alert_config, current_condition, el_options, symbol):
             return False
 
         # 1st row, 2nd condition (if applicable)
@@ -968,7 +996,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             current_condition += 1
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
             el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_second_item'])
-            if not select(alert_config, current_condition, el_options, ticker_id):
+            if not select(alert_config, current_condition, el_options, symbol):
                 return False
 
         # 2nd row, 1st condition
@@ -976,7 +1004,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         css_2nd_row = css_selectors['dlg_create_alert_second_row']
         wait_and_click(alert_dialog, css_2nd_row)
         el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_second_row'])
-        if not select(alert_config, current_condition, el_options, ticker_id):
+        if not select(alert_config, current_condition, el_options, symbol):
             return False
 
         # 3rd+ rows, remaining conditions
@@ -1071,7 +1099,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             # Construct message
             textarea = alert_dialog.find_element_by_name('description')
             generated = textarea.text
-            chart = browser.current_url + '?symbol=' + ticker_id
+            chart = browser.current_url + '?symbol=' + symbol
             show_multi_chart_layout = False
             try:
                 show_multi_chart_layout = alert_config['show_multi_chart_layout']
@@ -1081,7 +1109,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
                 chart += '&interval=' + str(interval)
             text = str(alert_config['message']['text'])
             text = text.replace('%TIMEFRAME', ' ' + timeframe)
-            text = text.replace('%SYMBOL', ' ' + ticker_id)
+            text = text.replace('%SYMBOL', ' ' + symbol)
             text = text.replace('%NAME', ' ' + alert_config['name'])
             text = text.replace('%CHART', ' ' + chart)
             text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
@@ -1089,7 +1117,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
             try:
                 screenshot_urls = []
                 for i in range(len(alert_config['include_screenshots_of_charts'])):
-                    screenshot_urls.append(alert_config['include_screenshots_of_charts'][i] + '?symbol=' + ticker_id)
+                    screenshot_urls.append(alert_config['include_screenshots_of_charts'][i] + '?symbol=' + symbol)
                 text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
             except ValueError as value_error:
                 log.exception(value_error)
@@ -1100,7 +1128,7 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
         except Exception as alert_err:
             log.exception(alert_err)
             snapshot(browser)
-            return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
+            return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # Submit the form
         element = browser.find_element_by_css_selector(css_selectors['btn_dlg_create_alert_submit'])
@@ -1110,60 +1138,14 @@ def create_alert(browser, alert_config, timeframe, interval, ticker_id, screensh
     except TimeoutError:
         log.warn('time out')
         # on except, refresh and try again
-        return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
+        return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
     except Exception as exc:
         log.exception(exc)
         snapshot(browser)
         # on except, refresh and try again
-        return retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number)
+        return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
     return True
-
-
-def import_watchlist(filepath, filename):
-    if not config.getboolean('webdriver', 'clipboard'):
-        log.warn('Cannot import watchlists unless clipboard is set to yes in the configuration file.')
-    else:
-        browser = create_browser(False)
-        login(browser, TV_UID, TV_PWD)
-
-        try:
-            wait_and_click(browser, css_selectors['btn_calendar'])
-            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
-            time.sleep(DELAY_BREAK)
-            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-            time.sleep(DELAY_BREAK)
-
-            el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
-            for j in range(len(el_options)):
-                if str(el_options[j].text).startswith('Import Watchlist'):
-                    el_options[j].click()
-                    time.sleep(DELAY_BREAK * 4)
-                    pyautogui.typewrite(r"" + filepath, interval=DELAY_KEYSTROKE)
-                    pyautogui.press('enter')
-                    time.sleep(DELAY_BREAK * 2)
-                    log.info('watchlist imported')
-                    break
-            # sort the watchlist
-            try:
-                wait_and_click(browser, css_selectors['btn_watchlist_sort_symbol'])
-                time.sleep(DELAY_BREAK * 2)
-            except Exception as e:
-                log.exception(e)
-                snapshot(browser)
-            # remove other watchlists with the same
-            remove_watchlists(browser, str(filename).replace('.txt', ''))
-
-        except Exception as e:
-            log.info('Cannot import watchlist')
-            log.info('If you are running OS X make sure you have pyobjc installed:')
-            log.info('\tpip3 install pyobjc')
-            log.info('If you have problems installing pyobjc on OS X El Capitain, try this instead:')
-            log.info('\tMACOSX_DEPLOYMENT_TARGET=10.11 pip install pyobjc')
-            log.exception(e)
-            snapshot(browser)
-        finally:
-            destroy_browser(browser)
 
 
 def select(alert_config, current_condition, el_options, ticker_id):
@@ -1216,7 +1198,7 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
                 send_keys(element, string, interval)
 
 
-def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number):
+def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
@@ -1227,13 +1209,13 @@ def retry(browser, alert_config, timeframe, interval, ticker_id, screenshot_url,
         # change symbol
         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
         try:
-            set_value(browser, input_symbol, ticker_id)
+            set_value(browser, input_symbol, symbol)
         except Exception as err:
-            log.debug('Can\'t find ' + str(ticker_id) + ' in list of symbols:')
+            log.debug('Can\'t find ' + str(symbol) + ' in list of symbols:')
             log.exception(err)
         input_symbol.send_keys(Keys.ENTER)
         time.sleep(DELAY_CHANGE_SYMBOL)
-        return create_alert(browser, alert_config, timeframe, interval, ticker_id, screenshot_url, retry_number + 1)
+        return create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number + 1)
     else:
         log.error('Max retries reached.')
         snapshot(browser)
@@ -1303,15 +1285,20 @@ def login(browser, uid='', pwd='', retry_login=False):
         pwd = config.get('tradingview', 'password')
 
     if not retry_login:
-        url = 'https://www.tradingview.com'
-        browser.get(url)
+        try:
+            url = 'https://www.tradingview.com'
+            browser.get(url)
 
-        # if logged in under a different username or not logged in at all log out and then log in again
-        elem_username = browser.find_element_by_css_selector(css_selectors['username'])
-        if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
-            wait_and_click(browser, css_selectors['username'])
-            wait_and_click(browser, css_selectors['signout'])
-        wait_and_click(browser, css_selectors['signin'])
+            # if logged in under a different username or not logged in at all log out and then log in again
+            elem_username = browser.find_element_by_css_selector(css_selectors['username'])
+            if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
+                wait_and_click(browser, css_selectors['username'])
+                wait_and_click(browser, css_selectors['signout'])
+            wait_and_click(browser, css_selectors['signin'])
+        except Exception as e:
+            log.error(e)
+            snapshot(browser)
+            exit(errno.EFAULT)
 
     try:
         input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
@@ -1363,7 +1350,7 @@ def login(browser, uid='', pwd='', retry_login=False):
         exit(0)
 
 
-def create_browser(run_in_background,):
+def create_browser(run_in_background):
     capabilities = DesiredCapabilities.CHROME.copy()
 
     options = webdriver.ChromeOptions()
@@ -1632,6 +1619,10 @@ def update_watchlist(browser, name, markets, delay_after_update):
         time.sleep(DELAY_BREAK)
 
         input_symbol = browser.find_element_by_class_name('wl-symbol-edit')
+
+        if isinstance(markets, str):
+            markets = markets.split(',')
+
         batches = list(tools.chunks(markets, 20))
 
         el_general_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
@@ -1648,7 +1639,6 @@ def update_watchlist(browser, name, markets, delay_after_update):
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
 
-        # insert csv into symbol input box
         for i in range(len(batches)):
             csv = ",".join(batches[i])
             set_value(browser, input_symbol, csv)
@@ -1730,7 +1720,7 @@ def get_yaml_config(file, root=False):
                     filename = snippets[i][3]
                     # recursively find and replace snippets
                     snippet_yaml = get_yaml_config(filename)
-                    string_snippet_yaml = yaml.dump(snippet_yaml)
+                    string_snippet_yaml = yaml.dump(snippet_yaml, default_flow_style=False)
 
                     # split snippet yaml into lines (platform independent)
                     lines = string_snippet_yaml.splitlines(True)
