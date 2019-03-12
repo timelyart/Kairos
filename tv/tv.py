@@ -172,9 +172,9 @@ name_selectors = dict(
     checkbox_dlg_create_alert_send_push='send-push'
 )
 
-log = tools.log
+log = tools.create_log()
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR)
+config = tools.get_config(CURRENT_DIR, log)
 log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
@@ -393,7 +393,7 @@ def set_delays(chart):
             DELAY_KEYSTROKE = config.getfloat('delays', 'keystroke')
 
 
-def get_indicator_values(browser, indicator, retry_number=0):
+def get_indicator_values(browser, indicator, symbol, retry_number=0):
     result = []
     chart_index = -1
     pane_index = -1
@@ -437,27 +437,29 @@ def get_indicator_values(browser, indicator, retry_number=0):
                         result.append(elem_values[j].text)
         log.debug(result)
     except StaleElementReferenceException:
-        result = retry_get_indicator_values(browser, indicator, retry_number)
+        result = retry_get_indicator_values(browser, indicator, symbol, retry_number)
     except Exception as e:
         log.exception(e)
         snapshot(browser)
     return result
 
 
-def retry_get_indicator_values(browser, indicator, retry_number):
+def retry_get_indicator_values(browser, indicator, symbol, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         browser.refresh()
         try:
             alert = browser.switch_to.alert
             alert.accept()
-            time.sleep(0.5)
+            time.sleep(2)
+            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+            set_value(browser, input_symbol, symbol)
         except NoAlertPresentException:
-            return get_indicator_values(browser, indicator, retry_number + 1)
+            return get_indicator_values(browser, indicator, symbol, retry_number + 1)
         except Exception as e:
             log.exception(e)
             snapshot(browser)
         finally:
-            return get_indicator_values(browser, indicator, retry_number + 1)
+            return get_indicator_values(browser, indicator, symbol, retry_number + 1)
 
 
 def is_indicator_triggered(indicator, values):
@@ -600,15 +602,17 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 dict_watchlist[chart['watchlists'][i]] = symbols
 
         # open alerts tab
-        wait_and_click(browser, css_selectors['btn_alerts'])
+        if 'alerts' in chart:
+            wait_and_click(browser, css_selectors['btn_alerts'])
+        else:
+            # close the watchlist menu to save some loading time
+            wait_and_click(browser, css_selectors['btn_watchlist_menu'])
+
+        time.sleep(5)
         # set the time frame
         for i in range(len(chart['timeframes'])):
             timeframe = chart['timeframes'][i]
             set_timeframe(browser, timeframe)
-
-            if MULTI_THREADING:
-                save_browser_state(browser)
-
             time.sleep(DELAY_TIMEFRAME)
 
             # iterate over each symbol per watchlist
@@ -710,7 +714,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
 
                 for m in range(len(indicators)):
                     indicator = indicators[m]
-                    values = get_indicator_values(browser, indicator)
+                    values = get_indicator_values(browser, indicator, symbol)
                     signal['indicators'][m]['values'] = values
                     indicator_triggered = is_indicator_triggered(indicator, values)
                     signal['indicators'][m]['triggered'] = indicator_triggered
@@ -860,7 +864,8 @@ def snapshot(browser, quit_program=False, name=''):
         except Exception as take_screenshot_error:
             log.exception(take_screenshot_error)
         if quit_program:
-            exit(0)
+            write_console_log(browser)
+            exit(errno.EFAULT)
 
 
 def take_screenshot(browser, symbol, interval, retry_number=0):
@@ -941,15 +946,19 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
         try:
             alert = browser.switch_to.alert
             alert.accept()
-            time.sleep(5)
+            time.sleep(2)
+            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+            set_value(browser, input_symbol, symbol)
         except NoAlertPresentException:
             return take_screenshot(browser, symbol, interval, retry_number + 1)
         except Exception as e:
             log.exception(e)
+            snapshot(browser)
         finally:
             return take_screenshot(browser, symbol, interval, retry_number + 1)
     else:
         log.warn('max retries reached')
+        snapshot(browser)
 
 
 def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_url='', retry_number=0):
@@ -1198,7 +1207,7 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
                 send_keys(element, string, interval)
 
 
-def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number):
+def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
@@ -1297,8 +1306,7 @@ def login(browser, uid='', pwd='', retry_login=False):
             wait_and_click(browser, css_selectors['signin'])
         except Exception as e:
             log.error(e)
-            snapshot(browser)
-            exit(errno.EFAULT)
+            snapshot(browser, True)
 
     try:
         input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
@@ -1320,14 +1328,14 @@ def login(browser, uid='', pwd='', retry_login=False):
         # if there are no user credentials then exit
         else:
             log.info("No credentials provided.")
+            write_console_log(browser)
             exit(0)
 
         wait_and_click(browser, css_selectors['btn_login'])
 
     except Exception as e:
         log.error(e)
-        snapshot(browser)
-        exit(0)
+        snapshot(browser, True)
 
     try:
         elem_username = wait_and_get(browser, css_selectors['username'])
@@ -1346,8 +1354,7 @@ def login(browser, uid='', pwd='', retry_login=False):
                 login(browser, '', '', True)
     except Exception as e:
         log.error(e)
-        snapshot(browser)
-        exit(0)
+        snapshot(browser, True)
 
 
 def create_browser(run_in_background):
@@ -1371,8 +1378,13 @@ def create_browser(run_in_background):
     # options.add_argument('--no-sandbox')
     # options.add_argument("--disable-dev-shm-usage")
     options.add_argument('--window-size=' + RESOLUTION)
+    # suppress the INFO:CONSOLE messages
+    options.add_argument("--log-level=3")
 
-    prefs = {'profile.default_content_setting_values.notifications': 2, 'disk-cache-size': 52428800}
+    prefs = {
+        'profile.default_content_setting_values.notifications': 2
+        # , 'disk-cache-size': 52428800
+    }
     options.add_experimental_option('prefs', prefs)
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
     # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
@@ -1419,7 +1431,6 @@ def save_browser_state(browser):
 def get_browser_instance(browser=None):
     result = browser
     if os.path.exists(FILENAME):
-
         result = dill.load(open(FILENAME, 'rb'))
     return result
 
@@ -1427,8 +1438,14 @@ def get_browser_instance(browser=None):
 def destroy_browser(browser):
     if type(browser) is webdriver.Chrome:
         close_all_popups(browser)
+        write_console_log(browser)
         browser.close()
         browser.quit()
+
+
+def write_console_log(browser):
+    clear_on_start_up = config.getboolean('logging', 'clear_on_start_up')
+    tools.write_console_log(browser, clear_on_start_up)
 
 
 def run(file, export_signals_immediately, multi_threading=False):
@@ -1717,7 +1734,10 @@ def get_yaml_config(file, root=False):
                 for i in range(len(snippets)):
                     indentation = str(snippets[i][0]).replace("-", " ")
                     search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
-                    filename = snippets[i][3]
+                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
+                    if not os.path.exists(filename):
+                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
+                        exit(1)
                     # recursively find and replace snippets
                     snippet_yaml = get_yaml_config(filename)
                     string_snippet_yaml = yaml.dump(snippet_yaml, default_flow_style=False)
