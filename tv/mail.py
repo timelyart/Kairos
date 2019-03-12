@@ -24,7 +24,7 @@ from bs4 import BeautifulSoup
 from kairos import tools
 from kairos import mongodb
 from tv import tv
-
+import http.client as http_client
 # -------------------------------------------------
 #
 # Utility to read email from Gmail Using Python
@@ -35,9 +35,9 @@ TEST = False
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
-log = tools.log
+log = tools.create_log()
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR)
+config = tools.get_config(CURRENT_DIR, log)
 log.setLevel(config.getint('logging', 'level'))
 
 uid = str(config.get('mail', 'uid'))
@@ -387,6 +387,8 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
                             search_criteria = webhooks_config[i]['search_criteria']
                         if 'batch_size' in webhooks_config[i]:
                             batch_size = webhooks_config[i]['batch_size']
+                        if 'batch' in webhooks_config[i]:
+                            batch_size = webhooks_config[i]['batch']
                         if 'headers' in webhooks_config[i]:
                             headers = webhooks_config[i]['headers']
                         if 'set_headers_by_request' in webhooks_config[i]:
@@ -633,6 +635,8 @@ def export(summary_config, data):
                         search_criteria = webhooks_config[i]['search_criteria']
                     if 'batch_size' in webhooks_config[i]:
                         batch_size = webhooks_config[i]['batch_size']
+                    if 'batch' in webhooks_config[i]:
+                        batch_size = webhooks_config[i]['batch']
                     if 'headers' in webhooks_config[i]:
                         headers = webhooks_config[i]['headers']
                     if 'set_headers_by_request' in webhooks_config[i]:
@@ -810,6 +814,7 @@ def send_mongodb(client, collection, batches):
 
 
 def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
+    # http_client.HTTPConnection.debuglevel = 1
     try:
         i = 0
         count_batches = 0
@@ -823,9 +828,8 @@ def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
                     if TEST:
                         print(data)
                         print(headers)
-                        result = [200, 'OK']
+                        result = [200, 'OK', '{"TEST (no actual request send)"}', 'TEST (no actual request send)']
                     else:
-                        log.debug(repr(data))
                         r = requests.post(str(webhooks[j]), data=data, headers=headers)
                         # unfortunately, we cannot always send a raw image (e.g. zapier)
                         # elif filename:
@@ -837,11 +841,11 @@ def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
                         #     except Exception as send_webhook_error:
                         #         log.exception(send_webhook_error)
                         #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
-                        result = [r.status_code, r.reason]
+                        result = [r.status_code, r.reason, repr(r.json()), r.text]
                     if 200 <= result[0] <= 226:
-                        log.info(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]))
+                        log.info(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]) + ' ' + str(result[2]))
                     elif (result[0] == 401 or result[0] == 403) and headers_by_request:
-                        log.warn(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]))
+                        log.warn(str(webhooks[j]) + ' ' + str(count_batches) + '/' + total_batches + ' ' + str(result[0]) + ' ' + str(result[1]) + ' ' + str(result[3]))
                         log.info("authorization failed, updating headers")
                         headers = set_headers_by_request(headers, headers_by_request)
                         return send_webhooks(webhooks, batches, headers)
@@ -851,6 +855,8 @@ def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
             batches.remove(batches[i])
     except Exception as e:
         log.exception(e)
+    finally:
+        http_client.HTTPConnection.debuglevel = 0
 
 
 def send_signals_to_google_sheet(google_api_creds, data, google_sheets_config):
