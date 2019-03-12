@@ -1,4 +1,4 @@
-debug.log
+*.log
 chromedriver.log
 kairos.cfg
 *.pyc

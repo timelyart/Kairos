@@ -1,5 +1,6 @@
 import sys
-from tv import mail
+import os
+from kairos import debug
 
 BATCHES = list()
 
@@ -29,8 +30,6 @@ def print_help():
 
 
 def main():
-    from tv import tv
-
     try:
         print_disclaimer()
         print("USAGE\npython main.py [<file>] [-s|-s <minutes>] [-h] [-d]")
@@ -61,9 +60,17 @@ def main():
         triggered_signals = []
         # print(__name__)
         if len(yaml) > 0:
+            # set log name before importing... the import creates the log whatever it's file name
+            debug.file_name = os.path.basename(yaml) + '.log'
+            from tv import tv
             send_signals_immediately = not send_summary
             triggered_signals = tv.run(yaml, send_signals_immediately, multi_threading)
         if send_summary:
+            # set log name before importing... the import creates the log whatever it's file name
+            debug.file_name = 'summary.log'
+            if len(yaml) > 0:
+                debug.file_name = os.path.basename(yaml) + '.log'
+            from tv import mail
             mail.run(delay_summary, yaml, triggered_signals)
     except Exception as e:
         print(e)
@@ -75,10 +82,12 @@ def test_mongodb():
     import os
     CURRENT_DIR = os.path.curdir
 
-    from kairos import tools
-    log = tools.log
+    # set log name before importing... the import creates the log whatever it's file name
+    debug.file_name = 'test_mongodb.log'
+    log = debug.create_log()
     log.setLevel(20)
-    config = tools.get_config(CURRENT_DIR)
+    from kairos import tools
+    config = tools.get_config(CURRENT_DIR, log)
     log.setLevel(config.getint('logging', 'level'))
 
     connection_string = config.get('mongodb', 'connection_string')
