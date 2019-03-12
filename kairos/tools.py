@@ -102,7 +102,6 @@ def get_time_offset():
     timestamp = time.time()
     date_utc = datetime.utcfromtimestamp(timestamp)
     date_local = datetime.fromtimestamp(timestamp)
-    # date_delta = date_local - date_utc
     date_delta = date_local - date_utc
     return date_delta
 

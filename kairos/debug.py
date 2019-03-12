@@ -52,8 +52,6 @@ def write_console_log(browser, clear_on_startup=True):
         os.mkdir(log_path)
 
     offset = tools.get_time_offset()
-    print(offset)
-
     for log_name in logs:
         if logs[log_name]:
             file = os.path.join(r"" + log_path, log_name + ".log")
