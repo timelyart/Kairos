@@ -225,8 +225,18 @@ if config.has_option('webdriver', 'resolution'):
 def close_all_popups(browser):
     for h in browser.window_handles[1:]:
         browser.switch_to.window(h)
+        close_alerts(browser)
         browser.close()
-        browser.switch_to.window(browser.window_handles[0])
+
+    browser.switch_to.window(browser.window_handles[0])
+
+
+def close_alerts(browser):
+    try:
+        alert = browser.switch_to.alert
+        alert.accept()
+    except NoAlertPresentException as e:
+        log.debug(e)
 
 
 def element_exists_by_xpath(browser, xpath):
@@ -448,8 +458,7 @@ def retry_get_indicator_values(browser, indicator, symbol, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         browser.refresh()
         try:
-            alert = browser.switch_to.alert
-            alert.accept()
+            close_alerts(browser)
             time.sleep(2)
             input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
@@ -813,6 +822,8 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
         try:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
+            close_alerts(browser)
+            time.sleep(2)
             input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
@@ -944,8 +955,7 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
         browser.refresh()
         # Switching to Alert
         try:
-            alert = browser.switch_to.alert
-            alert.accept()
+            close_alerts(browser)
             time.sleep(2)
             input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
@@ -1212,8 +1222,7 @@ def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, re
         log.info('trying again (' + str(retry_number + 1) + ')')
         browser.refresh()
         # Switching to Alert
-        alert = browser.switch_to.alert
-        alert.accept()
+        close_alerts(browser)
         time.sleep(5)
         # change symbol
         input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
@@ -1297,6 +1306,13 @@ def login(browser, uid='', pwd='', retry_login=False):
         try:
             url = 'https://www.tradingview.com'
             browser.get(url)
+            try:
+                res = RESOLUTION.split(',')
+                if len(res) >= 2:
+                    browser.set_window_size(res[0], res[1])
+                    # log.info("resolution set to " + str(res[0]) + 'x' + str(res[1]))
+            except Exception as e:
+                log.debug(e)
 
             # if logged in under a different username or not logged in at all log out and then log in again
             elem_username = browser.find_element_by_css_selector(css_selectors['username'])
