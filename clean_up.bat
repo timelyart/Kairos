@@ -1,4 +1,4 @@
-REM Renaming files and cleaning code
+REM Removing unwanted files for distribution
 @echo off
 cd tv
 ren tv.cp37-win32.pyd tv.pyd

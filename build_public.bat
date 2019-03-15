@@ -12,8 +12,8 @@ ren _setup.py setup.py
 REM Installing Kairos
 python setup.py install
 REM Clean up the distribution
-call process.bat
-del process.bat
+call clean_up.bat
+del clean_up.bat
 :: Remove cython.py (optional)
 del cython.py
 :: Remove this batch file
