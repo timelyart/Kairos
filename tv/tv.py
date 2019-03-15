@@ -1391,7 +1391,8 @@ def create_browser(run_in_background):
     options.add_argument('--disable-session-crashed-bubble')
     # options.add_argument('--disable-infobars https://www.tradingview.com')
     # options.add_argument('--disable-restore-session-state')
-    # options.add_argument('--no-sandbox')
+    if OS == 'linux':
+        options.add_argument('--no-sandbox')
     # options.add_argument("--disable-dev-shm-usage")
     options.add_argument('--window-size=' + RESOLUTION)
     # suppress the INFO:CONSOLE messages
