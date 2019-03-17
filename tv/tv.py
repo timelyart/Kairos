@@ -1377,6 +1377,9 @@ def create_browser(run_in_background):
     capabilities = DesiredCapabilities.CHROME.copy()
 
     options = webdriver.ChromeOptions()
+    if OS == 'linux':
+        options.add_argument('--no-sandbox')
+        options.add_argument("--disable-dev-shm-usage")
     if config.has_option('webdriver', 'profile_path'):
         profile_path = config.get('webdriver', 'profile_path')
         if OS == 'windows':
@@ -1391,9 +1394,6 @@ def create_browser(run_in_background):
     options.add_argument('--disable-session-crashed-bubble')
     # options.add_argument('--disable-infobars https://www.tradingview.com')
     # options.add_argument('--disable-restore-session-state')
-    if OS == 'linux':
-        options.add_argument('--no-sandbox')
-    # options.add_argument("--disable-dev-shm-usage")
     options.add_argument('--window-size=' + RESOLUTION)
     # suppress the INFO:CONSOLE messages
     options.add_argument("--log-level=3")
