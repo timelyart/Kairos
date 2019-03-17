@@ -34,4 +34,3 @@ tv/mail.py
 tv/refresh.yaml
 tv/trade_manager.py
 tv/tv.py
-tv/tv_worker.py

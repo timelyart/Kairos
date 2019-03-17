@@ -205,8 +205,6 @@ Please send me an email (see [Author](#author)) with your debug.log file, used y
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
 
-[asweigart](https://github.com/asweigart/pyautogui), for [PyAutoGUI](https://github.com/asweigart/pyautogui)
-
 ## Author ##
 [timelyart](https://github.com/timelyart)
 
