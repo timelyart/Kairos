@@ -66,6 +66,8 @@ DELAY_SCREENER_SEARCH = 2
 RUN_IN_BACKGROUND = False
 MULTI_THREADING = False
 ALERT_NUMBER = 0
+# when an alert is created TV might generate a popup warning you of unintended consequences
+SEARCH_FOR_WARNING = True
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
 OS = 'windows'
@@ -442,6 +444,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
     TODO:   remember original setting of opened chart, and place them back when finished
     """
+    global SEARCH_FOR_WARNING
+    SEARCH_FOR_WARNING = True
     try:
         # load the chart
         close_all_popups(browser)
@@ -776,7 +780,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     :return: true, if successful
     """
     global alert_dialog
-
+    global SEARCH_FOR_WARNING
     try:
         if retry_number == 0:
             html = find_element(browser, 'html')
@@ -949,12 +953,13 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # Submit the form
         element = find_element(browser, css_selectors['btn_dlg_create_alert_submit'])
         element.click()
-        # ignore warnings
-        try:
-            wait_and_click_by_xpath(browser, '//*[@id="overlap-manager-root"]/div[2]/div/span/div[1]/div/div[2]/div[2]/button', 30)
-        except Exception as e:
-            # we got in a pickle, let's try to close alerts
-            log.debug(e)
+        # ignore warnings if they are there
+        if SEARCH_FOR_WARNING:
+            try:
+                wait_and_click_by_xpath(browser, '//*[@id="overlap-manager-root"]/div[2]/div/span/div[1]/div/div[2]/div[2]/button', 30)
+            except TimeoutException:
+                # we are getting a timeout exception because there likely was no warning
+                SEARCH_FOR_WARNING = False
 
         time.sleep(DELAY_SUBMIT_ALERT)
     except TimeoutError:
