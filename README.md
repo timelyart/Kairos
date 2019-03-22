@@ -202,7 +202,7 @@ charts:
 python main.py refresh.yaml
 ```
 * Browse through your watchlist going from symbol to symbol at a regular interval. 
-  1. Rename [_browse.yaml](tv/_browse.yaml) to **browse.yaml** and open it
+  1. Rename [_browse.yaml](yaml/_browse.yaml) to **browse.yaml** and open it
   2. Fill in the blanks
   3. Run:
   ```
@@ -248,8 +248,6 @@ Feedback is invaluable. Please, take the time to give constructive feedback by o
 [DorukKorkmaz](https://github.com/dorukkorkmaz), for providing a starting point with his [TradingView scraper](https://github.com/DorukKorkmaz/tradingview-scraper).
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
-
-[asweigart](https://github.com/asweigart/pyautogui), for [PyAutoGUI](https://github.com/asweigart/pyautogui)
 
 ## Author ##
 [timelyart](https://github.com/timelyart)
