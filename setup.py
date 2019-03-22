@@ -6,10 +6,8 @@
     If you want to create version 2 going from version 1.1.4 create tag 1
 """
 from setuptools import setup, find_packages
-from pkg_resources import get_distribution
 from os import path
 
-release = get_distribution('kairos').version
 this_directory = path.abspath(path.dirname(__file__))
 with open(path.join(this_directory, 'README.md')) as f:
     long_description = f.read()
@@ -20,11 +18,11 @@ setup(
     url='https://github.com/timelyart/Kairos/',
     license='GNU General Public License v3.0',
     author='timelyart',
-    version=release,
+    version='1.2.9',
     author_email='timelyart@protonmail.com',
     description='Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.',
     long_description=long_description,
-    install_requires=['pyyaml', 'beautifulsoup4', 'urllib3', 'selenium', 'configparser', 'tools', 'pip>=18.1', 'Pillow', 'requests>=2.21', 'pyautogui', 'gspread', 'google-api-python-client', 'oauth2client'],
+    install_requires=['pyyaml', 'beautifulsoup4', 'urllib3', 'selenium', 'configparser', 'tools', 'pip>=18.1', 'Pillow', 'requests>=2.21', 'gspread', 'google-api-python-client', 'oauth2client'],
     extras_require={
         'platform_system == "Windows"': [],
         'platform_system == "Linux"': ['python3-Xlib'],
