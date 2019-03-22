@@ -50,8 +50,8 @@ python setup.py install
 * Open the Kairos directory
 * Rename [_kairos.cfg](_kairos.cfg) to **kairos.cfg** and open it.
 * Take good notice of the options that are available to you in the [kairos.cfg](kairos.cfg). Fill in the blanks and adjust to your preference and limitations.
-* Rename [tv/_example.yaml](tv/_example.yaml) to **example.yaml** and open it.
-* Edit the [example.yaml](tv/_example.yaml) to your liking. Study the section [Defining TradingView alerts](#defining-tradingview-alerts) to get a feeling for the structure of the document. Together with the inline documentation within the YAML file, it should give you a good idea on how to cater it to your preferences. If you have questions please contact me.
+* Rename [yaml/_example.yaml](yaml/_example.yaml) to **example.yaml** and open it.
+* Edit the [example.yaml](yaml/_example.yaml) to your liking. Study the section [Defining TradingView alerts](#defining-tradingview-alerts) to get a feeling for the structure of the document. Together with the inline documentation within the YAML file, it should give you a good idea on how to cater it to your preferences. If you have questions please contact me.
 * Finally, run the following command from the Kairos directory:
 ```
 python main.py example.yaml
@@ -59,7 +59,7 @@ python main.py example.yaml
 **_TIP: Run Kairos periodically using s scheduler. Use a separate file for each interval you wish to run, e.g. weekly.yaml, daily.yaml and 4hourly.yaml._**
 
 ## Defining TradingView alerts ##
-Use the [example.yaml](tv/_example.yaml) as a base for your own [yaml](https://en.wikipedia.org/wiki/YAML) file.
+Use the [example.yaml](yaml/_example.yaml) as a base for your own [yaml](https://en.wikipedia.org/wiki/YAML) file.
 NOTE: all values are case sensitive and should be exactly the same as when you manually create an alert. 
 
 Steps:
@@ -161,7 +161,7 @@ charts:
 python main.py refresh.yaml
 ```
 * Browse through your watchlist going from symbol to symbol at a regular interval. 
-  1. Rename [_browse.yaml](tv/_browse.yaml) to **browse.yaml** and open it
+  1. Rename [_browse.yaml](yaml/_browse.yaml) to **browse.yaml** and open it
   2. Fill in the blanks
   3. Run:
   ```
