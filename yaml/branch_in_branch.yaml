@@ -1,0 +1,5 @@
+branch:
+  - file: "branch.yaml"
+  - file: "branch.yaml"
+  - branch: ["leaf", "leaf", "leaf", "leaf"]
+  - file: "branch.yaml"
