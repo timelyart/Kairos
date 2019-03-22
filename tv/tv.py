@@ -25,8 +25,9 @@ import yaml
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException
-from selenium.webdriver import DesiredCapabilities, ActionChains
+from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException, TimeoutException
+from selenium.webdriver import DesiredCapabilities
+# from selenium.webdriver import ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
@@ -40,6 +41,7 @@ from kairos import tools
 TEST = False
 
 triggered_signals = []
+invalid = set()
 
 EXECUTOR = 'http://192.168.0.140:4444/wd/hub'
 FILENAME = 'webdriver.instance'
@@ -60,7 +62,7 @@ DELAY_BREAK_DEF = 0.5
 DELAY_SUBMIT_ALERT_DEF = 3.5
 DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
 DELAY_CHANGE_SYMBOL_DEF = 0.2
-DELAY_SCREENSHOT_DIALOG = 2
+DELAY_SCREENSHOT_DIALOG = 3
 DELAY_SCREENSHOT = 1
 DELAY_KEYSTROKE = 0.01
 DELAY_WATCHLIST = 0.5
@@ -69,6 +71,7 @@ DELAY_SCREENER_SEARCH = 2
 RUN_IN_BACKGROUND = False
 MULTI_THREADING = False
 ALERT_NUMBER = 0
+SEARCH_FOR_WARNING = True
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
 OS = 'windows'
@@ -181,7 +184,7 @@ path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
     path_to_chromedriver = path_to_chromedriver.replace('.exe', '')
 else:
-    log.error("File " + path_to_chromedriver + " does not exist")
+    log.error("File {} does not exist".format(path_to_chromedriver))
     log.exception(FileNotFoundError)
     exit(0)
 
@@ -227,7 +230,6 @@ def close_all_popups(browser):
         browser.switch_to.window(h)
         close_alerts(browser)
         browser.close()
-
     browser.switch_to.window(browser.window_handles[0])
 
 
@@ -237,34 +239,33 @@ def close_alerts(browser):
         alert.accept()
     except NoAlertPresentException as e:
         log.debug(e)
+    except Exception as e:
+        log.exception(e)
 
 
-def element_exists_by_xpath(browser, xpath):
-    try:
-        log.debug(xpath + ': \n')
-        browser.implicitly_wait(CHECK_IF_EXISTS_TIMEOUT)
-        elements = browser.find_element_by_xpath(xpath)
-        log.debug('\t' + str(elements))
-        browser.implicitly_wait(WAIT_TIME_IMPLICIT)
-    except NoSuchElementException:
-        log.warning('No such element. XPATH=' + xpath)
-        return False
-    return True
+def refresh(browser):
+    log.info('refreshing browser')
+    browser.refresh()
+    # Switching to Alert
+    close_alerts(browser)
+    # Give some time to load the page
+    time.sleep(5)
+    # Close the watchlist menu if it is open
+    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, 0.5):
+        wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
 
-def element_exists(browser, dom, css_selector, delay):
+def element_exists(dom, css_selector, delay):
     result = False
     try:
-        browser.implicitly_wait(delay)
-        element = dom.find_element_by_css_selector(css_selector)
-        browser.implicitly_wait(WAIT_TIME_IMPLICIT)
+        element = find_element(dom, css_selector, By.CSS_SELECTOR, delay)
         result = type(element) is WebElement
     except NoSuchElementException:
         log.debug('No such element. CSS SELECTOR=' + css_selector)
     except Exception as element_exists_error:
         log.error(element_exists_error)
     finally:
-        log.debug(str(result) + "(" + css_selector + ")")
+        log.debug("{} ({})".format(str(result), css_selector))
         return result
 
 
@@ -293,11 +294,45 @@ def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
     return element
 
 
+def wait_and_visible(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
+    element = WebDriverWait(browser, delay).until(
+        ec.visibility_of_element_located((By.CSS_SELECTOR, css)))
+    return element
+
+
+def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
+    if except_on_timeout:
+        element = WebDriverWait(browser, delay).until(
+            ec.presence_of_element_located((locator_strategy, locator)))
+        return element
+    else:
+        try:
+            element = WebDriverWait(browser, delay).until(
+                ec.presence_of_element_located((locator_strategy, locator)))
+            return element
+        except TimeoutException as e:
+            log.debug(e)
+
+
+def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
+    if except_on_timeout:
+        elements = WebDriverWait(browser, delay).until(
+            ec.presence_of_all_elements_located((locator_strategy, locator)))
+        return elements
+    else:
+        try:
+            elements = WebDriverWait(browser, delay).until(
+                ec.presence_of_all_elements_located((locator_strategy, locator)))
+            return elements
+        except TimeoutException as e:
+            log.debug(e)
+
+
 def set_timeframe(browser, timeframe):
     log.info('Setting timeframe to ' + timeframe)
     wait_and_click(browser, css_selectors['btn_timeframe'])
     css = css_selectors['options_timeframe']
-    el_options = browser.find_elements_by_css_selector(css)
+    el_options = find_elements(browser, css)
     index = 0
     found = False
     while not found and index < len(el_options):
@@ -310,7 +345,7 @@ def set_timeframe(browser, timeframe):
         raise ValueError
 
     if found:
-        html = browser.find_element_by_tag_name('html')
+        html = find_element(browser, 'html', By.TAG_NAME)
         html.send_keys(MODIFIER_KEY + 's')
         time.sleep(DELAY_BREAK)
 
@@ -326,7 +361,7 @@ def get_interval(timeframe):
     match = re.search("(\\d+)\\s(\\w\\w\\w)", timeframe)
     interval = ""
     if match is None:
-        log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\\d+)\\s(\\w\\w\\w). [0]")
+        log.warning("Cannot find match for timeframe '{}' with regex (\\d+)\\s(\\w\\w\\w). [0]".format(timeframe))
     else:
         try:
             interval = match.group(1)
@@ -342,7 +377,7 @@ def get_interval(timeframe):
             elif unit == 'min':
                 interval += ''
         except Exception as interval_exception:
-            log.warning("Cannot find match for timeframe '" + timeframe + "' with regex (\\d+)\\s(\\w\\w\\w). [1]")
+            log.warning("Cannot find match for timeframe '{}' with regex (\\d+)\\s(\\w\\w\\w). [1]".format(timeframe))
             log.exception(interval_exception)
     return interval
 
@@ -417,58 +452,71 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
         if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
             indicator_index = indicator['indicator_index']
 
-        css = '.chart-container'
-        charts = browser.find_elements_by_css_selector(css)
-        if 0 <= chart_index < len(charts):
-            panes = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')
-            if 0 <= pane_index < len(panes):
-                studies = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')
-                if indicator_index < 0:
-                    for i in range(len(studies)):
-                        study_name = str(browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[i].find_element_by_class_name('pane-legend-title__description').text)
-                        log.debug('Found ' + study_name)
-                        if study_name.startswith(indicator['name']):
-                            indicator_index = i
-                            break
-                if 0 <= indicator_index < len(studies):
-                    pane = panes[pane_index]
-                    # move the mouse to the top right side of the pane
-                    size = pane.size
-                    x_offset = size['width'] - 5
-                    y_offset = 5
-                    action = ActionChains(browser)
-                    action.move_to_element_with_offset(pane, x_offset, y_offset)
-                    # action.click()
-                    action.perform()
+        if indicator_index < 0:
+            # use css
+            try:
+                # css = '.chart-container > div.chart-container-border > div > table > tbody > tr:nth-child({}) > td.chart-markup-table.pane > div > div.pane-legend > div.study > span.pane-legend-line__wrap-description > div > div.pane-legend-title__description'
+                css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
+                studies = find_elements(browser, css)
+                for i, study in enumerate(studies):
+                    study_name = studies[i].text
+                    log.debug('Found '.format(study_name))
+                    if study_name.startswith(indicator['name']):
+                        indicator_index = i
+                        break
+            except StaleElementReferenceException:
+                log.debug('StaleElementReferenceException in studies')
+                return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+            except Exception as e:
+                log.exception(e)
+                return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        try:
+            # css = '.chart-container:nth-child({}) .pane:nth-child({}) .study:nth-child({}) .pane-legend-item-value'.format(chart_index, pane_index, indicator_index)
+            # css = 'div.chart-container.active tr:nth-child({}) .pane-legend > div:nth-child({}) span.pane-legend-item-value'.format(pane_index * 2 - 1, indicator_index)
+            # elem_values = find_elements(browser, css)
+            # TODO HIGH PRIORITY use explicit wait instead of implicit wait
+            # browser.implicitly_wait(30)
+            # elem_values2 = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[indicator_index].find_elements_by_class_name('pane-legend-item-value')
+            # for e in elem_values2:
+            #     result2.append(e.text)
+            # browser.implicitly_wait(0)
+            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'study', By.CLASS_NAME)[indicator_index], 'pane-legend-item-value', By.CLASS_NAME)
+            for e in elem_values:
+                result.append(e.text)
+            # if str(result) != str(result2):
+            #     log.error("NEW METHOD DIFFERS FROM OLD")
+            #     log.error("OLD: '{}'".format(str(result)))
+            #     log.error("NEW: '{}'".format(str(result2)))
+        except StaleElementReferenceException:
+            # browser.implicitly_wait(0)
+            log.debug('StaleElementReferenceException in values')
+            return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        except Exception as e:
+            # browser.implicitly_wait(0)
+            log.exception(e)
+            return retry_get_indicator_values(browser, indicator, symbol, retry_number)
 
-                    # get the elements that hold the values
-                    elem_values = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[indicator_index].find_elements_by_class_name('pane-legend-item-value')
-                    for j in range(len(elem_values)):
-                        result.append(elem_values[j].text)
-        log.debug(result)
-    except StaleElementReferenceException:
-        result = retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        values_read = False
+        for value in result:
+            if value != 'n/a':
+                values_read = True
+                break
+        if not values_read:
+            time.sleep(DELAY_CHANGE_SYMBOL)
+            return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        # log.info(result)
     except Exception as e:
         log.exception(e)
-        snapshot(browser)
+        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
     return result
 
 
 def retry_get_indicator_values(browser, indicator, symbol, retry_number=0):
-    if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        browser.refresh()
-        try:
-            close_alerts(browser)
-            time.sleep(2)
-            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-            set_value(browser, input_symbol, symbol)
-        except NoAlertPresentException:
-            return get_indicator_values(browser, indicator, symbol, retry_number + 1)
-        except Exception as e:
-            log.exception(e)
-            snapshot(browser)
-        finally:
-            return get_indicator_values(browser, indicator, symbol, retry_number + 1)
+    max_retries = config.getint('tradingview', 'create_alert_max_retries') * 10
+    if config.has_option('tradingview', 'get_indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'get_indicator_values_max_retries')
+    if retry_number < max_retries:
+        return get_indicator_values(browser, indicator, symbol, retry_number + 1)
 
 
 def is_indicator_triggered(indicator, values):
@@ -491,7 +539,7 @@ def is_indicator_triggered(indicator, values):
                         if index < len(values) and not (values[index] in ignore):
                             lhs = values[index]
                     except IndexError:
-                        log.exception('YAML value trigger -> left-hand-side -> index is out of range. Index is ' + str(index) + ' but must be between 0 and ' + str(len(values)-1))
+                        log.exception('YAML value trigger -> left-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
                 if not lhs and indicator['trigger']['left-hand-side']['value']:
                     lhs = indicator['trigger']['left-hand-side']['value']
             if 'right-hand-side' in indicator['trigger']:
@@ -504,7 +552,7 @@ def is_indicator_triggered(indicator, values):
                         if index < len(values) and not (values[index] in ignore):
                             rhs = values[index]
                     except IndexError:
-                        log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is ' + str(index) + ' but must be between 0 and ' + str(len(values)-1))
+                        log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
                 if not rhs and indicator['trigger']['right-hand-side']['value']:
                     rhs = indicator['trigger']['right-hand-side']['value']
 
@@ -526,7 +574,7 @@ def is_indicator_triggered(indicator, values):
                     lhs = 'undefined'
                 if not rhs:
                     rhs = 'undefined'
-            log.debug('(' + str(lhs) + ' ' + comparison + ' ' + str(rhs) + ') returned ' + str(result))
+            log.debug('({} {} {}) returned {}'.format(str(lhs), comparison, str(rhs), str(result)))
 
         else:
             log.debug('No trigger information found, returning True')
@@ -546,6 +594,8 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
     TODO:   remember original setting of opened chart, and place them back when finished
     """
+    global SEARCH_FOR_WARNING
+    SEARCH_FOR_WARNING = True
     try:
         # load the chart
         close_all_popups(browser)
@@ -568,23 +618,23 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         for handle in browser.window_handles[1:]:
             browser.switch_to.window(handle)
 
-        wait_and_click(browser, css_selectors['btn_calendar'])
+        wait_and_click(browser, css_selectors['btn_calendar'], 30)
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
         time.sleep(DELAY_WATCHLIST)
         # scrape the symbols for each watchlist
         dict_watchlist = dict()
-        for i in range(len(chart['watchlists'])):
-            # open list of watchlists element
+        for i, watchlist in enumerate(chart['watchlists']):
             watchlist = chart['watchlists'][i]
+            # open list of watchlists element
             log.info("Collecting symbols from watchlist " + watchlist)
             wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
             # load watchlist
             watchlist_exists = False
-            el_options = browser.find_elements_by_css_selector(css_selectors['options_watchlist'])
-            for j in range(len(el_options)):
-                if el_options[j].text == watchlist:
-                    el_options[j].click()
+            el_options = find_elements(browser, css_selectors['options_watchlist'])
+            for option in el_options:
+                if option.text == watchlist:
+                    option.click()
                     watchlist_exists = True
                     log.debug('Watchlist \'' + watchlist + '\' found')
                     break
@@ -596,40 +646,34 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 # extract symbols from watchlist
                 symbols = []
                 try:
-                    dict_symbols = browser.find_elements_by_css_selector(css_selectors['div_watchlist_item'])
-                    for j in range(len(dict_symbols)):
-                        symbol = dict_symbols[j]
+                    dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'])
+                    for symbol in dict_symbols:
                         symbols.append(symbol.get_attribute('data-symbol-full'))
                         if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
                             break
-                    symbols = list(sorted(set(symbols)))
-                    log.info(str(len(dict_symbols)) + ' symbols found for \'' + watchlist + '\'')
+                    # symbols = list(sorted(set(symbols)))
+                    log.info("{} symbols found for '{}'".format(str(len(dict_symbols)), watchlist))
                 except Exception as e:
                     log.exception(e)
                     snapshot(browser)
 
                 dict_watchlist[chart['watchlists'][i]] = symbols
 
-        # open alerts tab
-        if 'alerts' in chart:
-            wait_and_click(browser, css_selectors['btn_alerts'])
-        else:
-            # close the watchlist menu to save some loading time
-            wait_and_click(browser, css_selectors['btn_watchlist_menu'])
+        # close the watchlist menu to save some loading time
+        wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
-        time.sleep(5)
+        # time.sleep(5)
         # set the time frame
-        for i in range(len(chart['timeframes'])):
-            timeframe = chart['timeframes'][i]
+        for timeframe in chart['timeframes']:
             set_timeframe(browser, timeframe)
             time.sleep(DELAY_TIMEFRAME)
 
             # iterate over each symbol per watchlist
-            for j in range(len(chart['watchlists'])):
-                log.info("Opening watchlist " + chart['watchlists'][j])
+            for watchlist in chart['watchlists']:
+                log.info("Opening watchlist " + watchlist)
                 try:
                     number_of_windows = 2
-                    symbols = dict_watchlist[chart['watchlists'][j]]
+                    symbols = dict_watchlist[watchlist]
 
                     # log.info(__name__)
                     if MULTI_THREADING:
@@ -640,7 +684,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 
                         if __name__ == 'tv.tv':
                             pool = Pool(number_of_windows)  # use all available cores, otherwise specify the number you want as an argument
-                            for k in range(len(batches)):
+                            for k, batch in enumerate(batches):
                                 batch = batches[k]
                                 if k == 0:
                                     browsers[k] = browser
@@ -654,11 +698,10 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                             pool.join()
                     else:
                         [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
-                        # process_symbol(browser, chart, symbols[k], timeframe)
                     # pickle.dump(browser, 'webdriver.instance')
                     # TODO create batches of symbols and assign
                 except KeyError:
-                    log.error(chart['watchlists'][j] + " doesn't exist")
+                    log.error(watchlist + " doesn't exist")
                     break
     except Exception as exc:
         log.exception(exc)
@@ -669,21 +712,38 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
 def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
     log.info(timeframe)
     # open each symbol within the watchlist
-    for k in range(len(symbols)):
-        [counter_alerts, total_alerts] = process_symbol(browser, chart, symbols[k], timeframe, counter_alerts, total_alerts)
+    for k, symbol in enumerate(symbols):
+        use_space = False
+        if k > 0:
+            use_space = False
+        [counter_alerts, total_alerts] = process_symbol(browser, chart, symbols[k], timeframe, counter_alerts, total_alerts, use_space)
     return [counter_alerts, total_alerts]
 
 
-def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number=0):
+def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, use_space=False, retry_number=0):
     log.info(symbol)
     # change symbol
     try:
-        # might be useful for multi threading set the symbol by going to different url like this:
-        # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-        input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
-        set_value(browser, input_symbol, symbol)
-        input_symbol.send_keys(Keys.ENTER)
-        time.sleep(DELAY_CHANGE_SYMBOL)
+        # Try to browse through the watchlist using space instead of setting the symbol value
+        if use_space:
+            html = find_element(browser, 'html', By.TAG_NAME)
+            html.send_keys(Keys.SPACE)
+            time.sleep(DELAY_CHANGE_SYMBOL)
+        else:
+            # might be useful for multi threading set the symbol by going to different url like this:
+            # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
+            input_symbol = find_element(browser, css_selectors['input_symbol'])
+            set_value(browser, input_symbol, symbol)
+            input_symbol.send_keys(Keys.ENTER)
+            time.sleep(DELAY_CHANGE_SYMBOL)
+
+        try:
+            if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
+                invalid.add(symbol)
+                log.info('Invalid symbol')
+                return [counter_alerts, total_alerts]
+        except TimeoutException:
+            pass
 
     except Exception as err:
         log.debug('Unable to change to symbol')
@@ -692,8 +752,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
 
     try:
         if 'signals' in chart:
-            for l in range(len(chart['signals'])):
-                signal = chart['signals'][l]
+            for signal in chart['signals']:
                 signal_triggered = False
                 triggered = []
                 indicators = signal['indicators']
@@ -721,22 +780,37 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     url += '&interval=' + str(interval)
                 data['url'] = url
 
-                for m in range(len(indicators)):
+                values = None
+                for m, indicator in enumerate(indicators):
                     indicator = indicators[m]
                     values = get_indicator_values(browser, indicator, symbol)
+                    # if we can't find a value, process this symbol again until we hit max retries which at that point we assume that only having 'n/a' values is correct
+                    if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+                        return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
                     signal['indicators'][m]['values'] = values
                     indicator_triggered = is_indicator_triggered(indicator, values)
                     signal['indicators'][m]['triggered'] = indicator_triggered
                     triggered.append(indicator_triggered)
                     if 'data' in indicator:
-                        for n in range(len(indicator['data'])):
-                            for _key in indicator['data'][n]:
-                                index = indicator['data'][n][_key]
-                                if index < len(values) and not (_key in data):
-                                    data[_key] = values[index]
+                        for item in indicator['data']:
+                            for _key in item:
+                                if not (_key in data):
+                                    if isinstance(_key, list):
+                                        indices = item[_key]
+                                        data[_key] = []
+                                        for index in indices:
+                                            if index < len(values):
+                                                data[_key].append(values[index])
+                                    else:
+                                        index = item[_key]
+                                        if index < len(values):
+                                            data[_key] = values[index]
+                    # use tab to put focus on the next layout
+                    html = find_element(browser, 'html', By.TAG_NAME)
+                    html.send_keys(Keys.TAB)
 
-                for m in range(len(triggered)):
-                    if triggered[m]:
+                for trigger in triggered:
+                    if trigger:
                         signal_triggered = True
                     else:
                         signal_triggered = False
@@ -744,13 +818,14 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                 signal['triggered'] = signal_triggered
 
                 if signal_triggered:
+                    log.info(values)
                     screenshots = dict()
                     filenames = dict()
                     screenshots_url = []
-                    el_asset_name = browser.find_element_by_css_selector(css_selectors['asset'])
+                    el_asset_name = find_element(browser, css_selectors['asset'])
                     asset = el_asset_name.text
                     try:
-                        for m in range(len(signal['include_screenshots_of_charts'])):
+                        for m, screenshot_chart in enumerate(signal['include_screenshots_of_charts']):
                             screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
                             [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
                             if screenshot_url != '':
@@ -771,29 +846,34 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     data['filenames'] = filenames
                     data['asset'] = asset
                     if 'labels' in signal:
-                        for n in range(len(signal['labels'])):
-                            for _key in signal['labels'][n]:
+                        for label in signal['labels']:
+                            for _key in label:
                                 if not (_key in data):
-                                    data[_key] = signal['labels'][n][_key]
+                                    data[_key] = label[_key]
                     data['signal'] = signal
-                    log.info('"' + signal['name'] + '" triggered')
+                    log.info('"{}" triggered'.format(signal['name']))
                     triggered_signals.append(data)
                 total_alerts += 1
 
         if 'alerts' in chart:
             interval = get_interval(timeframe)
-            for l in range(len(chart['alerts'])):
+            for alert in chart['alerts']:
                 if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
                     # try clean inactive alerts first
+                    # open alerts tab
+                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                        wait_and_click(browser, css_selectors['btn_alerts'])
                     time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
                     wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
                     wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                     time.sleep(DELAY_BREAK * 4)
                     # update counter
-                    alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
+                    alerts = find_elements(browser, css_selectors['item_alerts'])
                     if type(alerts) is list:
                         counter_alerts = len(alerts)
+                    # close alerts tab
+                    wait_and_click(browser, css_selectors['btn_alerts'])
 
                 if counter_alerts >= config.getint('tradingview', 'max_alerts'):
                     log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
@@ -802,11 +882,11 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     screenshot_url = ''
                     if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
                         screenshot_url = take_screenshot(browser, symbol, interval)[0]
-                    create_alert(browser, chart['alerts'][l], timeframe, interval, symbol, screenshot_url)
+                    create_alert(browser, alert, timeframe, interval, symbol, screenshot_url)
                     counter_alerts += 1
                     total_alerts += 1
                 except Exception as err:
-                    log.error("Could not set alert: " + symbol + " " + chart['alerts'][l]['name'])
+                    log.error("Could not set alert: {} {}".format(symbol, alert['name']))
                     log.exception(err)
                     snapshot(browser)
     except Exception as e:
@@ -817,14 +897,12 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
 
 def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        log.info('trying again (' + str(retry_number + 1) + ')')
-        browser.refresh()
+        log.info('trying again ({})'.format(str(retry_number + 1)))
+        refresh(browser)
         try:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-            close_alerts(browser)
-            time.sleep(2)
-            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+            input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
             time.sleep(DELAY_CHANGE_SYMBOL)
@@ -832,7 +910,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
             log.debug('Unable to change to symbol')
             log.exception(err)
             snapshot(browser)
-        return process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number + 1)
+        return process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, False, retry_number + 1)
     else:
         log.error('Max retries reached.')
         snapshot(browser)
@@ -845,13 +923,13 @@ def snapshot(browser, quit_program=False, name=''):
         MAX_SCREENSHOTS_ON_ERROR -= 1
         filename = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.png'
         if name:
-            filename = str(name) + '_' + filename
+            filename = '{}_{}'.format(str(name), filename)
         if not os.path.exists('log'):
             os.mkdir('log')
         filename = os.path.join('log', filename)
 
         try:
-            element = browser.find_element_by_css_selector('html')
+            element = find_element(browser, 'html')
             location = element.location
             size = element.size
             browser.save_screenshot(filename)
@@ -894,10 +972,10 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
     try:
 
         if config.has_option('tradingview', 'tradingview_screenshot') and config.getboolean('tradingview', 'tradingview_screenshot'):
-            html = browser.find_element_by_css_selector('html')
+            html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "s")
             time.sleep(DELAY_SCREENSHOT_DIALOG)
-            input_screenshot_url = html.find_element_by_css_selector(css_selectors['dlg_screenshot_url'])
+            input_screenshot_url = find_element(html, css_selectors['dlg_screenshot_url'])
             screenshot_url = input_screenshot_url.get_attribute('value')
             html.send_keys(Keys.ESCAPE)
             log.debug(screenshot_url)
@@ -913,9 +991,9 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
                 if not os.path.exists(chart_dir):
                     os.mkdir(chart_dir)
                 chart_dir = os.path.join(chart_dir, )
-            filename = symbol.replace(':', '_') + '_' + interval + '.png'
+            filename = symbol.replace(':', '_') + '_' + str(interval) + '.png'
             filename = os.path.join(chart_dir, filename)
-            elem_chart = browser.find_element_by_class_name('layout__area--center')
+            elem_chart = find_elements(browser, 'layout__area--center', By.CLASS_NAME)
             time.sleep(DELAY_SCREENSHOT)
 
             location = elem_chart.location
@@ -942,30 +1020,28 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
 
     except Exception as take_screenshot_error:
         log.exception(take_screenshot_error)
-        [screenshot_url, filename] = retry_take_screenshot(browser, symbol, interval, retry_number)
+        return retry_take_screenshot(browser, symbol, interval, retry_number)
     if screenshot_url == '' and filename == '':
-        [screenshot_url, filename] = retry_take_screenshot(browser, symbol, interval, retry_number)
+        return retry_take_screenshot(browser, symbol, interval, retry_number)
 
     return [screenshot_url, filename]
 
 
 def retry_take_screenshot(browser, symbol, interval, retry_number=0):
-    if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        log.info('trying again (' + str(retry_number + 1) + ')')
-        browser.refresh()
-        # Switching to Alert
+
+    if retry_number + 1 == config.getint('tradingview', 'create_alert_max_retries'):
+        log.info('trying again ({})'.format(str(retry_number + 1)))
+        refresh(browser)
         try:
-            close_alerts(browser)
-            time.sleep(2)
-            input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+            input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
-        except NoAlertPresentException:
-            return take_screenshot(browser, symbol, interval, retry_number + 1)
+            input_symbol.send_keys(Keys.ENTER)
+            time.sleep(DELAY_CHANGE_SYMBOL)
         except Exception as e:
             log.exception(e)
-            snapshot(browser)
-        finally:
-            return take_screenshot(browser, symbol, interval, retry_number + 1)
+    elif retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+        log.info('trying again ({})'.format(str(retry_number + 1)))
+        return take_screenshot(browser, symbol, interval, retry_number + 1)
     else:
         log.warn('max retries reached')
         snapshot(browser)
@@ -984,15 +1060,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     :return: true, if successful
     """
     global alert_dialog
-
+    global SEARCH_FOR_WARNING
     try:
         if retry_number == 0:
-            html = browser.find_element_by_css_selector('html')
+            html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "a")
         else:
             wait_and_click(browser, css_selectors['btn_create_alert'])
-        time.sleep(DELAY_BREAK)
-        alert_dialog = browser.find_element_by_class_name(class_selectors['form_create_alert'])
+        # time.sleep(DELAY_BREAK)
+        alert_dialog = find_element(browser, class_selectors['form_create_alert'], By.CLASS_NAME)
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
 
         # 1st row, 1st condition
@@ -1004,17 +1080,16 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             log.exception(alert_err)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
-        # time.sleep(DELAY_BREAK_MINI)
-        el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_first_item'])
+        el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_first_item'])
         if not select(alert_config, current_condition, el_options, symbol):
             return False
 
         # 1st row, 2nd condition (if applicable)
         css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
-        if element_exists(browser, alert_dialog, css_1st_row_right, 0.5):
+        if element_exists(alert_dialog, css_1st_row_right, 0.5):
             current_condition += 1
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
-            el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_first_row_second_item'])
+            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
             if not select(alert_config, current_condition, el_options, symbol):
                 return False
 
@@ -1022,7 +1097,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         current_condition += 1
         css_2nd_row = css_selectors['dlg_create_alert_second_row']
         wait_and_click(alert_dialog, css_2nd_row)
-        el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_second_row'])
+        el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_second_row'])
         if not select(alert_config, current_condition, el_options, symbol):
             return False
 
@@ -1033,7 +1108,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             time.sleep(DELAY_BREAK_MINI)
             log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
             # we need to get the inputs again for every iteration as the number may change
-            inputs = alert_dialog.find_elements_by_css_selector(css_selectors['inputs_and_selects_create_alert_3rd_row_and_above'])
+            inputs = find_elements(alert_dialog, css_selectors['inputs_and_selects_create_alert_3rd_row_and_above'])
             while True:
                 if inputs[i].get_attribute('type') == 'hidden':
                     i += 1
@@ -1041,22 +1116,23 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                     break
 
             if inputs[i].tag_name == 'select':
-                elements = alert_dialog.find_elements_by_css_selector(css_selectors['dlg_create_alert_3rd_row_group_item'])
+                elements = find_elements(alert_dialog, css_selectors['dlg_create_alert_3rd_row_group_item'])
                 if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
                     elements[i].click()
                     time.sleep(DELAY_BREAK_MINI)
 
-                    el_options = elements[i].find_elements_by_css_selector(css_selectors['options_dlg_create_alert_3rd_row_group_item'])
+                    el_options = find_elements(elements[i], css_selectors['options_dlg_create_alert_3rd_row_group_item'])
                     condition_yaml = str(alert_config['conditions'][current_condition])
                     found = False
-                    for j in range(len(el_options)):
-                        option_tv = str(el_options[j].get_attribute("innerHTML")).strip()
+                    for j, option in enumerate(el_options):
+                        option = el_options[j]
+                        option_tv = str(option.get_attribute("innerHTML")).strip()
                         if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
                             wait_and_click(alert_dialog, css_selectors['selected_dlg_create_alert_3rd_row_group_item'].format(j + 1))
                             found = True
                             break
                     if not found:
-                        log.error("Invalid condition (" + str(current_condition + 1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+                        log.error("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change?".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
                         return False
             elif inputs[i].tag_name == 'input':
                 set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
@@ -1074,50 +1150,48 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         wait_and_click(alert_dialog, css_selectors['btn_toggle_more_actions'])
 
         # Show popup
-        checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_show_popup'])
+        checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_show_popup'], By.NAME)
         if is_checkbox_checked(checkbox) != alert_config['show_popup']:
             wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_show_popup'])
 
         # Sound
-        checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_play_sound'])
+        checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_play_sound'], By.NAME)
         if is_checkbox_checked(checkbox) != alert_config['sound']['play']:
             wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_play_sound'])
         if is_checkbox_checked(checkbox):
             # set ringtone
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_ringtone'])
-            el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_ringtone'])
-            for i in range(len(el_options)):
-                if str(el_options[i].text).strip() == str(alert_config['sound']['ringtone']).strip():
-                    el_options[i].click()
+            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_ringtone'])
+            for option in el_options:
+                if str(option.text).strip() == str(alert_config['sound']['ringtone']).strip():
+                    option.click()
             # set duration
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_sound_duration'])
-            el_options = alert_dialog.find_elements_by_css_selector(css_selectors['options_dlg_create_alert_sound_duration'])
-            for i in range(len(el_options)):
-                if str(el_options[i].text).strip() == str(alert_config['sound']['duration']).strip():
-                    el_options[i].click()
+            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_sound_duration'])
+            for option in el_options:
+                if str(option.text).strip() == str(alert_config['sound']['duration']).strip():
+                    option.click()
 
         # Communication options
         # Send Email
         try:
-            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_send_email'])
+            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_email'], By.NAME)
             if is_checkbox_checked(checkbox) != alert_config['send']['email']:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email'])
             # Send Email-to-SMS (the checkbox is indeed called 'send-sms'!)
-            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_email_to_sms'])
+            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_email_to_sms'], By.NAME)
             if is_checkbox_checked(checkbox) != alert_config['send']['email-to-sms']:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email_to_sms'])
             # Send SMS (only for premium members)
-            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_send_sms'])
+            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_sms'], By.NAME)
             if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_sms'])
             # Notify on App
-            checkbox = alert_dialog.find_element_by_name(name_selectors['checkbox_dlg_create_alert_send_push'])
+            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_push'], By.NAME)
             if is_checkbox_checked(checkbox) != alert_config['send']['notify-on-app']:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_push'])
 
             # Construct message
-            textarea = alert_dialog.find_element_by_name('description')
-            generated = textarea.text
             chart = browser.current_url + '?symbol=' + symbol
             show_multi_chart_layout = False
             try:
@@ -1126,6 +1200,13 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 log.warn('charts: multichartlayout not set in yaml, defaulting to multichartlayout = no')
             if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
                 chart += '&interval=' + str(interval)
+            textarea = find_element(alert_dialog, 'description', By.NAME)
+            """
+            # This has stopped working. :( The text is visible but not set.           
+            generated = textarea.text
+            """
+            # fall back to an empty generated text
+            generated = ''
             text = str(alert_config['message']['text'])
             text = text.replace('%TIMEFRAME', ' ' + timeframe)
             text = text.replace('%SYMBOL', ' ' + symbol)
@@ -1135,8 +1216,8 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             text = text.replace('%GENERATED', generated)
             try:
                 screenshot_urls = []
-                for i in range(len(alert_config['include_screenshots_of_charts'])):
-                    screenshot_urls.append(alert_config['include_screenshots_of_charts'][i] + '?symbol=' + symbol)
+                for screenshot_chart in alert_config['include_screenshots_of_charts']:
+                    screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
                 text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
             except ValueError as value_error:
                 log.exception(value_error)
@@ -1150,8 +1231,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # Submit the form
-        element = browser.find_element_by_css_selector(css_selectors['btn_dlg_create_alert_submit'])
+        element = find_element(browser, css_selectors['btn_dlg_create_alert_submit'])
         element.click()
+        # ignore warnings if they are there
+        if SEARCH_FOR_WARNING:
+            try:
+                wait_and_click_by_xpath(browser, '//*[@id="overlap-manager-root"]/div[2]/div/span/div[1]/div/div[2]/div[2]/button', 30)
+            except TimeoutException:
+                # we are getting a timeout exception because there likely was no warning
+                SEARCH_FOR_WARNING = False
 
         time.sleep(DELAY_SUBMIT_ALERT)
     except TimeoutError:
@@ -1175,14 +1263,14 @@ def select(alert_config, current_condition, el_options, ticker_id):
         value = ticker_id.split(':')[1]
 
     found = False
-    for i in range(len(el_options)):
-        option_tv = str(el_options[i].get_attribute("innerHTML")).strip()
+    for option in el_options:
+        option_tv = str(option.get_attribute("innerHTML")).strip()
         if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
-            el_options[i].click()
+            option.click()
             found = True
             break
     if not found:
-        log.error("Invalid condition (" + str(current_condition + 1) + "): '" + alert_config['conditions'][current_condition] + "' in yaml definition '" + alert_config['name'] + "'. Did the title/name of the indicator/condition change?")
+        log.error("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change?".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
     return found
 
 
@@ -1197,8 +1285,8 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
     if interval == 0:
         element.send_keys(string)
     else:
-        for i in range(len(string)):
-            element.send_keys(string[i])
+        for char in string:
+            element.send_keys(char)
             time.sleep(interval)
 
 
@@ -1219,20 +1307,17 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
 
 def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-        log.info('trying again (' + str(retry_number + 1) + ')')
-        browser.refresh()
-        # Switching to Alert
-        close_alerts(browser)
-        time.sleep(5)
-        # change symbol
-        input_symbol = browser.find_element_by_css_selector(css_selectors['input_symbol'])
+        log.info('trying again ({})'.format(str(retry_number + 1)))
+        refresh(browser)
         try:
+            # change symbol
+            input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
+            input_symbol.send_keys(Keys.ENTER)
+            time.sleep(DELAY_CHANGE_SYMBOL)
         except Exception as err:
-            log.debug('Can\'t find ' + str(symbol) + ' in list of symbols:')
+            log.debug("Can't find {} in list of symbols" + str(symbol))
             log.exception(err)
-        input_symbol.send_keys(Keys.ENTER)
-        time.sleep(DELAY_CHANGE_SYMBOL)
         return create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number + 1)
     else:
         log.error('Max retries reached.')
@@ -1263,7 +1348,7 @@ def set_expiration(browser, _alert_dialog, alert_config):
         if 'open-ended' not in alert_config['expiration']:
             alert_config['expiration']['open-ended'] = False
 
-    checkbox = _alert_dialog.find_element_by_css_selector(css_selectors['checkbox_dlg_create_alert_open_ended'])
+    checkbox = find_element(_alert_dialog, css_selectors['checkbox_dlg_create_alert_open_ended'])
     if is_checkbox_checked(checkbox) != alert_config['expiration']['open-ended']:
         wait_and_click(_alert_dialog, css_selectors['clickable_dlg_create_alert_open_ended'])
 
@@ -1284,11 +1369,11 @@ def set_expiration(browser, _alert_dialog, alert_config):
 
     # For some reason TV does not register setting the date value directly.
     # Furthermore, we need to make sure that the date and time inputs are cleared beforehand.
-    input_date = _alert_dialog.find_element_by_name('alert_exp_date')
+    input_date = find_element(alert_dialog, 'alert_exp_date', By.NAME)
     time.sleep(DELAY_BREAK_MINI)
     clear(input_date)
     set_value(browser, input_date, date_value, True)
-    input_time = _alert_dialog.find_element_by_name('alert_exp_time')
+    input_time = find_element(_alert_dialog, 'alert_exp_time', By.NAME)
     time.sleep(DELAY_BREAK_MINI)
     clear(input_time)
     set_value(browser, input_time, time_value, True)
@@ -1315,22 +1400,33 @@ def login(browser, uid='', pwd='', retry_login=False):
                 log.debug(e)
 
             # if logged in under a different username or not logged in at all log out and then log in again
-            elem_username = browser.find_element_by_css_selector(css_selectors['username'])
-            if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
-                wait_and_click(browser, css_selectors['username'])
-                wait_and_click(browser, css_selectors['signout'])
-            wait_and_click(browser, css_selectors['signin'])
+            try:
+                elem_username = wait_and_visible(browser, css_selectors['username'], 5)
+                if type(elem_username) is WebElement:
+                    if elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
+                        log.info("Already logged in")
+                        return True
+                    else:
+                        log.info("Logged in under a different username. Logging out.")
+                        wait_and_click(browser, css_selectors['username'])
+                        wait_and_click(browser, css_selectors['signout'])
+            except TimeoutException as e:
+                log.debug(e)
+            except Exception as e:
+                log.exception(e)
+
         except Exception as e:
             log.error(e)
             snapshot(browser, True)
 
     try:
-        input_username = browser.find_element_by_css_selector(css_selectors['input_username'])
+        wait_and_click(browser, css_selectors['signin'])
+        input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
             while uid == '':
                 uid = input("Type your TradingView username and press enter: ")
 
-        input_password = browser.find_element_by_css_selector(css_selectors['input_password'])
+        input_password = find_element(browser, css_selectors['input_password'])
         if input_password.get_attribute('value') == '' or retry_login:
             while pwd == '':
                 pwd = getpass.getpass("Type your TradingView password and press enter: ")
@@ -1358,13 +1454,13 @@ def login(browser, uid='', pwd='', retry_login=False):
         if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
             TV_UID = uid
             TV_PWD = pwd
-            log.info("logged in successfully at tradingview.com as " + elem_username.get_attribute('textContent'))
+            log.info("logged in successfully at tradingview.com as {}".format(elem_username.get_attribute('textContent')))
         else:
             if elem_username.get_attribute('textContent') == '' or elem_username.get_attribute('textContent') == 'Guest':
                 log.warn("not logged in at tradingview.com")
             elif elem_username.get_attribute('textContent') != uid:
                 log.warn("logged in under a different username at tradingview.com")
-            error = browser.find_element_by_css_selector('body > div.tv-dialog__modal-wrap > div > div > div > div.tv-dialog__error.tv-dialog__error--dark')
+            error = find_element(browser, 'body > div.tv-dialog__modal-wrap > div > div > div > div.tv-dialog__error.tv-dialog__error--dark')
             if error:
                 print(error.get_attribute('innerText'))
                 login(browser, '', '', True)
@@ -1392,7 +1488,7 @@ def create_browser(run_in_background):
     options.add_argument('--disable-notifications')
     options.add_argument('--noerrdialogs')
     options.add_argument('--disable-session-crashed-bubble')
-    # options.add_argument('--disable-infobars https://www.tradingview.com')
+    # options.add_argument('--disable-infobars')
     # options.add_argument('--disable-restore-session-state')
     options.add_argument('--window-size=' + RESOLUTION)
     # suppress the INFO:CONSOLE messages
@@ -1403,6 +1499,10 @@ def create_browser(run_in_background):
         # , 'disk-cache-size': 52428800
     }
     options.add_experimental_option('prefs', prefs)
+    exclude_switches = [
+        'enable-automation',
+    ]
+    options.add_experimental_option('excludeSwitches', exclude_switches)
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
     # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
     if OS == 'windows':
@@ -1414,7 +1514,7 @@ def create_browser(run_in_background):
 
     chromedriver_file = r"" + str(config.get('webdriver', 'path'))
     if not os.path.exists(chromedriver_file):
-        log.error("File " + chromedriver_file + " does not exist. Did setup your kairos.cfg correctly?")
+        log.error("File {} does not exist. Did setup your kairos.cfg correctly?".format(chromedriver_file))
         raise FileNotFoundError
     chromedriver_file.replace('.exe', '')
 
@@ -1486,7 +1586,7 @@ def run(file, export_signals_immediately, multi_threading=False):
         else:
             file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), config.get('tradingview', 'settings'))
         if not os.path.exists(file):
-            log.error("File " + str(file) + " does not exist. Did you setup your kairos.cfg and yaml file correctly?")
+            log.error("File {} does not exist. Did you setup your kairos.cfg and yaml file correctly?".format(str(file)))
             raise FileNotFoundError
 
         # get the user defined settings file
@@ -1504,21 +1604,20 @@ def run(file, export_signals_immediately, multi_threading=False):
         if has_screeners or has_charts:
             browser = create_browser(RUN_IN_BACKGROUND)
             login(browser, TV_UID, TV_PWD)
-
             if has_screeners:
                 try:
                     screeners_yaml = tv['screeners']
 
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
-                            log.info('create/update watchlist \'' + screener_yaml['name'] + '\' from screener. \r\n\t\t\t\t\t\t\t\t\t\tplease be patient, this may take several minutes ...')
+                            log.info("create/update watchlist '{}' from screener. Please be patient, this may take several minutes ...".format(screener_yaml['name']))
                             delay_after_update = 5
                             if 'delay_after_update' in screeners_yaml:
                                 delay_after_update = screeners_yaml['delay_after_update']
                             markets = get_screener_markets(browser, screener_yaml)
                             if markets:
                                 if update_watchlist(browser, screener_yaml['name'], markets, delay_after_update):
-                                    log.info('watchlist ' + screener_yaml['name'] + ' updated (' + str(len(markets)) + ' markets)')
+                                    log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(markets))))
                             else:
                                 log.info('no markets to update')
                 except Exception as e:
@@ -1551,25 +1650,27 @@ def run(file, export_signals_immediately, multi_threading=False):
                             wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                             time.sleep(DELAY_BREAK * 2)
                         # count the number of existing alerts
-                        alerts = browser.find_elements_by_css_selector(css_selectors['item_alerts'])
-                        if type(alerts) is not None:
+                        alerts = find_elements(browser, css_selectors['item_alerts'], By.CSS_SELECTOR, False)
+                        if isinstance(alerts, list):
                             counter_alerts = len(alerts)
                 except Exception as e:
                     log.exception(e)
                 # iterate over all items that have an 'alerts' or 'signals' property
                 for file, items in tv.items():
                     if type(items) is list:
-                        for i in range(len(items)):
-                            if 'alerts' in items[i] or 'signals' in items[i]:
-                                [counter_alerts, total_alerts] = open_chart(browser, items[i], counter_alerts, total_alerts)
-
-                from tv import mail
-                mail.post_process_signals(triggered_signals, tv, export_signals_immediately)
-                if export_signals_immediately and 'summary' in tv:
-                    mail.send_mail(tv['summary'], triggered_signals, False)
-                    # we've send the signals, let's make sure they aren't send a 2nd time
-                    triggered_signals.clear()
-
+                        for item in items:
+                            if 'alerts' in item or 'signals' in item:
+                                [counter_alerts, total_alerts] = open_chart(browser, item, counter_alerts, total_alerts)
+                # log.info(triggered_signals)
+                if len(triggered_signals) > 0:
+                    from tv import mail
+                    mail.post_process_signals(triggered_signals, tv, export_signals_immediately)
+                    if export_signals_immediately and 'summary' in tv:
+                        mail.send_mail(tv['summary'], triggered_signals, False)
+                        # we've send the signals, let's make sure they aren't send a 2nd time
+                        triggered_signals.clear()
+                else:
+                    log.info('No signals triggered. Nothing to send')
                 summary(total_alerts)
                 destroy_browser(browser)
     except Exception as exc:
@@ -1590,28 +1691,28 @@ def get_screener_markets(browser, screener_yaml):
     wait_and_click(browser, css_selectors['select_screener'])
     time.sleep(DELAY_BREAK_MINI)
 
-    el_options = browser.find_elements_by_css_selector(css_selectors['options_screeners'])
+    el_options = find_elements(browser, css_selectors['options_screeners'])
     time.sleep(DELAY_BREAK)
     found = False
 
-    for i in range(len(el_options)):
-        if str(el_options[i].text) == screener_yaml['name']:
-            el_options[i].click()
+    for option in el_options:
+        if str(option.text) == screener_yaml['name']:
+            option.click()
             found = True
             break
 
     if not found:
-        log.warn("screener '" + screener_yaml['name'] + "' doesn't exist.")
+        log.warn("screener '{}' doesn't exist.".format(screener_yaml['name']))
         return False
 
     if 'search' in screener_yaml and screener_yaml['search'] != '':
-        search_box = browser.find_element_by_css_selector(css_selectors['input_screener_search'])
+        search_box = find_element(browser, css_selectors['input_screener_search'])
         set_value(browser, search_box, screener_yaml['search'], True)
         time.sleep(DELAY_SCREENER_SEARCH)
 
-    el_total_found = browser.find_element_by_class_name('tv-screener-table__field-value--total')
+    el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
     match = re.search("(\\d+)", el_total_found.text)
-    html = browser.find_element_by_tag_name('html')
+    html = find_element(browser, 'html', By.TAG_NAME)
     chunck_size = 150
 
     scroll_delay = 2
@@ -1620,27 +1721,27 @@ def get_screener_markets(browser, screener_yaml):
 
     if re.Match:
         number_of_scrolls = math.ceil(int(match.group(1)) / chunck_size) - 1
-        for i in range(number_of_scrolls):
+        for scrool in range(number_of_scrolls):
             for j in range(20):
                 html.send_keys(Keys.PAGE_DOWN)
                 time.sleep(DELAY_BREAK_MINI)
             time.sleep(scroll_delay)
 
-    rows = browser.find_elements_by_class_name(class_selectors['rows_screener_result'])
-    for i in range(len(rows)):
+    rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
+    for i, row in enumerate(rows):
         try:
             market = rows[i].get_attribute('data-symbol')
         except StaleElementReferenceException:
             WebDriverWait(browser, 5).until(
                 ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
             # try again
-            rows = browser.find_elements_by_class_name(class_selectors['rows_screener_result'])
+            rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
             market = rows[i].get_attribute('data-symbol')
         markets.append(market)
 
     # markets = list(sorted(set(markets)))
     markets = list(set(markets))
-    log.debug('found ' + str(len(markets)) + ' unique markets')
+    log.debug('found {} unique markets'.format(str(len(markets))))
     return markets
 
 
@@ -1652,31 +1753,30 @@ def update_watchlist(browser, name, markets, delay_after_update):
         wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
         time.sleep(DELAY_BREAK)
 
-        input_symbol = browser.find_element_by_class_name('wl-symbol-edit')
+        input_symbol = find_element(browser, 'wl-symbol-edit', By.CLASS_NAME)
 
         if isinstance(markets, str):
             markets = markets.split(',')
 
         batches = list(tools.chunks(markets, 20))
 
-        el_general_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.special')
+        el_general_options = find_elements(browser, 'div.charts-popup-list > a.item.special')
         time.sleep(DELAY_BREAK)
-        for i in range(len(el_general_options)):
-            if str(el_general_options[i].text).startswith('Create New'):
-                el_general_options[i].click()
+        for option in el_general_options:
+            if str(option.text).startswith('Create New'):
+                option.click()
                 break
         time.sleep(DELAY_BREAK)
 
         css = '#overlap-manager-root > div > div > div.tv-dialog__scroll-wrap.i-with-actions > div > div > div > label > input'
-        input_watchlist_name = browser.find_element_by_css_selector(css)
+        input_watchlist_name = find_element(browser, css)
         set_value(browser, input_watchlist_name, name)
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
 
-        for i in range(len(batches)):
-            csv = ",".join(batches[i])
+        for batch in batches:
+            csv = ",".join(batch)
             set_value(browser, input_symbol, csv)
-            time.sleep(DELAY_BREAK)
             input_symbol.send_keys(Keys.ENTER)
             time.sleep(delay_after_update)
 
@@ -1699,13 +1799,13 @@ def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
     wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
     time.sleep(DELAY_BREAK)
-    el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+    el_options = find_elements(browser, 'div.charts-popup-list > a.item.first:not(.active-item-backlight)')
     time.sleep(DELAY_BREAK)
     j = 0
     while j < len(el_options):
         try:
             if str(el_options[j].text) == name:
-                btn_delete = el_options[j].find_element_by_class_name('icon-delete')
+                btn_delete = find_element(el_options[j], 'icon-delete', By.CLASS_NAME)
                 time.sleep(DELAY_BREAK)
                 browser.execute_script("arguments[0].setAttribute('style','visibility:visible;');", btn_delete)
                 time.sleep(DELAY_BREAK)
@@ -1714,13 +1814,14 @@ def remove_watchlists(browser, name):
                 wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
                 # give TV time to remove the watchlist
                 time.sleep(DELAY_BREAK * 2)
-                log.debug('watchlist ' + name + ' removed')
-                # open the watchlists menu again and update the options to prevent 'element is stale' error
-                wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
-                time.sleep(DELAY_BREAK)
-                el_options = browser.find_elements_by_css_selector('div.charts-popup-list > a.item.first:not(.active-item-backlight)')
-                time.sleep(DELAY_BREAK)
-                j = 0
+                log.debug('watchlist {} removed'.format(name))
+        except StaleElementReferenceException:
+            # open the watchlists menu again and update the options to prevent 'element is stale' error
+            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+            time.sleep(DELAY_BREAK)
+            el_options = find_elements(browser, 'div.charts-popup-list > a.item.first:not(.active-item-backlight)')
+            time.sleep(DELAY_BREAK)
+            j = 0
         except Exception as e:
             log.exception(e)
             snapshot(browser)
@@ -1731,7 +1832,7 @@ def summary(total_alerts):
     if total_alerts > 0:
         elapsed = timing.clock() - timing.start
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
-        log.info(str(total_alerts) + " alerts and/or signals set with an average process time of " + avg + " seconds")
+        log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
     elif total_alerts == 0:
         log.info("No alerts set")
 

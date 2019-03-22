@@ -2,8 +2,7 @@ from pymongo import MongoClient
 from urllib import parse
 
 
-def connect(str_connection):
-    from tools import log
+def connect(str_connection, log):
     try:
         log.debug(parse.quote(str_connection))
         return MongoClient(parse.quote(str_connection), connect=False)
@@ -12,8 +11,7 @@ def connect(str_connection):
         return False
 
 
-def get_collection(client, name):
-    from tools import log
+def get_collection(client, name, log):
     try:
         return client[name]
     except Exception as e:
@@ -21,14 +19,13 @@ def get_collection(client, name):
         return False
 
 
-def post(collection, json, many=True):
+def post(collection, json, log, many=True):
     """
     :param collection:
     :param json:
     :param many:
     :return:  array of inserted ids
     """
-    from tools import log
     result = []
     try:
         posts = collection.posts
@@ -41,12 +38,11 @@ def post(collection, json, many=True):
     return result
 
 
-def test(str_connection, collection):
-    from tools import log
+def test(str_connection, collection, log):
     result = False
 
     try:
-        client = connect(str_connection)
+        client = connect(str_connection, log)
         db = client.get_database(collection)
         log.info(db)
         result = True

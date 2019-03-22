@@ -26,7 +26,7 @@ def get_config(current_dir, log):
             debug.clear_log()
         log.setLevel(config.getint('logging', 'level'))
     else:
-        log.error("File " + config_file + " does not exist")
+        log.error("File {} does not exist".format(config_file))
         log.exception(FileNotFoundError)
         exit(0)
     return config
@@ -75,11 +75,11 @@ def to_csv(log, data, delimeter=','):
             else:
                 result = delimeter + to_csv(log, data[_key], delimeter)
     elif isinstance(data, list):
-        for i in range(len(data)):
+        for item in data:
             if result == '':
-                result = to_csv(log, data[i])
+                result = to_csv(log, item)
             else:
-                result = delimeter + to_csv(log, data[i], delimeter)
+                result = delimeter + to_csv(log, item, delimeter)
     else:
         result = data
     return result

@@ -54,19 +54,18 @@ def write_console_log(browser, clear_on_startup=True):
     offset = tools.get_time_offset()
     for log_name in logs:
         if logs[log_name]:
-            file = os.path.join(r"" + log_path, log_name + ".log")
+            file = os.path.join(r"" + log_path, str(log_name) + ".log")
             if clear_on_startup:
                 with open(file, 'w'):
                     pass
             f = open(file, 'a')
             lines = logs[log_name]
-            for i in range(len(lines)):
-                log_line = lines[i]
-                level = log_line['level']
-                message = log_line['message']
-                timestamp = datetime(1970, 1, 1, ) + timedelta(microseconds=log_line['timestamp']*1000) + offset
+            for line in lines:
+                level = line['level']
+                message = line['message']
+                timestamp = datetime(1970, 1, 1, ) + timedelta(microseconds=line['timestamp']*1000) + offset
                 s_timestamp = timestamp.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
                 # apparently, the webdriver adds a carriage return ('\r') after each entry but no line feed ('\n')
-                output = s_timestamp + ' ' + level + '\t' + message + '\n'
+                output = "{} {} \t {} \n".format(s_timestamp, level, message)
                 f.write(output)
             f.close()
