@@ -1,6 +1,7 @@
 import datetime
 import email
 import imaplib
+import json
 import os
 import re
 import smtplib
@@ -21,19 +22,20 @@ from bs4 import BeautifulSoup
 
 from kairos import tools
 from tv import tv
-
+import http.client as http_client
 # -------------------------------------------------
 #
 # Utility to read email from Gmail Using Python
 #
 # ------------------------------------------------
 
+TEST = False
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
-log = tools.log
+log = tools.create_log()
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR)
+config = tools.get_config(CURRENT_DIR, log)
 log.setLevel(config.getint('logging', 'level'))
 
 uid = str(config.get('mail', 'uid'))
@@ -62,17 +64,13 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
     return tv.take_screenshot(browser, symbol, interval, retry_number)
 
 
-def import_watchlist(filepath, filename):
-    return tv.import_watchlist(filepath, filename)
-
-
 def process_data(data, browser):
     for response_part in data:
         if isinstance(response_part, tuple):
             msg = email.message_from_string(response_part[1].decode('utf-8'), policy=policy.default)
             email_subject = str(msg['subject'])
             if email_subject.find('TradingView Alert') >= 0:
-                log.info('Processing: ' + msg['date'] + ' - ' + email_subject)
+                log.info('Processing: {} - {}'.format(msg['date'], email_subject))
                 # get email body
                 if msg.is_multipart():
                     for part in msg.walk():
@@ -178,11 +176,11 @@ def process_body(msg, browser):
         filenames = dict()
         # Open the chart and make a screenshot
         if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':
-            for i in range(len(screenshot_charts)):
+            for i, screenshot_chart in enumerate(screenshot_charts):
                 screenshot_chart = unquote(screenshot_charts[i])
                 # screenshot_chart = screenshot_charts[i]
                 # log.info(screenshot_chart)
-                browser.execute_script("window.open('" + screenshot_chart + "');")
+                browser.execute_script("window.open('{}');".format(screenshot_chart))
                 for handle in browser.window_handles[1:]:
                     browser.switch_to.window(handle)
                 # page is loaded when we are done waiting for an clickable element
@@ -194,7 +192,6 @@ def process_body(msg, browser):
                 if filename != '':
                     filenames[screenshot_chart] = filename
                 tv.close_all_popups(browser)
-
         charts[url] = [symbol, alert, date, screenshots, filenames]
     except Exception as e:
         log.exception(e)
@@ -229,7 +226,7 @@ def read_mail(browser):
             mail_ids = data[0]
             id_list = mail_ids.split()
             if len(id_list) == 0:
-                log.info('No mail to process')
+                log.info('no TradingView alerts found in mailbox ' + mailbox)
             else:
                 for mail_id in id_list:
                     result, data = mail.fetch(mail_id, '(RFC822)')
@@ -278,8 +275,20 @@ def save_watchlist_to_file(csv, filename=''):
     return [filepath, filename]
 
 
-def send_mail(summary_config):
+def update_watchlist(browser, filename, markets, delay_after_update):
+    cleanup_browser = False
+    if not browser:
+        browser = tv.create_browser(tv.RUN_IN_BACKGROUND)
+        login(browser)
+        cleanup_browser = True
 
+    result = tv.update_watchlist(browser, filename, markets, delay_after_update)
+    if cleanup_browser:
+        tv.destroy_browser(browser)
+    return result
+
+
+def send_mail(summary_config):
     try:
         text = ''
         list_html = ''
@@ -338,26 +347,34 @@ def send_mail(summary_config):
                 csv += ',' + symbol
             count += 1
 
-        # send signals to webhooks
+        # send alerts to webhooks
         if summary_config and 'webhooks' in summary_config:
             webhooks_config = summary_config['webhooks']
             if type(webhooks_config) is list:
-                for i in range(len(webhooks_config)):
-                    webhooks = webhooks_config[i]['url']
-                    search_criteria = []
-                    batch_size = 0
+                for config_item in webhooks_config:
+                    webhooks = config_item['url']
                     enabled = True
-
-                    if 'search_criteria' in webhooks_config[i]:
-                        search_criteria = webhooks_config[i]['search_criteria']
-                    if 'batch_size' in webhooks_config[i]:
-                        batch_size = webhooks_config[i]['batch_size']
-                    if 'enabled' in webhooks_config[i]:
-                        enabled = webhooks_config[i]['enabled']
-                    if 'headers' in webhooks_config[i]:
-                        headers = webhooks_config[i]['headers']
+                    if 'enabled' in config_item:
+                        enabled = config_item['enabled']
                     if enabled:
-                        send_to_webhooks(charts, webhooks, search_criteria, batch_size, headers)
+                        search_criteria = []
+                        batch_size = 0
+                        headers = None
+                        headers_by_request = None
+                        if 'search_criteria' in config_item:
+                            search_criteria = config_item['search_criteria']
+                        if 'batch_size' in config_item:
+                            batch_size = config_item['batch_size']
+                        if 'batch' in config_item:
+                            batch_size = config_item['batch']
+                        if 'headers' in config_item:
+                            headers = config_item['headers']
+                        if 'set_headers_by_request' in config_item:
+                            if not headers:
+                                headers = {}
+                            headers_by_request = config_item['set_headers_by_request']
+                            headers = set_headers_by_request(headers, headers_by_request)
+                        send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size, headers, headers_by_request)
         elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
             webhooks = config.getlist('webhooks', 'webhook')
             search_criteria = []
@@ -366,34 +383,34 @@ def send_mail(summary_config):
             batch_size = 0
             if config.has_option('webhooks', 'batch_size'):
                 batch_size = config.getint('webhooks', 'batch_size')
-            send_to_webhooks(charts, webhooks, search_criteria, batch_size)
+            send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
 
-        # send signals to Google Spreadsheet
+        # send alerts to Google Spreadsheet
         if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
             google_api_creds = config.get('api', 'google')
             google_sheets_config = summary_config['google_sheets']
             if type(google_sheets_config) is list:
-                for i in range(len(google_sheets_config)):
-                    name = google_sheets_config[i]['name']
+                for config_item in google_sheets_config:
+                    name = config_item['name']
                     sheet = ''
                     search_criteria = []
                     enabled = True
                     index = 1
-                    if 'sheet' in google_sheets_config[i]:
-                        sheet = google_sheets_config[i]['sheet']
-                    if 'index' in google_sheets_config[i]:
-                        index = google_sheets_config[i]['index']
-                    if 'search_criteria' in google_sheets_config[i]:
-                        search_criteria = google_sheets_config[i]['search_criteria']
-                    if 'enabled' in google_sheets_config[i]:
-                        enabled = google_sheets_config[i]['enabled']
+                    if 'sheet' in config_item:
+                        sheet = config_item['sheet']
+                    if 'index' in config_item:
+                        index = config_item['index']
+                    if 'search_criteria' in config_item:
+                        search_criteria = config_item['search_criteria']
+                    if 'enabled' in config_item:
+                        enabled = config_item['enabled']
                     if enabled:
-                        export_to_google_sheet(google_api_creds, charts, name, sheet, index, search_criteria)
+                        send_alert_to_google_sheet(google_api_creds, charts, name, sheet, index, search_criteria)
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
         else:
-            html += '<h2>TradingView Alert Summary</h2><h3>Number of signals: ' + str(count) + '</h3>' + list_html
+            html += '<h2>TradingView Alert Summary</h2><h3>Number of alerts: ' + str(count) + '</h3>' + list_html
 
         if email_config and 'text' in email_config and email_config['text'] != '':
             text = email_config['text'].replace('%SUMMARY', '' + text)
@@ -403,6 +420,7 @@ def send_mail(summary_config):
         if html[:6].lower() != '<html>':
             html = '<html><body>' + html + '</body></html>'
 
+        delay_after_update = 5
         # create watchlist
         if summary_config and 'watchlist' in summary_config:
             watchlist_config = summary_config['watchlist']
@@ -410,18 +428,21 @@ def send_mail(summary_config):
             [filepath, filename] = save_watchlist_to_file(csv, filename)
             filepath = os.path.join(os.getcwd(), filepath)
             log.info('watchlist ' + filepath + ' created')
+            if 'delay_after_update' in watchlist_config:
+                delay_after_update = watchlist_config['delay_after_update']
             if watchlist_config['import']:
-                import_watchlist(filepath, filename)
+                watchlist_name = filename.replace('.txt', '')
+                if update_watchlist(None, watchlist_name, csv, delay_after_update):
+                    log.info("watchlist imported into TradingView as '" + watchlist_name + "'")
             if watchlist_config['attach-to-email']:
                 watchlist_att = MIMEBase('application', "octet-stream")
                 watchlist_att.set_payload(open(filepath, "rb").read())
                 encoders.encode_base64(watchlist_att)
                 watchlist_att.add_header('Content-Disposition', 'attachment; filename="' + filename + '"')
         else:
-            [filepath, filename] = save_watchlist_to_file(csv)
-            filepath = os.path.join(os.getcwd(), filepath)
+            result = save_watchlist_to_file(csv)
+            filepath = os.path.join(os.getcwd(), result[0])
             log.info('watchlist ' + filepath + ' created')
-            import_watchlist(filepath, filename)
 
         recipients = to + cc + bcc
 
@@ -431,8 +452,7 @@ def send_mail(summary_config):
                 server.login(uid, pwd)
 
                 if 'one-mail-per-recipient' in email_config and email_config['one-mail-per-recipient']:
-                    for i in range(len(recipients)):
-                        recipient = recipients[i]
+                    for recipient in recipients:
                         headers['To'] = str(recipient)
                         msg = MIMEMultipart('alternative')
                         for mime_image in mime_images:
@@ -501,7 +521,7 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None):
+def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None):
     result = False
     try:
         batches = []
@@ -525,61 +545,93 @@ def send_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=N
             if len(search_criteria) == 0:
                 batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
             else:
-                for i in range(len(search_criteria)):
-                    if str(alert).find(str(search_criteria[i])) >= 0:
+                for search_criterium in search_criteria:
+                    if str(alert).find(str(search_criterium)) >= 0:
                         batch.append({'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshots': screenshots})
                         break
 
-        # append the final batch (whatever it's size)
-        batches.append(batch)
-
-        for i in range(len(batches)):
-
-            for j in range(len(webhooks)):
-                if webhooks[j]:
-                    json_data = {'signals': batches[i]}
-                    log.debug(repr(json_data))
-                    # result = [200, 'OK']
-                    # r = requests.post(str(webhooks[j]), json=json_string)
-                    r = requests.post(str(webhooks[j]), json=json_data, headers=headers)
-
-                    # unfortunately, we cannot always send a raw image (e.g. zapier)
-                    # elif filename:
-                    #     screenshot_bytestream = ''
-                    #     try:
-                    #         fp = open(filename, 'rb')
-                    #         screenshot_bytestream = MIMEImage(fp.read())
-                    #         fp.close()
-                    #     except Exception as send_webhook_error:
-                    #         log.exception(send_webhook_error)
-                    #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
-
-                    result = [r.status_code, r.reason]
-                    if result[0] != 200:
-                        log.warn(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
-                    else:
-                        log.info(str(webhooks[j]) + ' ' + str(i+1) + '/' + str(len(batches)) + ' ' + str(result[0]) + ' ' + str(result[1]))
+        # append the final batch
+        if len(batch) > 0:
+            batches.append(batch)
+        # send batches to webhooks
+        if len(batches) > 0:
+            send_webhooks(webhooks, batches, headers, headers_by_request)
     except Exception as e:
         log.exception(e)
     return result
 
 
-def export_to_google_sheet(google_api_file, data, name, sheet='', index=1, search_criteria=''):
+def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
+    # http_client.HTTPConnection.debuglevel = 1
+    try:
+        i = 0
+        count_batches = 0
+        total_batches = str(len(batches))
+        while len(batches) > 0:
+            count_batches += 1
+            for webhook in webhooks:
+                if webhook:
+                    json_data = {'signals': batches[i]}
+                    data = json.dumps(json_data)
+                    if TEST:
+                        print(data)
+                        print(headers)
+                        result = [200, 'OK', '{"TEST (no actual request send)"}', 'TEST (no actual request send)']
+                    else:
+                        r = requests.post(str(webhook), data=data, headers=headers)
+                        # unfortunately, we cannot always send a raw image (e.g. zapier)
+                        # elif filename:
+                        #     screenshot_bytestream = ''
+                        #     try:
+                        #         fp = open(filename, 'rb')
+                        #         screenshot_bytestream = MIMEImage(fp.read())
+                        #         fp.close()
+                        #     except Exception as send_webhook_error:
+                        #         log.exception(send_webhook_error)
+                        #     r = requests.post(webhook_url, json={'date': date, 'symbol': symbol, 'alert': alert, 'chart_url': url, 'screenshot_url': screenshot, 'screenshot_bytestream': screenshot_bytestream})
+                        result_json = ""
+                        try:
+                            result_json = repr(r.json())
+                        except Exception as e:
+                            log.debug(e)
+                        result = [r.status_code, r.reason, result_json, r.text]
+                    if 200 <= result[0] <= 226:
+                        log.info('{} {}/{} {} {} {}'.format(str(webhook),  str(count_batches), str(total_batches), str(result[0]), str(result[1]), str(result[2])))
+                    elif (result[0] == 401 or result[0] == 403) and headers_by_request:
+                        log.info('{} {}/{} {} {} {}'.format(str(webhook), str(count_batches), str(total_batches), str(result[0]), str(result[1]), str(result[3])))
+                        log.info("authorization failed, updating headers")
+                        headers = set_headers_by_request(headers, headers_by_request)
+                        return send_webhooks(webhooks, batches, headers)
+                    else:
+                        log.info('{} {}/{} {} {} {} {}'.format(str(webhook), str(count_batches), str(total_batches), str(result[0]), str(result[1]), str(result[2]), str(result[3])))
+
+            batches.remove(batches[i])
+    except Exception as e:
+        log.exception(e)
+    finally:
+        http_client.HTTPConnection.debuglevel = 0
+
+
+def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, search_criteria=''):
     try:
         result = ''
         scope = ['https://spreadsheets.google.com/feeds',
                  'https://www.googleapis.com/auth/drive']
-        credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_file, scope)
+        credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
         client = gspread.authorize(credentials)
         sheet = client.open(name).worksheet(sheet)
 
-        for url in data:
+        limit = 100
+        if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
+            limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
 
+        inserted = 0
+        for url in data:
+            log.info(data[url])
             symbol = data[url][0]
             alert = data[url][1]
             date = data[url][2]
             screenshots = data[url][3]
-
             [exchange, market] = symbol.split(':')
 
             screenshot = ''
@@ -588,21 +640,82 @@ def export_to_google_sheet(google_api_file, data, name, sheet='', index=1, searc
                     screenshot = screenshots[chart]
 
             row = [date, alert, url, screenshot, exchange, market]
-            if len(search_criteria) == 0:
-                result = sheet.insert_row(row, index, 'RAW')
+            if TEST:
+                log.info(row)
             else:
-                for i in range(len(search_criteria)):
-                    if str(alert).find(str(search_criteria[i])) >= 0:
-                        result = sheet.insert_row(row, index)
-                        break
-            if result:
-                log.debug(str(result))
+                if len(search_criteria) == 0:
+                    result = sheet.insert_row(row, index, 'RAW')
+                else:
+                    for search_criterium in range(len(search_criteria)):
+                        if str(alert).find(str(search_criterium)) >= 0:
+                            result = sheet.insert_row(row, index)
+                            break
+                if result:
+                    log.debug(str(result))
+                inserted += 1
+                if inserted == 100:
+                    log.info('API limit reached. Waiting {} seconds before continuing...' + str(limit))
+                    time.sleep(limit)
+                    inserted = 0
     except Exception as e:
         log.exception(e)
 
 
+def set_headers_by_request(headers, configs):
+
+    yaml_ok = True
+
+    for a_config in configs:
+        mandatory = ['request']
+        for header in mandatory:
+            if not (header in a_config):
+                log.warn("'" + str(header) + "' not declared in YAML")
+                yaml_ok = False
+
+        request_config = a_config['request']
+        mandatory = ['url', 'type', 'headers', 'body', 'response_values']
+        for header in mandatory:
+            if not (header in request_config):
+                log.warn("'" + str(header) + "' not declared in YAML")
+                yaml_ok = False
+
+        if not yaml_ok:
+            log.info(str(a_config))
+            log.warn("Incomplete YAML")
+            return headers
+
+        request_url = request_config['url']
+        request_type = request_config['type']
+        request_headers = request_config['headers']
+        request_body = request_config['body']
+        response_values = request_config['response_values']
+
+        try:
+            status = [501, 'Not Implemented: ' + str(request_type)]
+            result = ""
+            if request_type == 'POST':
+                r = requests.post(request_url, data=json.dumps(request_body), headers=request_headers)
+                status = [r.status_code, r.reason]
+                for header in response_values:
+                    if r.json:
+                        result = r.json()
+                        result = result[response_values[header]]
+                    elif r.text:
+                        result = r.text
+                    headers[header] = result
+            if 200 <= status[0] <= 226:
+                log.info('{} {} {}'.format(str(request_url), str(status[0]), str(status[1])))
+            else:
+                log.warn('{} {} {}'.format(str(request_url), str(status[0]), str(status[1])))
+        except Exception as e:
+            log.exception(e)
+    return headers
+
+
 def run(delay, file):
-    log.info("Generating summary mail with a delay of " + str(delay) + " minutes.")
+    if TEST:
+        log.info("RUNNING IN TEST MODE")
+    log.info("Generating summary mail with a delay of {} minutes.".format(str(delay)))
     time.sleep(delay*60)
 
     run_in_background = config.getboolean('webdriver', 'run_in_background')
@@ -611,7 +724,7 @@ def run(delay, file):
     if file:
         file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), file)
         if not os.path.exists(file):
-            log.error("File " + str(file) + " does not exist. Did you setup your kairos.cfg and yaml file correctly?")
+            log.error("File {} does not exist. Did you setup your kairos.cfg and yaml file correctly?".format(str(file)))
             raise FileNotFoundError
 
         with open(file, 'r') as stream:
