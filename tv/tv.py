@@ -173,7 +173,7 @@ name_selectors = dict(
 
 log = tools.create_log()
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR, log)
+config = tools.get_config(CURRENT_DIR)
 log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
@@ -1267,8 +1267,10 @@ def destroy_browser(browser):
 
 
 def write_console_log(browser):
-    clear_on_start_up = config.getboolean('logging', 'clear_on_start_up')
-    tools.write_console_log(browser, clear_on_start_up)
+    write_mode = 'a'
+    if config.getboolean('logging', 'clear_on_start_up'):
+        write_mode = 'w'
+    tools.write_console_log(browser, write_mode)
 
 
 def run(file):

@@ -8,25 +8,25 @@ from collections import OrderedDict
 from configparser import RawConfigParser
 
 
-def create_log():
-    return debug.create_log()
+# noinspection PyShadowingNames
+def create_log(mode='a'):
+    return debug.create_log(mode)
 
 
-def write_console_log(browser, clear_on_startup=True):
-    return debug.write_console_log(browser, clear_on_startup)
+def write_console_log(browser, mode='a'):
+    return debug.write_console_log(browser, mode)
 
 
-def get_config(current_dir, log):
+def get_config(current_dir):
     config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=ConfigParserMultiValues, converters={"list": ConfigParserMultiValues.getlist})
     config_file = os.path.join(current_dir, "kairos.cfg")
     if os.path.exists(config_file):
-        config.read(config_file)
-        if config.getboolean('logging', 'clear_on_start_up'):
-            debug.clear_log()
-        log.setLevel(config.getint('logging', 'level'))
+        try:
+            config.read(config_file)
+        except Exception as e:
+            print(e)
     else:
-        log.error("File {} does not exist".format(config_file))
-        log.exception(FileNotFoundError)
+        print("Configuration file '{}' not found".format(config_file))
         exit(0)
     return config
 
