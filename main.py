@@ -70,8 +70,8 @@ def main():
             debug.file_name = 'summary.log'
             if len(yaml) > 0:
                 debug.file_name = os.path.basename(yaml) + '.log'
-            from tv import mail
-            mail.run(delay_summary, yaml, triggered_signals)
+                from tv import mail
+                mail.run(delay_summary, yaml, triggered_signals)
     except Exception as e:
         print(e)
     finally:
@@ -87,14 +87,14 @@ def test_mongodb():
     log = debug.create_log()
     log.setLevel(20)
     from kairos import tools
-    config = tools.get_config(CURRENT_DIR, log)
+    config = tools.get_config(CURRENT_DIR)
     log.setLevel(config.getint('logging', 'level'))
 
     connection_string = config.get('mongodb', 'connection_string')
     collection = config.get('mongodb', 'collection')
 
     from kairos import mongodb
-    mongodb.test(connection_string, collection)
+    mongodb.test(connection_string, collection, log)
     exit(0)
 
 

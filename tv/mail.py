@@ -135,8 +135,8 @@ def process_body(msg, browser):
         j = 0
         alert = ''
         for chunk in chunks:
-            chunk = str(chunk).replace('\u200c', '')
-            chunk = str(chunk).replace('&zwn', '')
+            chunk = unquote(chunk)
+
             if j == 0:
                 if chunk:
                     alert = str(chunk).split(':')[1].strip()
@@ -147,6 +147,9 @@ def process_body(msg, browser):
                 url = str(chunk)
             elif str(chunk).startswith('https://www.tradingview.com/x/'):
                 screenshot_url = str(chunk)
+            elif str(chunk).find('screenshots_to_include'):
+                index = str(chunk).find('screenshots_to_include')
+                alert += ', ' + str(chunk)[:index].strip()
             else:
                 alert += ', ' + str(chunk)
         alert = alert.replace(',,', ',')
@@ -180,11 +183,11 @@ def process_body(msg, browser):
         if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'summary':
             for i, screenshot_chart in enumerate(screenshot_charts):
                 screenshot_chart = unquote(screenshot_charts[i])
-                # screenshot_chart = screenshot_charts[i]
-                # log.info(screenshot_chart)
+
                 browser.execute_script("window.open('{}');".format(screenshot_chart))
                 for handle in browser.window_handles[1:]:
                     browser.switch_to.window(handle)
+
                 # page is loaded when we are done waiting for an clickable element
                 tv.wait_and_click(browser, tv.css_selectors['btn_calendar'])
                 tv.wait_and_click(browser, tv.css_selectors['btn_watchlist_menu'])
@@ -279,19 +282,10 @@ def save_watchlist_to_file(csv, filename=''):
 
 
 def update_watchlist(browser, filename, markets, delay_after_update):
-    cleanup_browser = False
-    if not browser:
-        browser = tv.create_browser(tv.RUN_IN_BACKGROUND)
-        login(browser)
-        cleanup_browser = True
-
-    result = tv.update_watchlist(browser, filename, markets, delay_after_update)
-    if cleanup_browser:
-        tv.destroy_browser(browser)
-    return result
+    return tv.update_watchlist(browser, filename, markets, delay_after_update)
 
 
-def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=True):
+def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send_signals=True):
     try:
         text = ''
         list_html = ''
@@ -341,10 +335,14 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
         # merge charts and signals (in case of duplicates, the charts is overwritten with signals)
         merged = dict()
         if send_alerts and send_signals:
+            export(summary_config, triggered_signals)
+            export_alerts(summary_config, charts)
             merged = {**charts, **signals}
         elif send_alerts:
+            export_alerts(summary_config, charts)
             merged = {**charts}
         elif send_signals:
+            export(summary_config, triggered_signals)
             merged = {**signals}
         for url in merged:
             symbol = merged[url][0]
@@ -367,66 +365,6 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
             else:
                 csv += ',' + symbol
             count += 1
-
-        # send alerts to webhooks
-        if summary_config and 'webhooks' in summary_config and len(charts) > 0:
-            webhooks_config = summary_config['webhooks']
-            if type(webhooks_config) is list:
-                for config_item in webhooks_config:
-                    webhooks = config_item['url']
-                    enabled = True
-                    if 'enabled' in config_item:
-                        enabled = config_item['enabled']
-                    if enabled:
-                        search_criteria = []
-                        batch_size = 0
-                        headers = None
-                        headers_by_request = None
-                        if 'search_criteria' in config_item:
-                            search_criteria = config_item['search_criteria']
-                        if 'batch_size' in config_item:
-                            batch_size = config_item['batch_size']
-                        if 'batch' in config_item:
-                            batch_size = config_item['batch']
-                        if 'headers' in config_item:
-                            headers = config_item['headers']
-                        if 'set_headers_by_request' in config_item:
-                            if not headers:
-                                headers = {}
-                            headers_by_request = config_item['set_headers_by_request']
-                            headers = set_headers_by_request(headers, headers_by_request)
-                        send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size, headers, headers_by_request)
-        # elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-        #     webhooks = config.getlist('webhooks', 'webhook')
-        #     search_criteria = []
-        #     if config.has_option('webhooks', 'search_criteria'):
-        #         search_criteria = config.getlist('webhooks', 'search_criteria')
-        #     batch_size = 0
-        #     if config.has_option('webhooks', 'batch_size'):
-        #         batch_size = config.getint('webhooks', 'batch_size')
-        #     send_alert_to_webhooks(charts, webhooks, search_criteria, batch_size)
-
-        # send alerts to Google Spreadsheet
-        if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
-            google_api_creds = config.get('api', 'google')
-            google_sheets_config = summary_config['google_sheets']
-            if type(google_sheets_config) is list:
-                for config_item in google_sheets_config:
-                    name = config_item['name']
-                    sheet = ''
-                    search_criteria = []
-                    enabled = True
-                    index = 1
-                    if 'sheet' in config_item:
-                        sheet = config_item['sheet']
-                    if 'index' in config_item:
-                        index = config_item['index']
-                    if 'search_criteria' in config_item:
-                        search_criteria = config_item['search_criteria']
-                    if 'enabled' in config_item:
-                        enabled = config_item['enabled']
-                    if enabled:
-                        send_alert_to_google_sheet(google_api_creds, charts, name, sheet, index, search_criteria)
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
             html += '</tbody></tfooter><tr><td>Number of alerts:' + str(count) + '</td></tr></tfooter></table>'
@@ -453,7 +391,7 @@ def send_mail(summary_config, triggered_signals, send_alerts=True, send_signals=
                 delay_after_update = watchlist_config['delay_after_update']
             if watchlist_config['import']:
                 watchlist_name = filename.replace('.txt', '')
-                if update_watchlist(None, watchlist_name, csv, delay_after_update):
+                if update_watchlist(browser, watchlist_name, csv, delay_after_update):
                     log.info("watchlist imported into TradingView as '" + watchlist_name + "'")
             if watchlist_config['attach-to-email']:
                 watchlist_att = MIMEBase('application', "octet-stream")
@@ -542,7 +480,7 @@ def generate_table_row(date, symbol, alert, screenshots, url):
     return result
 
 
-def post_process_signals(triggered_signals, config_yaml, export_signals):
+def post_process_signals(triggered_signals):
     export_data = []
 
     for data in triggered_signals:
@@ -568,7 +506,6 @@ def post_process_signals(triggered_signals, config_yaml, export_signals):
             search_text = signal['search_text']
 
         for _key, value in sorted(data.items(), reverse=True):
-            # log.info(_key + ': ' + str(value))
             if _key == 'signal':
                 continue
 
@@ -579,7 +516,6 @@ def post_process_signals(triggered_signals, config_yaml, export_signals):
                 json_string = json_string.replace('"%' + _key.upper() + '"', str(value))
 
             if str(_key).upper() == 'SCREENSHOTS':
-                # log.info('SCREENSHOTS')
                 value_csv = ''
                 value_text = ''
                 for chart in screenshots:
@@ -606,8 +542,7 @@ def post_process_signals(triggered_signals, config_yaml, export_signals):
 
         json_yaml = yaml.safe_load(json_string)
         json_data = json.dumps(json_yaml)
-        # log.info(json_data)
-        # exit(0)
+
         data['text'] = text
         data['csv'] = csv
         data['json'] = json_data
@@ -615,8 +550,6 @@ def post_process_signals(triggered_signals, config_yaml, export_signals):
         data.pop('signal')
         export_data.append(data)
 
-    if 'summary' in config_yaml and export_signals:
-        export(config_yaml['summary'], export_data)
     return export_data
 
 
@@ -624,20 +557,21 @@ def export(summary_config, data):
     if TEST:
         log.info("RUNNING IN TEST MODE")
         log.info(data)
-    # send to webhooks
+
+    # send signals to webhooks
     if summary_config and 'webhooks' in summary_config and len(data) > 0:
         webhooks_config = summary_config['webhooks']
         if type(webhooks_config) is list:
             for config_item in webhooks_config:
                 webhooks = config_item['url']
-                batch_size = 0
-                search_criteria = []
-                headers = None
-                headers_by_request = None
                 enabled = True
                 if 'enabled' in config_item:
                     enabled = config_item['enabled']
                 if enabled:
+                    search_criteria = []
+                    batch_size = 0
+                    headers = None
+                    headers_by_request = None
                     if 'search_criteria' in config_item:
                         search_criteria = config_item['search_criteria']
                     if 'batch_size' in config_item:
@@ -652,15 +586,6 @@ def export(summary_config, data):
                         headers_by_request = config_item['set_headers_by_request']
                         headers = set_headers_by_request(headers, headers_by_request)
                     send_signals_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request)
-    # elif config.has_option('webhooks', 'search_criteria') and config.has_option('webhooks', 'webhook'):
-    #     webhooks = config.getlist('webhooks', 'webhook')
-    #     search_criteria = []
-    #     if config.has_option('webhooks', 'search_criteria'):
-    #         search_criteria = config.getlist('webhooks', 'search_criteria')
-    #     batch_size = 0
-    #     if config.has_option('webhooks', 'batch_size'):
-    #         batch_size = config.getint('webhooks', 'batch_size')
-    #     send_signals_to_webhooks(data, webhooks, search_criteria, batch_size)
 
     # send to Google Sheet
     if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
@@ -677,6 +602,59 @@ def export(summary_config, data):
                 send_json_to_mongodb(client, mongodb_item, data)
         except Exception as e:
             log.exception(e)
+
+
+def export_alerts(summary_config, data):
+    # send alerts to webhooks
+    if summary_config and 'webhooks' in summary_config and len(data) > 0:
+        webhooks_config = summary_config['webhooks']
+        if type(webhooks_config) is list:
+            for config_item in webhooks_config:
+                webhooks = config_item['url']
+                enabled = True
+                if 'enabled' in config_item:
+                    enabled = config_item['enabled']
+                if enabled:
+                    search_criteria = []
+                    batch_size = 0
+                    headers = None
+                    headers_by_request = None
+                    if 'search_criteria' in config_item:
+                        search_criteria = config_item['search_criteria']
+                    if 'batch_size' in config_item:
+                        batch_size = config_item['batch_size']
+                    if 'batch' in config_item:
+                        batch_size = config_item['batch']
+                    if 'headers' in config_item:
+                        headers = config_item['headers']
+                    if 'set_headers_by_request' in config_item:
+                        if not headers:
+                            headers = {}
+                        headers_by_request = config_item['set_headers_by_request']
+                        headers = set_headers_by_request(headers, headers_by_request)
+                    send_alert_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request)
+
+    # send alerts to Google Spreadsheet
+    if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
+        google_api_creds = config.get('api', 'google')
+        google_sheets_config = summary_config['google_sheets']
+        if type(google_sheets_config) is list:
+            for config_item in google_sheets_config:
+                name = config_item['name']
+                sheet = ''
+                search_criteria = []
+                enabled = True
+                index = 1
+                if 'enabled' in config_item:
+                    enabled = config_item['enabled']
+                if enabled:
+                    if 'sheet' in config_item:
+                        sheet = config_item['sheet']
+                    if 'index' in config_item:
+                        index = config_item['index']
+                    if 'search_criteria' in config_item:
+                        search_criteria = config_item['search_criteria']
+                    send_alert_to_google_sheet(google_api_creds, data, name, sheet, index, search_criteria)
 
 
 def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None):
@@ -885,7 +863,7 @@ def send_signals_to_google_sheet(google_api_creds, data, google_sheets_config):
                 index = 1
                 if 'sheet' in config_item:
                     sheet = config_item['sheet']
-                if 'index' in google_sheets_config:
+                if 'index' in config_item:
                     index = config_item['index']
                 if 'search_criteria' in config_item:
                     search_criteria = config_item['search_criteria']
@@ -896,11 +874,11 @@ def send_signals_to_google_sheet(google_api_creds, data, google_sheets_config):
                     scope = ['https://spreadsheets.google.com/feeds',
                              'https://www.googleapis.com/auth/drive']
                     credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
-                    loglevel = log.level
-                    if loglevel == 20:
+                    log_level = log.level
+                    if log_level == 20:
                         log.level = 30
                     client = gspread.authorize(credentials)
-                    log.level = loglevel
+                    log.level = log_level
                     sheet = client.open(name).worksheet(sheet)
 
                     for signal in data:
@@ -935,7 +913,7 @@ def send_signals_to_google_sheet(google_api_creds, data, google_sheets_config):
 
 def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, search_criteria=''):
     try:
-        result = ''
+        results = []
         scope = ['https://spreadsheets.google.com/feeds',
                  'https://www.googleapis.com/auth/drive']
         credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
@@ -945,39 +923,51 @@ def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, 
         limit = 100
         if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
             limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
-        log.info(index)
         inserted = 0
         for url in data:
-            log.info(data[url])
             symbol = data[url][0]
             alert = data[url][1]
             date = data[url][2]
             screenshots = data[url][3]
             [exchange, market] = symbol.split(':')
-
             screenshot = ''
             for chart in screenshots:
                 if screenshot == '':
                     screenshot = screenshots[chart]
+            # noinspection PyBroadException
+            try:
+                setup = alert.split(',')[0]
+            except Exception:
+                setup = name
 
-            row = [date, alert, url, screenshot, exchange, market]
+            timeframe = ''
+            match = re.search("(\\d+\\s\\w+),", alert)
+            if match:
+                timeframe = match.group(1)
+            row = [date, setup, timeframe, url, screenshot, exchange, market]
             if TEST:
                 log.info(row)
             else:
+                result = ''
                 if len(search_criteria) == 0:
                     result = sheet.insert_row(row, index, 'RAW')
                 else:
-                    for search_criterium in range(len(search_criteria)):
+                    for search_criterium in search_criteria:
                         if str(alert).find(str(search_criterium)) >= 0:
                             result = sheet.insert_row(row, index)
                             break
                 if result:
+                    results.append(result)
                     log.debug(str(result))
                 inserted += 1
                 if inserted == 100:
                     log.info('API limit reached. Waiting {} seconds before continuing...' + str(limit))
                     time.sleep(limit)
                     inserted = 0
+        if len(results) == 1:
+            log.info(str(len(results)) + ' row inserted')
+        else:
+            log.info(str(len(results)) + ' rows inserted')
     except Exception as e:
         log.exception(e)
 
@@ -1047,25 +1037,19 @@ def run(delay, file, triggered_signals):
         if not os.path.exists(file):
             log.error("File {} does not exist. Did you setup your kairos.cfg and yaml file correctly?".format(str(file)))
             raise FileNotFoundError
+        yaml_file = tools.get_yaml_config(file, log, True)
+        if 'summary' in yaml_file:
+            summary_config = yaml_file['summary']
+        if 'webdriver' in yaml_file and 'run-in-background' in yaml_file['webdriver']:
+            run_in_background = yaml_file['webdriver']['run-in-background']
 
-        with open(file, 'r') as stream:
-            try:
-                data = yaml.safe_load(stream)
-                if 'summary' in data:
-                    summary_config = data['summary']
-                if 'webdriver' in data and 'run-in-background' in data['webdriver']:
-                    run_in_background = data['webdriver']['run-in-background']
-            except Exception as err_yaml:
-                log.exception(err_yaml)
+    if summary_config:
+        browser = create_browser(run_in_background)
+        login(browser)
+        read_mail(browser)
 
-    tv.RUN_IN_BACKGROUND = run_in_background
-    browser = create_browser(run_in_background)
-    login(browser)
-    read_mail(browser)
-    destroy_browser(browser)
-
-    if summary_config and triggered_signals and len(triggered_signals) > 0:
-        export(summary_config, triggered_signals)
-
-    if len(charts) > 0 or len(triggered_signals) > 0:
-        send_mail(summary_config, triggered_signals, len(charts) > 0, len(triggered_signals) > 0)
+        if len(charts) > 0 or len(triggered_signals) > 0:
+            send_mail(browser, summary_config, triggered_signals, len(charts) > 0, len(triggered_signals) > 0)
+        destroy_browser(browser)
+    else:
+        log.warn('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
