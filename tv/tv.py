@@ -174,11 +174,12 @@ name_selectors = dict(
     checkbox_dlg_create_alert_send_sms='send-true-sms',
     checkbox_dlg_create_alert_send_push='send-push'
 )
-
-log = tools.create_log()
+config = tools.get_config(CURRENT_DIR)
+mode = 'a'  # append
+if config.getboolean('logging', 'clear_on_start_up'):
+    mode = 'w'  # overwrite
+log = tools.create_log(mode)
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR, log)
-log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
@@ -444,70 +445,60 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
     pane_index = -1
     indicator_index = -1
 
-    try:
-        if 'chart_index' in indicator and str(indicator['chart_index']).isdigit():
-            chart_index = indicator['chart_index']
-        if 'pane_index' in indicator and str(indicator['pane_index']).isdigit():
-            pane_index = indicator['pane_index']
-        if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
-            indicator_index = indicator['indicator_index']
+    if 'chart_index' in indicator and str(indicator['chart_index']).isdigit():
+        chart_index = indicator['chart_index']
+    if 'pane_index' in indicator and str(indicator['pane_index']).isdigit():
+        pane_index = indicator['pane_index']
+    if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
+        indicator_index = indicator['indicator_index']
 
-        if indicator_index < 0:
-            # use css
-            try:
-                # css = '.chart-container > div.chart-container-border > div > table > tbody > tr:nth-child({}) > td.chart-markup-table.pane > div > div.pane-legend > div.study > span.pane-legend-line__wrap-description > div > div.pane-legend-title__description'
-                css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
-                studies = find_elements(browser, css)
-                for i, study in enumerate(studies):
-                    study_name = studies[i].text
-                    log.debug('Found '.format(study_name))
-                    if study_name.startswith(indicator['name']):
-                        indicator_index = i
-                        break
-            except StaleElementReferenceException:
-                log.debug('StaleElementReferenceException in studies')
-                return retry_get_indicator_values(browser, indicator, symbol, retry_number)
-            except Exception as e:
-                log.exception(e)
-                return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+    # TODO check if indicator isn't loaded, e.g. when it throws an error. It does throw an error, wait a little then try again
+    if indicator_index < 0:
+        # use css
         try:
-            # css = '.chart-container:nth-child({}) .pane:nth-child({}) .study:nth-child({}) .pane-legend-item-value'.format(chart_index, pane_index, indicator_index)
-            # css = 'div.chart-container.active tr:nth-child({}) .pane-legend > div:nth-child({}) span.pane-legend-item-value'.format(pane_index * 2 - 1, indicator_index)
-            # elem_values = find_elements(browser, css)
-            # TODO HIGH PRIORITY use explicit wait instead of implicit wait
-            # browser.implicitly_wait(30)
-            # elem_values2 = browser.find_elements_by_class_name('chart-container')[chart_index].find_elements_by_class_name('pane')[pane_index].find_elements_by_class_name('study')[indicator_index].find_elements_by_class_name('pane-legend-item-value')
-            # for e in elem_values2:
-            #     result2.append(e.text)
-            # browser.implicitly_wait(0)
-            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'study', By.CLASS_NAME)[indicator_index], 'pane-legend-item-value', By.CLASS_NAME)
-            for e in elem_values:
-                result.append(e.text)
-            # if str(result) != str(result2):
-            #     log.error("NEW METHOD DIFFERS FROM OLD")
-            #     log.error("OLD: '{}'".format(str(result)))
-            #     log.error("NEW: '{}'".format(str(result2)))
+            # css = '.chart-container > div.chart-container-border > div > table > tbody > tr:nth-child({}) > td.chart-markup-table.pane > div > div.pane-legend > div.study > span.pane-legend-line__wrap-description > div > div.pane-legend-title__description'
+            css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
+            studies = find_elements(browser, css)
+            for i, study in enumerate(studies):
+                study_name = studies[i].text
+                log.debug('Found '.format(study_name))
+                if study_name.startswith(indicator['name']):
+                    indicator_index = i
+                    break
         except StaleElementReferenceException:
-            # browser.implicitly_wait(0)
-            log.debug('StaleElementReferenceException in values')
+            log.debug('StaleElementReferenceException in studies')
             return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        except TimeoutException:
+            log.warning('timeout in finding studies')
+            # return False which will force a browser refresh
+            return False
         except Exception as e:
-            # browser.implicitly_wait(0)
             log.exception(e)
             return retry_get_indicator_values(browser, indicator, symbol, retry_number)
-
-        values_read = False
-        for value in result:
-            if value != 'n/a':
-                values_read = True
-                break
-        if not values_read:
-            time.sleep(DELAY_CHANGE_SYMBOL)
-            return retry_get_indicator_values(browser, indicator, symbol, retry_number)
-        # log.info(result)
+    try:
+        elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'study', By.CLASS_NAME)[indicator_index], 'pane-legend-item-value', By.CLASS_NAME)
+        for e in elem_values:
+            result.append(e.text)
+    except StaleElementReferenceException:
+        log.debug('StaleElementReferenceException in values')
+        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+    except TimeoutException:
+        log.warning('timeout in getting values', )
+        # return False which will force a browser refresh
+        return False
     except Exception as e:
         log.exception(e)
         return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+
+    values_read = False
+    for value in result:
+        if value != 'n/a':
+            values_read = True
+            break
+    if not values_read:
+        time.sleep(DELAY_CHANGE_SYMBOL)
+        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+    # log.info(result)
     return result
 
 
@@ -520,6 +511,7 @@ def retry_get_indicator_values(browser, indicator, symbol, retry_number=0):
 
 
 def is_indicator_triggered(indicator, values):
+    # log.info(values)
     result = False
     try:
         if 'trigger' in indicator:
@@ -753,7 +745,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
     try:
         if 'signals' in chart:
             for signal in chart['signals']:
-                signal_triggered = False
+
                 triggered = []
                 indicators = signal['indicators']
                 timestamp = time.time()
@@ -780,7 +772,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     url += '&interval=' + str(interval)
                 data['url'] = url
 
-                values = None
+                signal_triggered = True
                 for m, indicator in enumerate(indicators):
                     indicator = indicators[m]
                     values = get_indicator_values(browser, indicator, symbol)
@@ -789,13 +781,16 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                         return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
                     signal['indicators'][m]['values'] = values
                     indicator_triggered = is_indicator_triggered(indicator, values)
+                    if not indicator_triggered:
+                        signal_triggered = False
+                        break
                     signal['indicators'][m]['triggered'] = indicator_triggered
                     triggered.append(indicator_triggered)
                     if 'data' in indicator:
                         for item in indicator['data']:
                             for _key in item:
                                 if not (_key in data):
-                                    if isinstance(_key, list):
+                                    if isinstance(item[_key], list):
                                         indices = item[_key]
                                         data[_key] = []
                                         for index in indices:
@@ -809,16 +804,8 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     html = find_element(browser, 'html', By.TAG_NAME)
                     html.send_keys(Keys.TAB)
 
-                for trigger in triggered:
-                    if trigger:
-                        signal_triggered = True
-                    else:
-                        signal_triggered = False
-                        break
-                signal['triggered'] = signal_triggered
-
                 if signal_triggered:
-                    log.info(values)
+                    signal['triggered'] = signal_triggered
                     screenshots = dict()
                     filenames = dict()
                     screenshots_url = []
@@ -852,6 +839,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                                     data[_key] = label[_key]
                     data['signal'] = signal
                     log.info('"{}" triggered'.format(signal['name']))
+                    # log.info(signal['indicators'][0]['values'])
                     triggered_signals.append(data)
                 total_alerts += 1
 
@@ -1237,8 +1225,10 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         if SEARCH_FOR_WARNING:
             try:
                 wait_and_click_by_xpath(browser, '//*[@id="overlap-manager-root"]/div[2]/div/span/div[1]/div/div[2]/div[2]/button', 30)
+                log.info('Warning found and closed')
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
+                log.info('No warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
 
         time.sleep(DELAY_SUBMIT_ALERT)
@@ -1561,8 +1551,10 @@ def destroy_browser(browser):
 
 
 def write_console_log(browser):
-    clear_on_start_up = config.getboolean('logging', 'clear_on_start_up')
-    tools.write_console_log(browser, clear_on_start_up)
+    write_mode = 'a'
+    if config.getboolean('logging', 'clear_on_start_up'):
+        write_mode = 'w'
+    tools.write_console_log(browser, write_mode)
 
 
 def run(file, export_signals_immediately, multi_threading=False):

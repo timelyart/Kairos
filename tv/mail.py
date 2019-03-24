@@ -35,9 +35,9 @@ TEST = False
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
+config = tools.get_config(CURRENT_DIR)
 log = tools.create_log()
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR, log)
 log.setLevel(config.getint('logging', 'level'))
 
 uid = str(config.get('mail', 'uid'))
@@ -945,7 +945,7 @@ def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, 
         limit = 100
         if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
             limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
-
+        log.info(index)
         inserted = 0
         for url in data:
             log.info(data[url])

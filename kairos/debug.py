@@ -1,25 +1,24 @@
 # File: debug.py
 import logging
+import os
 import sys
 from selenium.common.exceptions import InvalidArgumentException, WebDriverException
 
 log_path = './log'  # project dir
 file_name = 'debug.log'
 
-
-# empty the content of the file
-def clear_log():
-    with open(file_name, 'w'):
-        pass
+if not os.path.exists(log_path):
+    os.mkdir(log_path)
 
 
-def create_log():
+def create_log(mode='a'):
+    file = os.path.join(r"" + log_path, file_name)
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
-            logging.FileHandler("{0}/{1}".format(log_path, file_name)),
+            logging.FileHandler(file, mode=mode),
             logging.StreamHandler(sys.stdout)
         ])
     return logging.getLogger()
@@ -34,7 +33,7 @@ def load_console_log(browser, log_type):
         return None
 
 
-def write_console_log(browser, clear_on_startup=True):
+def write_console_log(browser, mode='a'):
     import os
     from kairos import tools
     from datetime import datetime
@@ -48,17 +47,11 @@ def write_console_log(browser, clear_on_startup=True):
         'performance': load_console_log(browser, 'performance')
     }
 
-    if not os.path.exists(log_path):
-        os.mkdir(log_path)
-
     offset = tools.get_time_offset()
     for log_name in logs:
         if logs[log_name]:
             file = os.path.join(r"" + log_path, str(log_name) + ".log")
-            if clear_on_startup:
-                with open(file, 'w'):
-                    pass
-            f = open(file, 'a')
+            f = open(file, mode)
             lines = logs[log_name]
             for line in lines:
                 level = line['level']
