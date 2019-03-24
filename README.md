@@ -1,8 +1,8 @@
-# Kairos #
+# Kairos
 Web automation tool using Python, Selenium and Chrome's Web Driver.
 Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 
-## Table of contents ##
+## Table of contents
 * [Features](#features)
 * [Prerequisites](#prerequisites)
 * [Installing](#installing)
@@ -10,31 +10,38 @@ Kairos aims to help you save time by automating repetitive tasks on TradingView 
 * [Defining TradingView alerts](#defining-tradingview-alerts)
 * [Command line examples](#command-line-examples)
 * [Troubleshooting](#troubleshooting)
+* [Feedback](#feedback)
 * [Acknowledgements](#acknowledgements)
 * [Author](#author)
-* [End-User License Agreement](#end-user-license-agreement)
+* [Donate](#donate)
+* [License](#license)
 
-## Features ##
+## Features
 * Set alerts automatically on TradingView through web automation. 
 * Define multiple charts with multiple alerts per chart on multiple time frames in one file.
 * Add (limited) dynamic data to your alert messages. 
 * Run from command line and in the background.
 * Send a summary mail.
 * Generate a TradingView watchlist from the summary mail.
+* Import generated TradingView watchlist.
+* Send signals to a webhook/endpoint or a Google Sheet 
 
-## Prerequisites ##
-* [Python 3.7](https://www.python.org/downloads/)
+## Prerequisites
+* [Python 3](https://www.python.org/downloads/)
 * [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/); or [geckodriver](https://github.com/mozilla/geckodriver/) with [Firefox](https://www.mozilla.org/en-US/firefox/) (for OS X)
 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
 ## Installing ##
-Note: if you are running Linux / OS X then run listed commands with **sudo**. If you have multiple versions of Python then run listed commands with **python3** instead of **python**. 
+If you run Ubuntu 18.04 there is a list of commands here: [Ubuntu 18.04 - command line installation](#ubuntu-1804---command-line-installation).
+### From archive (Linux, OS X and Windows)
+_If you are running Linux / OS X then run listed commands with **sudo**_ 
 * [Install Python 3](https://www.python.org/downloads/) - [OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
 * [Install Chrome latest version](https://www.google.com/chrome/) or [geckodriver](https://github.com/mozilla/geckodriver/) (OS X)
 * [Download ChromeDriver](http://chromedriver.chromium.org/downloads) or [Firefox](https://www.mozilla.org/en-US/firefox/) (OS X)
+* [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
 * Open a terminal, or when on Windows an elevated command prompt
-* Install and update setuptools:
+* Update setuptools:
 ```
 pip install setuptools
 pip install --upgrade setuptools
@@ -43,24 +50,64 @@ pip install --upgrade setuptools
 ```
 python setup.py install
 ```
+* Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
-* Continue with the steps listed under section [Post installation](#post-installation)
+### From source
+* Install / update setuptools:
+```
+pip install setuptools
+pip install --upgrade setuptools
+```
+* Clone archive and install:
+```
+git clone --recursive https://github.com/timelyart/kairos.git
+cd python
+python setup.py install
+```
+* Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
 
-## Post installation ##
+### Ubuntu 18.04 - command line installation
+```
+cd ~/
+wget -q -O - https://dl-ssl.google.com/linux/linux_signing_key.pub | sudo apt-key add -
+echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sudo tee /etc/apt/sources.list.d/google-chrome.list
+sudo apt-get update
+sudo apt-get install google-chrome-stable
+sudo apt-get install unzip
+sudo apt-get install python3.7
+sudo apt-get install python3-setuptools
+wget https://chromedriver.storage.googleapis.com/2.43/chromedriver_linux64.zip
+unzip chromedriver_linux64.zip
+sudo mv chromedriver /usr/bin/chromedriver
+sudo chown root:root /usr/bin/chromedriver
+sudo chmod +x /usr/bin/chromedriver
+mkdir -p Git/repositories
+cd Git/repositories/
+git clone https://github.com/timelyart/Kairos.git
+cd Kairos/
+sudo python3 setup.py install
+```
+* Continue with the steps listed (below) under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
+## Post installation
 * Open the Kairos directory
 * Rename [_kairos.cfg](_kairos.cfg) to **kairos.cfg** and open it.
 * Take good notice of the options that are available to you in the [kairos.cfg](kairos.cfg). Fill in the blanks and adjust to your preference and limitations.
-* Rename [yaml/_example.yaml](yaml/_example.yaml) to **example.yaml** and open it.
-* Edit the [example.yaml](yaml/_example.yaml) to your liking. Study the section [Defining TradingView alerts](#defining-tradingview-alerts) to get a feeling for the structure of the document. Together with the inline documentation within the YAML file, it should give you a good idea on how to cater it to your preferences. If you have questions please contact me.
+* Rename [_example.yaml](yaml/_example.yaml) to **example.yaml** and open it.
+* Edit the [example.yaml](yaml/_example.yaml) to your liking. Study the section [Defining TradingView alerts](https://github.com/timelyart/Kairos#defining-tradingview-alerts) to get a feeling for the structure of the document. Together with the inline documentation within the YAML file, it should give you a good idea on how to cater it to your preferences. If you have questions please contact me.
 * Finally, run the following command from the Kairos directory:
 ```
 python main.py example.yaml
 ```           
 **_TIP: Run Kairos periodically using s scheduler. Use a separate file for each interval you wish to run, e.g. weekly.yaml, daily.yaml and 4hourly.yaml._**
 
-## Defining TradingView alerts ##
+## Defining TradingView alerts
+You can define which alerts Kairos should set in so-called [YAML](https://en.wikipedia.org/wiki/YAML) files. 
 Use the [example.yaml](yaml/_example.yaml) as a base for your own [yaml](https://en.wikipedia.org/wiki/YAML) file.
 NOTE: all values are case sensitive and should be exactly the same as when you manually create an alert. 
+
+When creating/editing YAML files you have to be careful with indentation. If you have errors in your YAML, Kairos error messages give good hints where the error is with a line and column number.
+However, as of 1.3.0 Kairos will create a temporary YAML based upon your own file. In case of an error a **my_file.yaml.err** will be created. The line and column numbers that Kairos shows refer to that **.err** file.
+Another way of testing if your YAML file is correct is by using a website like [https://yamlchecker.com](https://yamlchecker.com)
 
 Steps:
 * Create a chart and plot the indicators you would like to set alerts on
@@ -155,7 +202,27 @@ charts:
       prepend: no
       text:      
 ```
-## Command line examples ##
+### YAML within YAML 
+As of version 1.3.0 you can load YAML files from any other YAML file by including the following in your YAML file:
+```
+file: path_to/my_other_yaml_file.yaml 
+```
+Consider **root.yaml**:
+```
+root:
+  - branch:
+      - branch: ["leaf", "leaf", "leaf"]
+      - file: "branch_in_branch.yaml"
+  - branch: ["leaf", "leaf", "leaf"]
+  - file: "branch_in_branch.yaml"
+```
+By using other YAML files you can re-use parts of your YAML and share them with other YAML definition you may have.
+
+If you find yourself copying and pasting a lot, you might want to consider to put some or all of that code into a separate YAML file.
+
+The files needed to run **root.yaml** can be found in the folder [yaml](yaml) and I highly encourage to look into them to figure out how they work.  
+
+## Command line examples
 * Refresh your existing alerts (depends on the settings in your kairos.cfg so proceed with caution).
 ```
 python main.py refresh.yaml
@@ -171,36 +238,39 @@ python main.py refresh.yaml
 ```
 python main.py -s
 ```
-## Troubleshooting ##
+## Troubleshooting
 A lot can go wrong running web automation tools like Kairos. These are the most common ones:
 * The web page / server hasn't handled the interaction (a click or some input) yet before the next interaction is tried   
-* A popup is displayed over the point that Kairos wants to interact with, e.g. a tooltip or TradingView's 'too many devices message'.
+* A popup is displayed over the point that Kyros wants to interact with, e.g. a tooltip or TradingView's 'too many devices message'.
 * A form (e.g. an alert)was submitted but you don't see results.
 * The markup of the web page has changed thereby breaking the flow Kairos.
 
 These issues are all related and amount to Kairos unable to either find an element or to interact with an element. You will get errors (see debug.log) like:
-* 'Message: unknown error: [...] is not clickable at point [...]'
-* 'Time out' exceptions
-* 'Not clickable' exceptions
-* 'Not visible' exceptions
+* Message: unknown error: [...] is not clickable at point [...]
+* Time out exceptions
+* Not clickable exceptions
+* Not visible exceptions
 
-### Solutions ###
-#### Run multiple times ###
+### Solutions 
+#### Run multiple times
 If you are running Kairos for the first time, then Chrome hasn't cached anything yet. Try to run it a couple of times and ignore any errors. 
 Of course, clearing the cache will, in all likelihood, spawn the same issues again.
 
-#### Run on a different time of day###
+#### Run on a different time of day
 At certain times during the day TradingView can become less responsive. Try to run Kairos on a different time.
 If the issue persists, try to [Increase delays](#increase-delays) 
 
-#### Increase delays ###
+#### Increase delays
 If you have run Kairos five times or so, and still encounter issues try to increase the **_break_mini_**, **_break_** and / or **_submit_alert_** in the [kairos.cfg](_kairos.cfg).
 
-#### Report an issue ###
+#### Check existing issues
 If, after increasing wait times, you still get errors then the markup of the web page may have changed.
-Please send me an email (see [Author](#author)) with your debug.log file, used yaml file and your kairos.cfg. **Please make sure you have stripped your kairos.cfg of privacy sensitive data before sending it to me.**   
+Check if it is an [existing issue](https://github.com/timelyart/Kairos/issues), and if it is not: [open](https://github.com/timelyart/Kairos/issues/new) one.
 
-## Acknowledgements ##   
+## Feedback
+Feedback is invaluable. Please, take the time to give constructive feedback by opening an [issue](https://github.com/timelyart/Kairos/issues) so that this project may be improved on code and documentation.
+
+## Acknowledgements
 [DorukKorkmaz](https://github.com/dorukkorkmaz), for providing a starting point with his [TradingView scraper](https://github.com/DorukKorkmaz/tradingview-scraper).
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
@@ -208,8 +278,8 @@ Please send me an email (see [Author](#author)) with your debug.log file, used y
 ## Author ##
 [timelyart](https://github.com/timelyart)
 
-[timelyart@protonmail.com](mailto:timelyart@protonmail.com)
+## Donate
+If you find value in this project and you would like to donate, please do so [here](DONATE.md)  
 
-## End-User License Agreement ##
-This project comes with an End-User License Agreement (EULA) which you can read here:
-[https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A](https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A) 
+## License
+This project is licensed under the GNU GPLv3 License - see the [LICENSE.md](LICENSE.md) file for details. 
