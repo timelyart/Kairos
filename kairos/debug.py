@@ -2,7 +2,6 @@
 import logging
 import os
 import sys
-from selenium.common.exceptions import InvalidArgumentException, WebDriverException
 
 log_path = './log'  # project dir
 file_name = 'debug.log'
@@ -24,12 +23,11 @@ def create_log(mode='a'):
     return logging.getLogger()
 
 
+# noinspection PyBroadException
 def load_console_log(browser, log_type):
     try:
         return browser.get_log(log_type)
-    except InvalidArgumentException:
-        return None
-    except WebDriverException:
+    except Exception:
         return None
 
 
