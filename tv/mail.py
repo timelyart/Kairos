@@ -646,7 +646,7 @@ def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, 
                 if len(search_criteria) == 0:
                     result = sheet.insert_row(row, index, 'RAW')
                 else:
-                    for search_criterium in range(len(search_criteria)):
+                    for search_criterium in search_criteria:
                         if str(alert).find(str(search_criterium)) >= 0:
                             result = sheet.insert_row(row, index)
                             break
