@@ -20,14 +20,12 @@ import sys
 import time
 import errno
 import dill
-import yaml
 
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException, TimeoutException
-from selenium.webdriver import DesiredCapabilities
-# from selenium.webdriver import ActionChains
+from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
@@ -453,6 +451,7 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
         indicator_index = indicator['indicator_index']
 
     # TODO check if indicator isn't loaded, e.g. when it throws an error. It does throw an error, wait a little then try again
+    studies = []
     if indicator_index < 0:
         # use css
         try:
@@ -476,9 +475,16 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
             log.exception(e)
             return retry_get_indicator_values(browser, indicator, symbol, retry_number)
     try:
-        elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'study', By.CLASS_NAME)[indicator_index], 'pane-legend-item-value', By.CLASS_NAME)
-        for e in elem_values:
-            result.append(e.text)
+        if 0 <= indicator_index < len(studies):
+            css = '#header-toolbar-symbol-search'
+            element = find_element(browser, css)
+            action = ActionChains(browser)
+            action.move_to_element_with_offset(element, 5, 5)
+            action.perform()
+
+            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'study', By.CLASS_NAME)[indicator_index], 'pane-legend-item-value', By.CLASS_NAME)
+            for e in elem_values:
+                result.append(e.text)
     except StaleElementReferenceException:
         log.debug('StaleElementReferenceException in values')
         return retry_get_indicator_values(browser, indicator, symbol, retry_number)
@@ -1648,16 +1654,19 @@ def run(file, export_signals_immediately, multi_threading=False):
                             if 'alerts' in item or 'signals' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, counter_alerts, total_alerts)
                 # log.info(triggered_signals)
+                summary(total_alerts)
                 if len(triggered_signals) > 0:
                     from tv import mail
-                    mail.post_process_signals(triggered_signals, tv, export_signals_immediately)
-                    if export_signals_immediately and 'summary' in tv:
-                        mail.send_mail(tv['summary'], triggered_signals, False)
-                        # we've send the signals, let's make sure they aren't send a 2nd time
-                        triggered_signals.clear()
+                    mail.post_process_signals(triggered_signals)
+                    if export_signals_immediately:
+                        if 'summary' in tv:
+                            mail.send_mail(browser, tv['summary'], triggered_signals, False)
+                            # we've send the signals, let's make sure they aren't send a 2nd time
+                            triggered_signals.clear()
+                        else:
+                            log.warn('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
                 elif export_signals_immediately:
                     log.info('No signals triggered. Nothing to send')
-                summary(total_alerts)
                 destroy_browser(browser)
     except Exception as exc:
         log.exception(exc)
@@ -1820,4 +1829,4 @@ def summary(total_alerts):
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
         log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
     elif total_alerts == 0:
-        log.info("No alerts set")
+        log.info("No alerts or signals set")
