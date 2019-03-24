@@ -1,7 +1,10 @@
 # File: tools.py
 import os
+import re
 from datetime import datetime, timedelta
 import time
+
+import yaml
 
 from kairos import debug
 from collections import OrderedDict
@@ -116,3 +119,60 @@ def dt_parse(t):
 
 def remove_empty_lines(text):
     return "".join([s for s in text.splitlines(True) if s.strip("\r\n")])
+
+
+def get_yaml_config(file, log, root=False):
+    # get the user defined settings file
+    result = None
+    string_yaml = ""
+    try:
+        with open(file, 'r') as stream:
+            try:
+                temp_yaml = yaml.safe_load(stream)
+                string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
+                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'.:>-]+)(}?)$", string_yaml, re.MULTILINE)
+                if root:
+                    log.debug(snippets)
+                for i in range(len(snippets)):
+                    indentation = str(snippets[i][0]).replace("-", " ")
+                    search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
+                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
+                    if not os.path.exists(filename):
+                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
+                        exit(1)
+                    # recursively find and replace snippets
+                    snippet_yaml = get_yaml_config(filename, log)
+                    string_snippet_yaml = yaml.dump(snippet_yaml, default_flow_style=False)
+
+                    # split snippet yaml into lines (platform independent)
+                    lines = string_snippet_yaml.splitlines(True)
+                    for j in range(len(lines)):
+                        # don't indent the first line, only indent the 2nd line and above
+                        if j > 0:
+                            lines[j] = indentation + lines[j]
+                    # join the lines again to form the yaml with indentation
+                    string_snippet_yaml = "".join(lines)
+                    # some debugging info
+                    log.debug(search)
+                    log.debug(string_snippet_yaml)
+                    # replace the search value with the snippet
+                    string_yaml = string_yaml.replace(search, string_snippet_yaml, 1)
+
+                # clear any empty lines
+                string_yaml = remove_empty_lines(string_yaml)
+                log.debug(string_yaml)
+                result = yaml.safe_load(string_yaml)
+            except yaml.YAMLError as err_yaml:
+                log.exception(err_yaml)
+                f = open(file + ".err", 'w')
+                f.write(string_yaml)
+                f.close()
+        if root:
+            f = open(file + '.tmp', 'w')
+            f.write(yaml.dump(result))
+            f.close()
+    except FileNotFoundError as err_file:
+        log.exception(err_file)
+    except OSError as err_os:
+        log.exception(err_os)
+    return result

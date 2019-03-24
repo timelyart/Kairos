@@ -1564,9 +1564,6 @@ def run(file, export_signals_immediately, multi_threading=False):
     counter_alerts = 0
     total_alerts = 0
     browser = None
-    # tv = None
-    # has_charts = False
-    # has_screeners = False
 
     global RUN_IN_BACKGROUND
     global MULTI_THREADING
@@ -1581,11 +1578,8 @@ def run(file, export_signals_immediately, multi_threading=False):
             log.error("File {} does not exist. Did you setup your kairos.cfg and yaml file correctly?".format(str(file)))
             raise FileNotFoundError
 
-        # get the user defined settings file
-        tv = get_yaml_config(file, True)
-        f = open(file + '.tmp', 'w')
-        f.write(yaml.dump(tv))
-        f.close()
+        # get the user defined yaml file
+        tv = tools.get_yaml_config(file, log, True)
         has_charts = 'charts' in tv
         has_screeners = 'screeners' in tv
 
@@ -1661,7 +1655,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                         mail.send_mail(tv['summary'], triggered_signals, False)
                         # we've send the signals, let's make sure they aren't send a 2nd time
                         triggered_signals.clear()
-                else:
+                elif export_signals_immediately:
                     log.info('No signals triggered. Nothing to send')
                 summary(total_alerts)
                 destroy_browser(browser)
@@ -1827,57 +1821,3 @@ def summary(total_alerts):
         log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
     elif total_alerts == 0:
         log.info("No alerts set")
-
-
-def get_yaml_config(file, root=False):
-    # get the user defined settings file
-    result = None
-    string_yaml = ""
-    try:
-        with open(file, 'r') as stream:
-            try:
-                temp_yaml = yaml.safe_load(stream)
-                string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
-                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'.:>-]+)(}?)$", string_yaml, re.MULTILINE)
-                if root:
-                    log.debug(snippets)
-                for i in range(len(snippets)):
-                    indentation = str(snippets[i][0]).replace("-", " ")
-                    search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
-                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
-                    if not os.path.exists(filename):
-                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
-                        exit(1)
-                    # recursively find and replace snippets
-                    snippet_yaml = get_yaml_config(filename)
-                    string_snippet_yaml = yaml.dump(snippet_yaml, default_flow_style=False)
-
-                    # split snippet yaml into lines (platform independent)
-                    lines = string_snippet_yaml.splitlines(True)
-                    for j in range(len(lines)):
-                        # don't indent the first line, only indent the 2nd line and above
-                        if j > 0:
-                            lines[j] = indentation + lines[j]
-                    # join the lines again to form the yaml with indentation
-                    string_snippet_yaml = "".join(lines)
-                    # some debugging info
-                    log.debug(search)
-                    log.debug(string_snippet_yaml)
-                    # replace the search value with the snippet
-                    string_yaml = string_yaml.replace(search, string_snippet_yaml, 1)
-
-                # clear any empty lines
-                string_yaml = tools.remove_empty_lines(string_yaml)
-                log.debug(string_yaml)
-                result = yaml.safe_load(string_yaml)
-            except yaml.YAMLError as err_yaml:
-                log.exception(err_yaml)
-                f = open(file + ".err", 'w')
-                f.write(string_yaml)
-                f.close()
-    except FileNotFoundError as err_file:
-        log.exception(err_file)
-    except OSError as err_os:
-        log.exception(err_os)
-
-    return result
