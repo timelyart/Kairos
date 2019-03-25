@@ -172,7 +172,7 @@ name_selectors = dict(
     checkbox_dlg_create_alert_send_sms='send-true-sms',
     checkbox_dlg_create_alert_send_push='send-push'
 )
-config = tools.get_config(CURRENT_DIR)
+config = tools.get_config()
 mode = 'a'  # append
 if config.getboolean('logging', 'clear_on_start_up'):
     mode = 'w'  # overwrite

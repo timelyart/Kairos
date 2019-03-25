@@ -35,7 +35,7 @@ TEST = False
 BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
-config = tools.get_config(CURRENT_DIR)
+config = tools.get_config()
 log = tools.create_log()
 log.setLevel(20)
 log.setLevel(config.getint('logging', 'level'))

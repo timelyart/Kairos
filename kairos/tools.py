@@ -9,6 +9,7 @@ import yaml
 from kairos import debug
 from collections import OrderedDict
 from configparser import RawConfigParser
+from pathlib import Path
 
 
 # noinspection PyShadowingNames
@@ -20,9 +21,10 @@ def write_console_log(browser, mode='a'):
     return debug.write_console_log(browser, mode)
 
 
-def get_config(current_dir):
+def get_config():
+    script_dir = Path(Path(os.path.abspath(__file__)).parent).parent
     config = RawConfigParser(allow_no_value=True, strict=False, empty_lines_in_values=False, dict_type=ConfigParserMultiValues, converters={"list": ConfigParserMultiValues.getlist})
-    config_file = os.path.join(current_dir, "kairos.cfg")
+    config_file = os.path.join(script_dir, "kairos.cfg")
     if os.path.exists(config_file):
         try:
             config.read(config_file)

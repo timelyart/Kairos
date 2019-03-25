@@ -79,15 +79,12 @@ def main():
 
 
 def test_mongodb():
-    import os
-    CURRENT_DIR = os.path.curdir
-
     # set log name before importing... the import creates the log whatever it's file name
     debug.file_name = 'test_mongodb.log'
     log = debug.create_log()
     log.setLevel(20)
     from kairos import tools
-    config = tools.get_config(CURRENT_DIR)
+    config = tools.get_config()
     log.setLevel(config.getint('logging', 'level'))
 
     connection_string = config.get('mongodb', 'connection_string')
