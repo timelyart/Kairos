@@ -248,7 +248,7 @@ def refresh(browser):
     # Switching to Alert
     close_alerts(browser)
     # Give some time to load the page
-    time.sleep(5)
+    # time.sleep(5)
     # Close the watchlist menu if it is open
     if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
@@ -464,13 +464,25 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
                 if study_name.startswith(indicator['name']):
                     indicator_index = i
                     break
+                try:
+                    if str(study_name).lower().index('loading'):
+                        time.sleep(0.1)
+                        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+                    if str(study_name).lower().index('compiling'):
+                        time.sleep(0.1)
+                        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+                    if str(study_name).lower().index('error'):
+                        time.sleep(0.1)
+                        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+                except ValueError:
+                    pass
         except StaleElementReferenceException:
             log.debug('StaleElementReferenceException in studies')
             return retry_get_indicator_values(browser, indicator, symbol, retry_number)
         except TimeoutException:
             log.warning('timeout in finding studies')
             # return False which will force a browser refresh
-            return False
+            result = False
         except Exception as e:
             log.exception(e)
             return retry_get_indicator_values(browser, indicator, symbol, retry_number)
@@ -491,18 +503,17 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
     except TimeoutException:
         log.warning('timeout in getting values', )
         # return False which will force a browser refresh
-        return False
+        result = False
     except Exception as e:
         log.exception(e)
         return retry_get_indicator_values(browser, indicator, symbol, retry_number)
 
-    values_read = False
-    for value in result:
-        if value != 'n/a':
-            values_read = True
-            break
-    if not values_read:
-        time.sleep(DELAY_CHANGE_SYMBOL)
+    # values_read = False
+    # for value in result:
+    #     if value != 'n/a':
+    #         values_read = True
+    #         break
+    if not result or (isinstance(result, list) and len(result) == 0):
         return retry_get_indicator_values(browser, indicator, symbol, retry_number)
     # log.info(result)
     return result
@@ -726,27 +737,60 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
         if use_space:
             html = find_element(browser, 'html', By.TAG_NAME)
             html.send_keys(Keys.SPACE)
-            time.sleep(DELAY_CHANGE_SYMBOL)
         else:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
             input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
 
-        try:
-            if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
-                invalid.add(symbol)
-                log.info('Invalid symbol')
-                return [counter_alerts, total_alerts]
-        except TimeoutException:
-            pass
+        # instead of a fixed delay, do a delay until there are no longer 'loading' / 'error' indicators
+        # time.sleep(DELAY_CHANGE_SYMBOL)
+        # loaded = False
+        # total_wait_time = 0
+        # while not loaded and total_wait_time < DELAY_CHANGE_SYMBOL:
+        #     css = '.study .pane-legend-title__description'
+        #     studies = find_elements(browser, css)
+        #     for i, study in enumerate(studies):
+        #         study_name = studies[i].text
+        #         try:
+        #             if str(study_name).index('loading'):
+        #                 time.sleep(0.1)
+        #                 total_wait_time += 0.1
+        #                 break
+        #             if str(study_name).index('compiling'):
+        #                 time.sleep(0.1)
+        #                 total_wait_time += 0.1
+        #                 break
+        #             if str(study_name).index('error'):
+        #                 time.sleep(0.1)
+        #                 total_wait_time += 0.1
+        #                 break
+        #             loaded = True
+        #             break
+        #         except ValueError:
+        #             loaded = True
+        #             break
+        # log.info('Loaded in {} seconds'.format(total_wait_time))
+
+        # xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
+        # elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_CHANGE_SYMBOL)
+        # while elem_loading and len(elem_loading) > 0:
+        #     elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_CHANGE_SYMBOL)
+        # try:
+        #     if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
+        #         invalid.add(symbol)
+        #         log.info('Invalid symbol')
+        #         return [counter_alerts, total_alerts]
+        # except TimeoutException:
+        #     pass
 
     except Exception as err:
         log.debug('Unable to change to symbol')
         log.exception(err)
         snapshot(browser)
+
+    # check for errors /
 
     try:
         if 'signals' in chart:
@@ -782,7 +826,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                 for m, indicator in enumerate(indicators):
                     indicator = indicators[m]
                     values = get_indicator_values(browser, indicator, symbol)
-                    # if we can't find a value, process this symbol again until we hit max retries which at that point we assume that only having 'n/a' values is correct
+                    # if we can't find a value, process this symbol again until we hit max retries which at that point we assume that the symbol doesn't exist or only hav 'n/a' values is correct
                     if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
                         return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
                     signal['indicators'][m]['values'] = values
@@ -815,8 +859,15 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     screenshots = dict()
                     filenames = dict()
                     screenshots_url = []
-                    el_asset_name = find_element(browser, css_selectors['asset'])
-                    asset = el_asset_name.text
+                    asset = ''
+                    for m in range(5):
+                        try:
+                            el_asset_name = find_element(browser, css_selectors['asset'])
+                            asset = el_asset_name.text
+                            break
+                        except StaleElementReferenceException:
+                            log.warning('Unable to retrieve asset name... trying again')
+                            pass
                     try:
                         for m, screenshot_chart in enumerate(signal['include_screenshots_of_charts']):
                             screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
@@ -899,7 +950,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
             input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
+            # time.sleep(DELAY_CHANGE_SYMBOL)
         except Exception as err:
             log.debug('Unable to change to symbol')
             log.exception(err)
@@ -1030,7 +1081,7 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
             input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
+            # time.sleep(DELAY_CHANGE_SYMBOL)
         except Exception as e:
             log.exception(e)
     elif retry_number < config.getint('tradingview', 'create_alert_max_retries'):
@@ -1653,7 +1704,6 @@ def run(file, export_signals_immediately, multi_threading=False):
                         for item in items:
                             if 'alerts' in item or 'signals' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, counter_alerts, total_alerts)
-                # log.info(triggered_signals)
                 summary(total_alerts)
                 if len(triggered_signals) > 0:
                     from tv import mail
