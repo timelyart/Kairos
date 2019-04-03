@@ -1565,6 +1565,10 @@ def create_browser(run_in_background):
         raise FileNotFoundError
     chromedriver_file.replace('.exe', '')
 
+    # use open chrome browser
+    # options = webdriver.ChromeOptions()
+    # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+
     try:
         # Create webdriver.remote
         # Note, we cannot serialize webdriver.Chrome
