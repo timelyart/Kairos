@@ -587,13 +587,14 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
                     wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
                     wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                    time.sleep(DELAY_BREAK * 4)
+                    time.sleep(DELAY_BREAK * 8)
                     # update counter
                     alerts = find_elements(browser, css_selectors['item_alerts'])
                     if type(alerts) is list:
                         counter_alerts = len(alerts)
                     # close alerts tab
-                    wait_and_click(browser, css_selectors['btn_alerts'])
+                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                        wait_and_click(browser, css_selectors['btn_alerts'])
 
                 if counter_alerts >= config.getint('tradingview', 'max_alerts'):
                     log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
