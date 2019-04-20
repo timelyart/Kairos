@@ -20,6 +20,7 @@ import sys
 import time
 import errno
 import dill
+import numpy
 
 from urllib.parse import unquote
 from PIL import Image
@@ -31,6 +32,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support.color import Color
 from multiprocessing import Pool
 
 from kairos import timing
@@ -85,6 +87,8 @@ COPY = MODIFIER_KEY + 'c'
 
 TV_UID = ''
 TV_PWD = ''
+
+NEGATIVE_COLOR = '#DD2E02'
 
 css_selectors = dict(
     # ALERTS
@@ -157,6 +161,35 @@ css_selectors = dict(
     select_screener='div.tv-screener-toolbar__button.tv-screener-toolbar__button--with-options.tv-screener-toolbar__button--arrow-down.tv-screener-toolbar__button--with-state.apply-common-tooltip.common-tooltip-fixed.js-filter-sets.tv-dropdown-behavior__button',
     options_screeners='div.tv-screener-popup__item--presets > div.tv-dropdown-behavior__item',
     input_screener_search='div.tv-screener-table__search-query.js-search-query.tv-screener-table__search-query--without-description > input',
+    # Strategy Tester
+    tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
+    tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
+    btn_strategy_dialog='div.icon-button.backtesting-open-format-dialog',
+    performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',
+    performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p',
+    performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
+    performance_overview_percent_profitable='div.report-data > div:nth-child(3) > strong',
+    performance_overview_profit_factor='div.report-data > div:nth-child(4) > strong',
+    performance_overview_max_drawdown='div.report-data > div:nth-child(5) > strong',
+    performance_overview_max_drawdown_percentage='div.report-data > div:nth-child(5) > p',
+    performance_overview_avg_trade='div.report-data > div:nth-child(6) > strong',
+    performance_overview_avg_trade_percentage='div.report-data > div:nth-child(6) > p',
+    performance_overview_avg_bars_in_trade='div.report-data > div:nth-child(7) > strong',
+    # Indicator dialog
+    indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
+    indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
+    # indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"] > div',
+    indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"]',
+    indicator_dialog_tab_cell='#overlap-manager-root div[class^="content"] div[class^="cell-"]:nth-child({})',
+    indicator_dialog_titles='#overlap-manager-root div[class^="content"] div[class*="first"] > div',
+    indicator_dialog_checkbox_titles='#overlap-manager-root label[class^="checkbox"] span > span',
+    indicator_dialog_checkbox='#overlap-manager-root label[class^="checkbox"] input:nth-child({})',
+    indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
+    indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
+    indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
+    btn_indicator_dialog_ok='#overlap-manager-root button[name="ok"]',
+    active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description',
+    active_chart_interval='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__interval',
 )
 
 class_selectors = dict(
@@ -254,7 +287,7 @@ def refresh(browser):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
 
-def element_exists(dom, css_selector, delay):
+def element_exists(dom, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
     result = False
     try:
         element = find_element(dom, css_selector, By.CSS_SELECTOR, delay)
@@ -269,7 +302,7 @@ def element_exists(dom, css_selector, delay):
 
 
 def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
-    WebDriverWait(browser, delay).until(
+    return WebDriverWait(browser, delay).until(
         ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
 
 
@@ -305,12 +338,14 @@ def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_t
             ec.presence_of_element_located((locator_strategy, locator)))
         return element
     else:
+        # noinspection PyBroadException
         try:
             element = WebDriverWait(browser, delay).until(
                 ec.presence_of_element_located((locator_strategy, locator)))
             return element
-        except TimeoutException as e:
+        except Exception as e:
             log.debug(e)
+            return None
 
 
 def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -325,6 +360,7 @@ def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_
             return elements
         except TimeoutException as e:
             log.debug(e)
+            return None
 
 
 def set_timeframe(browser, timeframe):
@@ -450,7 +486,6 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
     if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
         indicator_index = indicator['indicator_index']
 
-    # TODO check if indicator isn't loaded, e.g. when it throws an error. It does throw an error, wait a little then try again
     studies = []
     if indicator_index < 0:
         # use css
@@ -671,47 +706,53 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
-        # time.sleep(5)
-        # set the time frame
-        for timeframe in chart['timeframes']:
-            set_timeframe(browser, timeframe)
-            time.sleep(DELAY_TIMEFRAME)
-
-            # iterate over each symbol per watchlist
-            for watchlist in chart['watchlists']:
-                log.info("Opening watchlist " + watchlist)
-                try:
-                    number_of_windows = 2
+        if 'strategies' in chart:
+            for strategy in chart['strategies']:
+                for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
+                    back_test(browser, strategy, symbols)
 
-                    # log.info(__name__)
-                    if MULTI_THREADING:
-                        batch_size = math.ceil(len(symbols) / number_of_windows)
-                        batches = list(tools.chunks(symbols, batch_size))
+        if 'alerts' in chart or 'signals' in chart:
+            # time.sleep(5)
+            # set the time frame
+            for timeframe in chart['timeframes']:
+                set_timeframe(browser, timeframe)
+                time.sleep(DELAY_TIMEFRAME)
 
-                        browsers = dict()
+                # iterate over each symbol per watchlist
+                for watchlist in chart['watchlists']:
+                    log.info("Opening watchlist " + watchlist)
+                    try:
+                        number_of_windows = 2
+                        symbols = dict_watchlist[watchlist]
 
-                        if __name__ == 'tv.tv':
-                            pool = Pool(number_of_windows)  # use all available cores, otherwise specify the number you want as an argument
-                            for k, batch in enumerate(batches):
-                                batch = batches[k]
-                                if k == 0:
-                                    browsers[k] = browser
-                                else:
-                                    browsers[k] = get_browser_instance()
-                                result = pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
-                                log.info(result)
-                                # [counter_alerts, total_alerts]
-                                # pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe))
-                            pool.close()
-                            pool.join()
-                    else:
-                        [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
-                    # pickle.dump(browser, 'webdriver.instance')
-                    # TODO create batches of symbols and assign
-                except KeyError:
-                    log.error(watchlist + " doesn't exist")
-                    break
+                        # log.info(__name__)
+                        if MULTI_THREADING:
+                            batch_size = math.ceil(len(symbols) / number_of_windows)
+                            batches = list(tools.chunks(symbols, batch_size))
+
+                            browsers = dict()
+
+                            if __name__ == 'tv.tv':
+                                pool = Pool(number_of_windows)  # use all available cores, otherwise specify the number you want as an argument
+                                for k, batch in enumerate(batches):
+                                    batch = batches[k]
+                                    if k == 0:
+                                        browsers[k] = browser
+                                    else:
+                                        browsers[k] = get_browser_instance()
+                                    result = pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
+                                    log.info(result)
+                                    # [counter_alerts, total_alerts]
+                                    # pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe))
+                                pool.close()
+                                pool.join()
+                        else:
+                            [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
+                        # pickle.dump(browser, 'webdriver.instance')
+                    except KeyError:
+                        log.error(watchlist + " doesn't exist")
+                        break
     except Exception as exc:
         log.exception(exc)
         snapshot(browser)
@@ -912,13 +953,14 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
                     wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
                     wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                    time.sleep(DELAY_BREAK * 4)
+                    time.sleep(DELAY_BREAK * 8)
                     # update counter
                     alerts = find_elements(browser, css_selectors['item_alerts'])
                     if type(alerts) is list:
                         counter_alerts = len(alerts)
                     # close alerts tab
-                    wait_and_click(browser, css_selectors['btn_alerts'])
+                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                        wait_and_click(browser, css_selectors['btn_alerts'])
 
                 if counter_alerts >= config.getint('tradingview', 'max_alerts'):
                     log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
@@ -1342,7 +1384,7 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
         send_keys(element, string, interval)
     else:
 
-        browser.execute_script("arguments[0].value = arguments[1];", element, string)
+        browser.execute_script("arguments[0].value = '{}';".format(string), element)
         if use_clipboard:
             if config.getboolean('webdriver', 'clipboard'):
                 element.send_keys(SELECT_ALL)
@@ -1706,7 +1748,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                 for file, items in tv.items():
                     if type(items) is list:
                         for item in items:
-                            if 'alerts' in item or 'signals' in item:
+                            if 'alerts' in item or 'signals' in item or 'strategies' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, counter_alerts, total_alerts)
                 summary(total_alerts)
                 if len(triggered_signals) > 0:
@@ -1770,7 +1812,7 @@ def get_screener_markets(browser, screener_yaml):
 
     if re.Match:
         number_of_scrolls = math.ceil(int(match.group(1)) / chunck_size) - 1
-        for scrool in range(number_of_scrolls):
+        for scroll in range(number_of_scrolls):
             for j in range(20):
                 html.send_keys(Keys.PAGE_DOWN)
                 time.sleep(DELAY_BREAK_MINI)
@@ -1875,6 +1917,539 @@ def remove_watchlists(browser, name):
             log.exception(e)
             snapshot(browser)
         j = j + 1
+
+
+def back_test(browser, strategy_config, symbols):
+    try:
+        # open strategy tab
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, 1)
+        if isinstance(strategy_tab, WebElement):
+            strategy_tab.click()
+
+        summaries = []
+        atomic_inputs = []
+        atomic_properties = []
+        name = strategy_config['name']
+
+        avg_time = 2
+
+        if 'inputs' in strategy_config:
+            inputs = get_config_values(strategy_config['inputs'])
+            # log.info(inputs)
+            generate_atomic_values(inputs, atomic_inputs)
+        if 'properties' in strategy_config:
+            properties = get_config_values(strategy_config['properties'])
+            # log.info(properties)
+            generate_atomic_values(properties, atomic_properties)
+
+        expected_minutes = (max(len(atomic_inputs), 1) * max(len(atomic_properties), 1) * len(symbols) * avg_time) / 60
+        expected_time = "{} minutes".format(math.ceil(expected_minutes))
+        if expected_minutes > 90:
+            expected_hours = expected_minutes / 60
+            expected_time = "{} hours".format(math.ceil(expected_hours))
+            if expected_hours > 48:
+                expected_time = "{} days".format(math.ceil(expected_hours / 7))
+
+        # Both inputs and properties have been defined
+        if len(atomic_properties) > 0 and len(atomic_inputs) > 0:
+            log.info("Back testing {} with {} input sets and {} property sets. Test expected to finish in {}.".format(name, len(atomic_inputs), len(atomic_properties), expected_time))
+            for properties in atomic_properties:
+                for inputs in atomic_inputs:
+                    result = back_test_strategy(browser, inputs, properties, symbols, strategy_config)
+                    summaries.append(result)
+        # Inputs have been defined. Run back test for each input with default properties
+        elif len(atomic_inputs) > 0:
+            log.info("Back testing {} with {} input sets and default property set. Test expected to finish in {}.".format(name, len(atomic_inputs), expected_time))
+            for inputs in atomic_inputs:
+                result = back_test_strategy(browser, inputs, [], symbols, strategy_config)
+                summaries.append(result)
+        # Properties have been defined. Run back test for property with default inputs
+        elif len(atomic_properties) > 0:
+            log.info("Back testing {} with default input set and {} properties sets. Test expected to finish in {}.".format(name, len(atomic_properties), expected_time))
+            for properties in atomic_properties:
+                result = back_test_strategy(browser, [], properties, symbols, strategy_config)
+                summaries.append(result)
+        # Run just one back test with default inputs and properties
+        else:
+            log.info("Back testing {} with default input set and default property set. Test expected to finish in {}.".format(name, expected_time))
+            result = back_test_strategy(browser, [], [], symbols, strategy_config)
+            summaries.append(result)
+
+        # close strategy tab
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, 1)
+        if isinstance(strategy_tab, WebElement):
+            strategy_tab.click()
+        return summaries
+
+    except ValueError as e:
+        log.exception(e)
+
+
+def back_test_strategy(browser, inputs, properties, symbols, strategy_config):
+    result = False
+    results_by_symbol = dict()
+    results_by_interval = dict()
+    results_by_symbol_avg = dict()
+    results_by_interval_avg = dict()
+    results_avg = dict()
+    results = dict()
+    input_locations = dict()
+    property_locations = dict()
+
+    try:
+        css = 'div.chart-container'
+        number_of_charts = find_elements(browser, css)
+    except TimeoutException:
+        number_of_charts = 1
+    log.info("Found {} charts on the layout".format(len(number_of_charts)))
+
+    # Define the strategy for each chart on the layout
+    if len(inputs) > 0 and len(properties) > 0:
+        for chart_index in range(len(number_of_charts)):
+            # Select correct strategy on the chart, wait for it to be loaded and get current inputs and properties
+            select_strategy(browser, strategy_config, chart_index)
+            # open the strategy dialog and set the input & property values
+            format_strategy(browser, inputs, properties, input_locations, property_locations)
+            html = find_element(browser, 'html', By.TAG_NAME)
+            # Focus the next chart
+            if len(number_of_charts) > 1:
+                send_keys(html, Keys.TAB)
+
+    # For each symbol, extract results
+    for symbol in symbols:
+        input_symbol = find_element(browser, css_selectors['input_symbol'])
+        set_value(browser, input_symbol, symbol)
+        input_symbol.send_keys(Keys.ENTER)
+
+        for chart_index in range(len(number_of_charts)):
+            # asset = find_element(browser, css_selectors['active_chart_asset'])
+            interval = find_element(browser, css_selectors['active_chart_interval'])
+            if not (interval in results):
+                results[interval] = dict()
+
+            # Extract Strategy Tester result:
+            result = dict()
+            result['Net Profit'] = get_strategy_statistic(browser, css_selectors['performance_overview_net_profit'])
+            result['Net Profit %'] = get_strategy_statistic(browser, css_selectors['performance_overview_net_profit_percentage'])
+            result['Closed Trades'] = get_strategy_statistic(browser, css_selectors['performance_overview_total_closed_trades'])
+            result['Percent Profitable'] = get_strategy_statistic(browser, css_selectors['performance_overview_percent_profitable'])
+            result['Profit Factor'] = get_strategy_statistic(browser, css_selectors['performance_overview_profit_factor'])
+            result['Max Drawdown'] = get_strategy_statistic(browser, css_selectors['performance_overview_max_drawdown'])
+            result['Max Drawdown %'] = get_strategy_statistic(browser, css_selectors['performance_overview_max_drawdown_percentage'])
+            result['Avg Trade'] = get_strategy_statistic(browser,css_selectors['performance_overview_avg_trade'])
+            result['Avg Trade %'] = get_strategy_statistic(browser, css_selectors['performance_overview_avg_trade_percentage'])
+            result['Avg # Bars In Trade'] = get_strategy_statistic(browser, css_selectors['performance_overview_avg_bars_in_trade'])
+
+            # Save result per symbol per interval
+            # Calculate average over all symbols per interval
+            # Calculate average over all intervals per symbol
+
+            results_by_symbol[symbol] = result
+            if not ('average' in results_by_symbol):
+                results_by_symbol['average'] = dict()
+            results_by_symbol['average']['Net Profit'] += result['Net Profit']
+            results_by_symbol['average']['Net Profit %'] += result['Net Profit %']
+            results_by_symbol['average']['Closed Trades'] += result['Closed Trades']
+            results_by_symbol['average']['Percent Profitable'] += result['Percent Profitable']
+            results_by_symbol['average']['Profit Factor'] += result['Profit Factor']
+            results_by_symbol['average']['Max Drawdown'] += result['Max Drawdown']
+            results_by_symbol['average']['Max Drawdown %'] += result['Max Drawdown %']
+            results_by_symbol['average']['Avg Trade'] += result['Avg Trade']
+            results_by_symbol['average']['Avg Trade %'] += result['Avg Trade %']
+            results_by_symbol['average']['Avg # Bars In Trade'] += result['Avg # Bars In Trade']
+
+            if not ('average' in results_by_interval):
+                results_by_interval['average'] = dict()
+
+
+            results[interval][symbol] = result
+
+            log.info(result)
+            exit(0)
+
+            # Focus the next chart
+            if number_of_charts > 1:
+                send_keys('html', Keys.TAB)
+
+    return result
+
+
+def get_strategy_statistic(browser, css):
+    result = 'na'
+    el = find_element(browser, css, By.CSS_SELECTOR, False)
+    if el:
+        match = re.search(r"([\d|.]+)", el.text)
+        if match:
+            result = match.group(1)
+            if isinstance(result, int):
+                result = int(result)
+            elif isinstance(result, float):
+                result = float(result)
+            if Color.from_string(el.value_of_css_property('color')).hex == NEGATIVE_COLOR:
+                result = 1-result
+    return result
+
+
+def format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number=0):
+    try:
+        wait_and_click(browser, css_selectors['btn_strategy_dialog'])
+    except Exception as e:
+        log.exception(e)
+        retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number)
+
+    # click and set inputs
+    wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
+    set_indicator_dialog_values(browser, inputs, input_locations)
+
+    # click and set properties
+    wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
+    set_indicator_dialog_values(browser, properties, property_locations)
+
+    # click OK
+    wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
+    log.info(inputs)
+    log.info(properties)
+    # time.sleep(300)
+
+
+def set_indicator_dialog_values(browser, inputs, input_locations):
+    # get input titles
+    cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
+    titles = []
+    for i, cell in enumerate(cells):
+        title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
+        # log.info("{}. {}".format(i, title))
+        titles.append(title)
+
+    for key in inputs:
+        value = inputs[key]
+        index = -1
+        for i, title in enumerate(titles):
+            if (title == key) or ((not EXACT_CONDITIONS) and title.startswith(key)):
+                index = i
+
+        if index >= 0:
+            # log.info("Found {} at index {} with value {} ({})".format(key, index, value, type(value)))
+            # check first if it is a set of values, e.g. 100 USD
+            if isinstance(value, dict):
+                for sub_index, sub_key in enumerate(value):
+                    sub_value = value[sub_key]
+                    set_indicator_dialog_value(browser, input_locations, key, value, index, sub_key, sub_value, sub_index)
+            else:
+                set_indicator_dialog_value(browser, input_locations, key, value, index)
+    log.info(input_locations)
+    return True
+
+
+def set_indicator_dialog_value(browser, locations, key, value, index, sub_key='', sub_value='', sub_index=-1, retry_number=0):
+    css = ''
+    if key in locations:
+        css = locations[key]
+        if isinstance(css, dict):
+            if sub_key and sub_key in css:
+                css = css[sub_key]
+            else:
+                css = ''
+
+    try:
+        # we need to generate the css
+        if not css:
+
+            # check first if it is a set of values, e.g. 100 USD
+            if sub_index >= 0:
+                # css = css_selectors['indicator_dialog_tab_cell'].format(index + 2) + ' div[class^="inputGroup"] > div:nth-child({})'.format(sub_index + 1)
+                css = css_selectors['indicator_dialog_tab_cell'].format(index + 2) + ' > div[class^="inner"] > div > div:nth-child({})'.format(sub_index + 1)
+                # check if it is a boolean
+                if isinstance(sub_value, bool):
+                    css += ' input'
+                else:
+                    input_css = ' input'
+                    element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, 1)
+                    if element:
+                        css += input_css
+                    else:
+                        css += ' div[class^="selected"]'
+                # save the css for future use in this run
+                if not (key in locations):
+                    locations[key] = dict()
+                locations[key][sub_key] = css
+
+            # check if it is a boolean
+            elif isinstance(value, bool):
+                css = css_selectors['indicator_dialog_tab_cell'].format(index + 1) + ' input'
+                locations[key] = css
+            else:
+                css = css_selectors['indicator_dialog_tab_cell'].format(index + 2)
+                input_css = ' input'
+                element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, 1)
+                if element:
+                    css += input_css
+                else:
+                    css += ' div[class^="selected"]'
+                # save the css for future use in this run
+                locations[key] = css
+            # log.info("Generated css = {}".format(css))
+
+        if css:
+            # log.info(css)
+            val = value
+            if sub_index >= 0:
+                val = sub_value
+            # if key == 'recalculate':
+            #     log.info("key = {}; value = {}; index = {}".format(key, value, index))
+            #     log.info("sub_key = {}; sub_value = {}; sub_index = {}".format(sub_key, sub_value, sub_index))
+            #     log.info(css)
+
+            element = find_element(browser, css, By.CSS_SELECTOR, False)
+            if isinstance(element, WebElement):
+                # check if it is an input box
+                if element.tag_name == 'input':
+                    if element.get_attribute("type") == "checkbox":
+                        if key == 'recalculate':
+                            log.info(val)
+                            log.info(is_checkbox_checked(element))
+                        if is_checkbox_checked(element) != val:
+                            wait_and_click(browser, css + " + div")
+                    else:
+                        clear(element)
+                        set_value(browser, element, val, True)
+
+                # assume it is a select box
+                else:
+                    # click on the select box
+                    element.click()
+                    # get it's options
+                    select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
+                    for option in select_options:
+                        option_value = option.text.strip()
+                        if option_value == str(val) or ((not EXACT_CONDITIONS) and option_value.startswith(str(val))):
+                            # select the option
+                            option.click()
+                            break
+            else:
+                log.error("No element found for {}".format(css))
+                log.info("key = {}; value = {}; index = {}".format(key, value, index))
+                if sub_index >= 0:
+                    log.info("sub_key = {}; sub_value = {}; sub_index = {}".format(sub_key, sub_value, sub_index))
+        else:
+            log.error("Unable to generate CSS")
+            log.info("key = {}; value = {}; index = {}".format(key, value, index))
+            if sub_index >= 0:
+                log.info("sub_key = {}; sub_value = {}; sub_index = {}".format(sub_key, sub_value, sub_index))
+    except Exception as e:
+        log.exception(e)
+        log.info("css = {}".format(css))
+        log.info("key = {}; value = {}; index = {}".format(key, value, index))
+        if sub_index >= 0:
+            log.info("sub_key = {}; sub_value = {}; sub_index = {}".format(sub_key, sub_value, sub_index))
+        retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
+
+
+def retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries')
+    if config.has_option('tradingview', 'get_indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'get_indicator_values_max_retries')
+    if retry_number < max_retries:
+        return set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
+
+
+def retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries')
+    if config.has_option('tradingview', 'get_indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'get_indicator_values_max_retries')
+    if retry_number < max_retries:
+        return format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number + 1)
+
+
+def select_strategy(browser, strategy_config, chart_index, retry_number=0):
+    pane_index = -1
+    indicator_index = -1
+    if 'pane_index' in strategy_config and str(strategy_config['pane_index']).isdigit():
+        pane_index = strategy_config['pane_index']
+    # use css
+    try:
+        css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
+        studies = find_elements(browser, css)
+        for i, study in enumerate(studies):
+            study_name = studies[i].text
+            log.debug('Found '.format(study_name))
+            if study_name.startswith(strategy_config['name']):
+                indicator_index = i
+                try:
+                    if str(study_name).lower().index('loading'):
+                        time.sleep(0.1)
+                        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+                    if str(study_name).lower().index('compiling'):
+                        time.sleep(0.1)
+                        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+                    if str(study_name).lower().index('error'):
+                        time.sleep(0.1)
+                        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+                except ValueError:
+                    pass
+                break
+    except StaleElementReferenceException:
+        log.debug('StaleElementReferenceException in studies')
+        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+    except TimeoutException:
+        log.warning('timeout in finding studies')
+        refresh(browser)
+        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+    except Exception as e:
+        log.exception(e)
+        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+
+    return indicator_index
+
+
+def retry_select_strategy(browser, strategy_config, chart_index, retry_number):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries') * 10
+    if config.has_option('tradingview', 'get_indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'get_indicator_values_max_retries')
+    if retry_number < max_retries:
+        return get_indicator_values(browser, strategy_config, chart_index, retry_number + 1)
+
+
+def generate_atomic_values(items, strategies, depth=0):
+    recursive_depth = depth + 1
+    # log.info(items)
+    result = []
+    for item in items:
+        # log.info("{} is of type {}".format(repr(item), str(type(item))))
+        if isinstance(items[item], dict):
+            # log.info(items[item])
+            sub_results = []
+            generate_atomic_values(items[item], sub_results, recursive_depth)
+            # log.info(sub_results)
+            for sub_result in sub_results:
+                tmp = dict(items)
+                tmp[item] = sub_result
+                tmp_result = generate_atomic_values(tmp, strategies, recursive_depth)
+                # log.info(tmp_result)
+                # log.info(tmp)
+                atomic = True
+                for tmp_item in tmp:
+                    if isinstance(tmp[tmp_item], dict):
+                        # log.info("dict! {}".format(tmp[tmp_item]))
+                        # log.info(tmp_item)
+                        for key in tmp[tmp_item]:
+                            # log.info(tmp[tmp_item][key])
+                            if isinstance(tmp[tmp_item][key], list):
+                                # log.info("list! {}".format(tmp[tmp_item][key]))
+                                atomic = False
+                                break
+                        if not atomic:
+                            break
+                    if isinstance(tmp[tmp_item], list):
+                        # log.info("list! {}".format(tmp[tmp_item]))
+                        atomic = False
+                        break
+                # log.info("atomic? {} : {}".format(atomic, tmp))
+                if atomic and tmp not in strategies:
+                    strategies.append(tmp)
+
+                result.append(tmp_result)
+        elif isinstance(items[item], list):
+            for value in items[item]:
+                tmp = dict(items)
+                tmp[item] = value
+                tmp_result = generate_atomic_values(tmp, strategies, recursive_depth)
+                # log.info(tmp_result)
+                atomic = True
+                for tmp_item in tmp:
+                    if isinstance(tmp[tmp_item], list) or isinstance(tmp[tmp_item], dict):
+                        atomic = False
+                        break
+                if atomic and tmp not in strategies:
+                    strategies.append(tmp)
+                result.append(tmp_result)
+        else:
+            result = [items[item]]
+    return result
+
+
+def get_config_values(items):
+    if isinstance(items, list) or isinstance(items, dict):
+        for key in items:
+            items[key] = generate_config_values(items[key])
+            # log.info(items[key])
+    return items
+
+
+def generate_config_values(value):
+    result = []
+    delimeter_range = ' - '
+    delimeter_increment = '&'
+    increment = None
+
+    # if the value is a list, generate values recursively
+    if isinstance(value, list):
+        for item in value:
+            result.append(generate_config_values(item))
+    if isinstance(value, dict):
+        for item in value:
+            value[item] = generate_config_values(value[item])
+        result = value
+    elif isinstance(value, str) and value.find(delimeter_range) > 0:
+        decimal_places = 0
+
+        # log.info(value)
+        # log.info(value.find(delimeter_increment))
+        if value.find(delimeter_increment) > 0:
+            [value, increment] = value.split(delimeter_increment)
+            value = value.strip()
+            increment = increment.strip()
+            decimal_places = increment[::-1].find('.')
+            try:
+                if decimal_places > 0:
+                    increment = float(increment)
+                else:
+                    increment = int(increment)
+            except Exception as e:
+                log.exception(e)
+
+        [start, end] = value.split(delimeter_range)
+        if not increment:
+            increment = 1
+            decimal_places = max(start[::-1].find('.'), end[::-1].find('.'))
+            if decimal_places > 0:
+                increment = '0.'
+                for i in range(decimal_places - 1):
+                    increment += '0'
+                increment += '1'
+                increment = float(increment)
+
+        try:
+            if start.find('.') >= 0:
+                start = float(start)
+            else:
+                start = int(start)
+            if end.find('.') >= 0:
+                end = float(end)
+            else:
+                end = int(end)
+        except Exception as e:
+            log.exception(e)
+
+        # log.info("start = {}".format(start))
+        # log.info("end = {}".format(end))
+        # log.info("decimal_places = {}".format(decimal_places))
+        if not (isinstance(start, int) or isinstance(start, float)):
+            raise ValueError("Invalid range value: '{}'".format(start))
+        if not (isinstance(end, int) or isinstance(end, float)):
+            raise ValueError("Invalid range value: '{}'".format(end))
+        if not (isinstance(increment, int) or isinstance(increment, float)):
+            raise ValueError("Invalid increment value: '{}'".format(increment))
+
+        for number in numpy.arange(start, end, increment):
+            if decimal_places > 0:
+                result.append(round(number, decimal_places))
+            else:
+                result.append(number)
+        result.append(end)
+    else:
+        result = value
+    return result
 
 
 def summary(total_alerts):
