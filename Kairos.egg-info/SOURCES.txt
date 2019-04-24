@@ -24,13 +24,7 @@ kairos/mongodb.py
 kairos/timing.py
 kairos/tools.py
 tv/__init__.py
-tv/_browse.yaml
-tv/_example.yaml
-tv/_example_davo.yaml
-tv/_screener_to_watchlist.yaml
-tv/_summary.yaml
 tv/exchange.py
 tv/mail.py
-tv/refresh.yaml
 tv/trade_manager.py
 tv/tv.py

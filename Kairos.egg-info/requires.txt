@@ -12,6 +12,7 @@ google-api-python-client
 oauth2client
 pymongo
 dill
+numpy
 
 [platform_system == "Darwin"]
 pyobjc-core

@@ -2,6 +2,7 @@
 kairos.cfg
 *.pyc
 *.bat
+*.zip
 dist/*
 *.egg-info/
 yaml/*.tmp
