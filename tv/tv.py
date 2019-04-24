@@ -1710,7 +1710,7 @@ def logout(browser):
         browser.switch_to.window(browser.window_handles[0])
         wait_and_click(browser, css_selectors['btn_user_menu'])
         wait_and_click(browser, css_selectors['btn_logout'])
-        log.info("Logged out of TradingView")
+        log.info("logged out of TradingView")
     except Exception as e:
         log.exception(e)
         snapshot(browser)
