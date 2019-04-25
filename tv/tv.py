@@ -904,9 +904,9 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             if is_checkbox_checked(checkbox) != alert_config['send']['email-to-sms']:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email_to_sms'])
             # Send SMS (only for premium members)
-            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_sms'], By.NAME)
-            if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
-                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_sms'])
+            # checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_sms'], By.NAME)
+            # if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
+            #     wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_sms'])
             # Notify on App
             checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_push'], By.NAME)
             if is_checkbox_checked(checkbox) != alert_config['send']['notify-on-app']:
