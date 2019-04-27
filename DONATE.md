@@ -8,13 +8,10 @@ Alternatively, you can donate using the options below.
 
 ## Bitcoin ##
 ![bitcoin QR code](img/300_Bitcoin_QR_code.png)
-#### 326VU5HbzQuxJo2RaZK4KFgTDHzids68sk ####
+#### 3PSfxCvDbGC5Bu9s5SGgYZAoNQFBzmMuPf ####
 ## Ethereum ##
 ![ether QR code](img/300_Ethereum_QR_code.png)
 #### 0xdF5b9cbB2731d81F757CBFbD5BdFAdb26445A9dA ####
 ## Dash ##
 ![dash QR code](img/300_Dash_QR_code.png)
-#### Xhm93azcvzjuSu3zBnCQa6zbBqpXvg1Ttn ####
-## Zcash ##
-![zcash QR code](img/300_ZCASH_QR_code.png)
-#### t1ZGYhoa9NmXRGQF6dYAQApBKG5N4V9yJym ####
+#### XsiJZDKsaAssyV8ZbgQiKL5CKy1N2wNJTs ####
