@@ -61,7 +61,7 @@ pip install --upgrade setuptools
 * Clone archive and install:
 ```
 git clone --recursive https://github.com/timelyart/kairos.git
-cd python
+cd Kairos
 python setup.py install
 ```
 * Continue with the steps listed under section [Post installation](https://github.com/timelyart/Kairos#post-installation)
