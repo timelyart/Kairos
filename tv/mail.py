@@ -847,68 +847,68 @@ def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
 
 
 def send_signals_to_google_sheet(google_api_creds, data, google_sheets_config):
-        results = []
+    results = []
 
-        limit = 100
-        if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
-            limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
-        inserted = 0
+    limit = 100
+    if config.has_option('api', 'google_write_requests_per_100_seconds_per_user'):
+        limit = config.getint('api', 'google_write_requests_per_100_seconds_per_user')
+    inserted = 0
 
-        for config_item in google_sheets_config:
-            try:
-                name = config_item['name']
-                sheet = ''
-                search_criteria = []
-                enabled = True
-                index = 1
-                if 'sheet' in config_item:
-                    sheet = config_item['sheet']
-                if 'index' in config_item:
-                    index = config_item['index']
-                if 'search_criteria' in config_item:
-                    search_criteria = config_item['search_criteria']
-                if 'enabled' in config_item:
-                    enabled = config_item['enabled']
-                if enabled:
-                    result = ''
-                    scope = ['https://spreadsheets.google.com/feeds',
-                             'https://www.googleapis.com/auth/drive']
-                    credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
-                    log_level = log.level
-                    if log_level == 20:
-                        log.level = 30
-                    client = gspread.authorize(credentials)
-                    log.level = log_level
-                    sheet = client.open(name).worksheet(sheet)
+    for config_item in google_sheets_config:
+        try:
+            name = config_item['name']
+            sheet = ''
+            search_criteria = []
+            enabled = True
+            index = 1
+            if 'sheet' in config_item:
+                sheet = config_item['sheet']
+            if 'index' in config_item:
+                index = config_item['index']
+            if 'search_criteria' in config_item:
+                search_criteria = config_item['search_criteria']
+            if 'enabled' in config_item:
+                enabled = config_item['enabled']
+            if enabled:
+                result = ''
+                scope = ['https://spreadsheets.google.com/feeds',
+                         'https://www.googleapis.com/auth/drive']
+                credentials = ServiceAccountCredentials.from_json_keyfile_name(google_api_creds, scope)
+                log_level = log.level
+                if log_level == 20:
+                    log.level = 30
+                client = gspread.authorize(credentials)
+                log.level = log_level
+                sheet = client.open(name).worksheet(sheet)
 
-                    for signal in data:
-                        csv = signal['csv']
-                        search_text = signal['search_text']
-                        row = csv.split(';')
-                        if TEST:
-                            log.info(row)
-                        else:
-                            if len(search_criteria) == 0:
-                                result = sheet.insert_row(row, index, 'RAW')
-                            else:
-                                for search_criterium in search_criteria:
-                                    if str(search_text).find(str(search_criterium)) >= 0:
-                                        result = sheet.insert_row(row, index, 'RAW')
-                                        break
-                            if result:
-                                results.append(result)
-                                log.debug(str(result))
-                            inserted += 1
-                            if inserted == 100:
-                                log.info('API limit reached. Waiting {} seconds before continuing...'.format(str(limit)))
-                                time.sleep(limit)
-                                inserted = 0
-                    if len(results) == 1:
-                        log.info(str(len(results)) + ' row inserted')
+                for signal in data:
+                    csv = signal['csv']
+                    search_text = signal['search_text']
+                    row = csv.split(';')
+                    if TEST:
+                        log.info(row)
                     else:
-                        log.info(str(len(results)) + ' rows inserted')
-            except Exception as e:
-                log.exception(e)
+                        if len(search_criteria) == 0:
+                            result = sheet.insert_row(row, index, 'RAW')
+                        else:
+                            for search_criterium in search_criteria:
+                                if str(search_text).find(str(search_criterium)) >= 0:
+                                    result = sheet.insert_row(row, index, 'RAW')
+                                    break
+                        if result:
+                            results.append(result)
+                            log.debug(str(result))
+                        inserted += 1
+                        if inserted == 100:
+                            log.info('API limit reached. Waiting {} seconds before continuing...'.format(str(limit)))
+                            time.sleep(limit)
+                            inserted = 0
+                if len(results) == 1:
+                    log.info(str(len(results)) + ' row inserted')
+                else:
+                    log.info(str(len(results)) + ' rows inserted')
+        except Exception as e:
+            log.exception(e)
 
 
 def send_alert_to_google_sheet(google_api_creds, data, name, sheet='', index=1, search_criteria=''):
