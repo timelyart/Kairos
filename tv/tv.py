@@ -2055,7 +2055,7 @@ def back_test(browser, strategy_config, symbols):
             log.info("Back testing {} with {} input sets and {} property sets.".format(name, len(atomic_inputs), len(atomic_properties)))
             for i, properties in enumerate(atomic_properties):
                 for j, inputs in enumerate(atomic_inputs):
-                    strategy_number = (i+1)*(j+1)
+                    strategy_number = i*len(properties)+j+1
                     log.info("Strategy variant {}/{}".format(strategy_number, number_of_strategies))
                     strategy_summary = dict()
                     strategy_summary['inputs'] = inputs
