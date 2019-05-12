@@ -247,7 +247,7 @@ def refresh(browser):
     # Give some time to load the page
     time.sleep(5)
     # Close the watchlist menu if it is open
-    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, 0.5):
+    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, True, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
 
@@ -296,32 +296,49 @@ def wait_and_visible(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
     return element
 
 
-def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
+def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, visible=False, delay=CHECK_IF_EXISTS_TIMEOUT):
     if except_on_timeout:
-        element = WebDriverWait(browser, delay).until(
-            ec.presence_of_element_located((locator_strategy, locator)))
+        if visible:
+            element = WebDriverWait(browser, delay).until(
+                ec.visibility_of_element_located((locator_strategy, locator)))
+        else:
+            element = WebDriverWait(browser, delay).until(
+                ec.presence_of_element_located((locator_strategy, locator)))
         return element
     else:
         try:
-            element = WebDriverWait(browser, delay).until(
-                ec.presence_of_element_located((locator_strategy, locator)))
+            if visible:
+                element = WebDriverWait(browser, delay).until(
+                    ec.visibility_of_element_located((locator_strategy, locator)))
+            else:
+                element = WebDriverWait(browser, delay).until(
+                    ec.presence_of_element_located((locator_strategy, locator)))
             return element
         except TimeoutException as e:
             log.debug(e)
 
 
-def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
+def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, visible=False, delay=CHECK_IF_EXISTS_TIMEOUT):
     if except_on_timeout:
-        elements = WebDriverWait(browser, delay).until(
-            ec.presence_of_all_elements_located((locator_strategy, locator)))
+        if visible:
+            elements = WebDriverWait(browser, delay).until(
+                ec.visibility_of_all_elements_located((locator_strategy, locator)))
+        else:
+            elements = WebDriverWait(browser, delay).until(
+                ec.presence_of_all_elements_located((locator_strategy, locator)))
         return elements
     else:
         try:
-            elements = WebDriverWait(browser, delay).until(
-                ec.presence_of_all_elements_located((locator_strategy, locator)))
+            if visible:
+                elements = WebDriverWait(browser, delay).until(
+                    ec.visibility_of_all_elements_located((locator_strategy, locator)))
+            else:
+                elements = WebDriverWait(browser, delay).until(
+                    ec.presence_of_all_elements_located((locator_strategy, locator)))
             return elements
         except TimeoutException as e:
             log.debug(e)
+            return None
 
 
 def set_timeframe(browser, timeframe):
@@ -581,7 +598,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                 if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
                     # try clean inactive alerts first
                     # open alerts tab
-                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
                         wait_and_click(browser, css_selectors['btn_alerts'])
                     time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
@@ -593,7 +610,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     if type(alerts) is list:
                         counter_alerts = len(alerts)
                     # close alerts tab
-                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
                         wait_and_click(browser, css_selectors['btn_alerts'])
 
                 if counter_alerts >= config.getint('tradingview', 'max_alerts'):
