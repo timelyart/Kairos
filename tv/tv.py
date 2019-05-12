@@ -300,7 +300,7 @@ def refresh(browser):
     # Switching to Alert
     close_alerts(browser)
     # Close the watchlist menu if it is open
-    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, 0.5):
+    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, False, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
 
@@ -349,31 +349,45 @@ def wait_and_visible(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
     return element
 
 
-def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
+def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, visible=False, delay=CHECK_IF_EXISTS_TIMEOUT):
     if except_on_timeout:
-        element = WebDriverWait(browser, delay).until(
-            ec.presence_of_element_located((locator_strategy, locator)))
-        return element
-    else:
-        # noinspection PyBroadException
-        try:
+        if visible:
+            element = WebDriverWait(browser, delay).until(
+                ec.visibility_of_element_located((locator_strategy, locator)))
+        else:
             element = WebDriverWait(browser, delay).until(
                 ec.presence_of_element_located((locator_strategy, locator)))
+        return element
+    else:
+        try:
+            if visible:
+                element = WebDriverWait(browser, delay).until(
+                    ec.visibility_of_element_located((locator_strategy, locator)))
+            else:
+                element = WebDriverWait(browser, delay).until(
+                    ec.presence_of_element_located((locator_strategy, locator)))
             return element
-        except Exception as e:
+        except TimeoutException as e:
             log.debug(e)
-            return None
 
 
-def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, delay=CHECK_IF_EXISTS_TIMEOUT):
+def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, visible=False, delay=CHECK_IF_EXISTS_TIMEOUT):
     if except_on_timeout:
-        elements = WebDriverWait(browser, delay).until(
-            ec.presence_of_all_elements_located((locator_strategy, locator)))
+        if visible:
+            elements = WebDriverWait(browser, delay).until(
+                ec.visibility_of_all_elements_located((locator_strategy, locator)))
+        else:
+            elements = WebDriverWait(browser, delay).until(
+                ec.presence_of_all_elements_located((locator_strategy, locator)))
         return elements
     else:
         try:
-            elements = WebDriverWait(browser, delay).until(
-                ec.presence_of_all_elements_located((locator_strategy, locator)))
+            if visible:
+                elements = WebDriverWait(browser, delay).until(
+                    ec.visibility_of_all_elements_located((locator_strategy, locator)))
+            else:
+                elements = WebDriverWait(browser, delay).until(
+                    ec.presence_of_all_elements_located((locator_strategy, locator)))
             return elements
         except TimeoutException as e:
             log.debug(e)
@@ -721,7 +735,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 # extract symbols from watchlist
                 symbols = []
                 try:
-                    dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR, True, 30)
+                    dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR, True, False, 30)
                     for symbol in dict_symbols:
                         symbols.append(symbol.get_attribute('data-symbol-full'))
                         if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
@@ -999,7 +1013,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                 if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
                     # try clean inactive alerts first
                     # open alerts tab
-                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
                         wait_and_click(browser, css_selectors['btn_alerts'])
                     time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
@@ -1011,7 +1025,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     if type(alerts) is list:
                         counter_alerts = len(alerts)
                     # close alerts tab
-                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False):
+                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
                         wait_and_click(browser, css_selectors['btn_alerts'])
 
                 if counter_alerts >= config.getint('tradingview', 'max_alerts'):
@@ -2009,7 +2023,7 @@ def remove_watchlists(browser, name):
 def back_test(browser, strategy_config, symbols):
     try:
         # open strategy tab
-        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, 1)
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, False, 1)
         if isinstance(strategy_tab, WebElement):
             strategy_tab.click()
 
@@ -2019,7 +2033,7 @@ def back_test(browser, strategy_config, symbols):
         while tries < max_tries:
             # noinspection PyBroadException
             try:
-                strategy_performance_strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_performance_summary'], By.CSS_SELECTOR, True, 2)
+                strategy_performance_strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_performance_summary'], By.CSS_SELECTOR, True, False, 2)
                 if isinstance(strategy_tab, WebElement):
                     strategy_performance_strategy_tab.click()
                 tries = max_tries
@@ -2099,7 +2113,7 @@ def back_test(browser, strategy_config, symbols):
             summaries.append(strategy_summary)
 
         # close strategy tab
-        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, 1)
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, False, 1)
         if isinstance(strategy_tab, WebElement):
             strategy_tab.click()
 
@@ -2448,7 +2462,7 @@ def get_strategy_statistic(browser, css):
     tries = 0
     while tries < config.getint('tradingview', 'create_alert_max_retries'):
         try:
-            el = find_element(browser, css, By.CSS_SELECTOR, False, 1)
+            el = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
             if not el:
                 log.debug("NOT FOUND: {} = {}".format(By.CSS_SELECTOR, css))
                 break
@@ -2550,7 +2564,7 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
                     css += ' input'
                 else:
                     input_css = ' input'
-                    element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, 1)
+                    element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, False, 1)
                     if element:
                         css += input_css
                     else:
@@ -2567,7 +2581,7 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
             else:
                 css = css_selectors['indicator_dialog_tab_cell'].format(index + 2)
                 input_css = ' input'
-                element = find_element(browser, css + input_css, By.CSS_SELECTOR, True, 1)
+                element = find_element(browser, css + input_css, By.CSS_SELECTOR, True, False, 1)
                 if element:
                     css += input_css
                 else:
