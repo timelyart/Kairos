@@ -761,8 +761,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
             # save the results
             # log.info(json.dumps(summaries))
-            match = re.search(r"([\w\-_]*)", save_as)
-            if re.Match:
+            match = re.search(r"(dasdsa[\w\-_]*)", save_as)
+            if match:
                 filename = match.group(1)
             elif save_as == "":
                 filename = "run"
