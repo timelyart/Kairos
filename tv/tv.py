@@ -2020,10 +2020,11 @@ def remove_watchlists(browser, name):
         j = j + 1
 
 
-def back_test(browser, strategy_config, symbols):
+def open_performance_summary_tab(browser):
     try:
         # open strategy tab
-        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, False, 1)
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, False,
+                                    1)
         if isinstance(strategy_tab, WebElement):
             strategy_tab.click()
 
@@ -2033,13 +2034,22 @@ def back_test(browser, strategy_config, symbols):
         while tries < max_tries:
             # noinspection PyBroadException
             try:
-                strategy_performance_strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_performance_summary'], By.CSS_SELECTOR, True, False, 2)
-                if isinstance(strategy_tab, WebElement):
+                strategy_performance_strategy_tab = find_element(browser,
+                                                                 css_selectors['tab_strategy_tester_performance_summary'],
+                                                                 By.CSS_SELECTOR, True, False, 2)
+                if isinstance(strategy_performance_strategy_tab, WebElement):
                     strategy_performance_strategy_tab.click()
                 tries = max_tries
             except Exception as e:
                 log.exception(e)
                 tries += 1
+
+    except Exception as e:
+        log.exception(e)
+
+
+def back_test(browser, strategy_config, symbols):
+    try:
 
         summaries = list()
         atomic_inputs = []
@@ -2063,7 +2073,7 @@ def back_test(browser, strategy_config, symbols):
             # log.info(properties)
             generate_atomic_values(properties, atomic_properties)
 
-        number_of_strategies = len(atomic_properties) * len(atomic_inputs)
+        number_of_strategies = max(len(atomic_properties), 1) * max(len(atomic_inputs), 1)
         # Both inputs and properties have been defined
         if len(atomic_properties) > 0 and len(atomic_inputs) > 0:
             log.info("Back testing {} with {} input sets and {} property sets.".format(name, len(atomic_inputs), len(atomic_properties)))
@@ -2257,6 +2267,8 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
 def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries=0):
     try:
         log.info(symbol)
+        if first_symbol:
+            open_performance_summary_tab(browser)
         # max_tries = 2
         # local_tries = 0
         # while local_tries < max_tries:
@@ -2438,6 +2450,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries, e):
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
     if tries < max_tries:
+        # log.debug("try {}".format(tries))
         first_symbol = refresh_session(browser) or first_symbol
         if not isinstance(e, StaleElementReferenceException):
             log.exception(e)
