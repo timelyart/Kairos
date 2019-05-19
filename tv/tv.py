@@ -33,7 +33,6 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
-# from selenium.webdriver.support.color import Color
 from multiprocessing import Pool
 
 from kairos import timing
@@ -73,7 +72,7 @@ RUN_IN_BACKGROUND = False
 MULTI_THREADING = False
 ALERT_NUMBER = 0
 SEARCH_FOR_WARNING = True
-REFRESH_START = timing.clock()
+REFRESH_START = timing.time()
 REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
@@ -223,7 +222,7 @@ name_selectors = dict(
     checkbox_dlg_create_alert_send_push='send-push'
 )
 
-tv_start = timing.clock()
+tv_start = timing.time()
 config = tools.get_config()
 mode = 'a'  # append
 if config.getboolean('logging', 'clear_on_start_up'):
@@ -761,13 +760,13 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
             # save the results
             # log.info(json.dumps(summaries))
-            match = re.search(r"(dasdsa[\w\-_]*)", save_as)
+            filename = save_as
+            match = re.search(r"([\w\-_]*)", save_as)
             if match:
                 filename = match.group(1)
             elif save_as == "":
                 filename = "run"
-            else:
-                filename = save_as
+            log.info(filename)
             save_strategy_results(json.dumps(summaries, indent=4), filename)
 
         if 'alerts' in chart or 'signals' in chart:
@@ -2160,12 +2159,12 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
 
     duration = 0
     for i, symbol in enumerate(symbols[0:2]):
-        timer_symbol = time.clock()
+        timer_symbol = time.time()
         back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals)
         if i == 0:
-            duration += (time.clock() - timer_symbol) * (number_of_variants + 1 - strategy_number)
+            duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
-            duration += (time.clock() - timer_symbol) * (len(symbols)-2) * (number_of_variants + 1 - strategy_number)
+            duration += (time.time() - timer_symbol) * (len(symbols)-2) * (number_of_variants + 1 - strategy_number)
     log.info("Test run is expected to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
@@ -2463,10 +2462,10 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
 
 def refresh_session(browser):
     global REFRESH_START
-    interval_expired = timing.clock() - REFRESH_START >= REFRESH_INTERVAL
+    interval_expired = timing.time() - REFRESH_START >= REFRESH_INTERVAL
     if interval_expired:
         refresh(browser)
-        REFRESH_START = timing.clock()
+        REFRESH_START = timing.time()
     return interval_expired
 
 
@@ -2827,12 +2826,17 @@ def generate_config_values(value):
 
         for number in numpy.arange(start, end, increment):
             if decimal_places > 0:
-                result.append(round(number, decimal_places))
+                result.append(float(round(number, decimal_places)))
             else:
-                result.append(number)
+                result.append(int(number))
         result.append(end)
+        # if decimal_places > 0:
+        #     result.append(float(round(end, decimal_places)))
+        # else:
+        #     result.append(int(end))
     else:
         result = value
+        log.error("unable to convert {} is of numpy type {} to a python type".format(value, type(value)))
     return result
 
 
@@ -2864,7 +2868,7 @@ def wait_until_indicator_is_loaded(browser, indicator_name, pane_index):
 
 def summary(total_alerts):
     if total_alerts > 0:
-        elapsed = timing.clock() - timing.start
+        elapsed = timing.time() - timing.start
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
         log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
     elif total_alerts == 0:
