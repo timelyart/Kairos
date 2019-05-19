@@ -13,6 +13,7 @@ def seconds_to_str(elapsed=None):
 
 def log(s, elapsed=None):
     line = "="*40
+    print()
     print(line)
     print(seconds_to_str(), '-', s)
     if elapsed:
