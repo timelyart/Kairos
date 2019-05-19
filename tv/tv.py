@@ -148,6 +148,7 @@ css_selectors = dict(
     dlg_screenshot_url='div[class^="copyForm"] > div > input',
     dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
     btn_watchlist_sort_symbol='div.symbol-list-header.sortable > div.header-symbol',
+    btn_create_alert_warning_continue_anyway='#overlap-manager-root button:nth-child(2)',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
     select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
@@ -974,7 +975,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # ignore warnings if they are there
         if SEARCH_FOR_WARNING:
             try:
-                wait_and_click_by_xpath(browser, '//*[@id="overlap-manager-root"]/div[2]/div/span/div[1]/div/div[2]/div[2]/button', 30)
+                wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'], 30)
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
                 SEARCH_FOR_WARNING = False
