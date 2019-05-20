@@ -1,3 +1,4 @@
+import shutil
 import sys
 import os
 from kairos import debug
@@ -24,6 +25,7 @@ def print_help():
     print("<file>\t\t YAML file with alert definitions and/or summary option")
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
+    print("-cls\t\t Clean session data that is exclusively used by Kairos. Your browser's user data folder is left untouched by this action.")
     print("-m\t\t Flag. Run in multiprocessing mode. This requires setting up Selenium Grid. More information can be found here: https://www.seleniumhq.org/docs/07_selenium_grid.jsp\n")
     print("-h\t\t Flag. Show this help.")
     print("-d\t\t Flag. Show disclaimer.\n")
@@ -53,6 +55,8 @@ def main():
                 multi_threading = True
             elif i > 1 and str(sys.argv[(i-1)]) == '-s':
                 delay_summary = int(sys.argv[i])
+            elif str(sys.argv[i]) == '-cls':
+                clean_browser_data()
             elif not str(sys.argv[i]).endswith('main.py'):
                 print("No such argument: " + str(sys.argv[i]))
             i += 1
@@ -93,6 +97,35 @@ def test_mongodb():
     from kairos import mongodb
     mongodb.test(connection_string, collection, log)
     exit(0)
+
+
+def clean_browser_data():
+    debug.file_name = 'clean_browser_data.log'
+    log = debug.create_log()
+    log.setLevel(20)
+    from kairos import tools
+    config = tools.get_config()
+    log.setLevel(config.getint('logging', 'level'))
+    if config.has_option('webdriver', 'user_data_directory'):
+        user_data_directory = config.get('webdriver', 'user_data_directory')
+        lockfile = 'lockfile'
+        user_data_base_dir, tail = os.path.split(user_data_directory)
+        with os.scandir(user_data_base_dir) as user_data_directories:
+            for entry in user_data_directories:
+                if entry.name.startswith('kairos') and entry.name != user_data_directory:
+                    path = os.path.join(user_data_base_dir, entry)
+                    if os.path.exists(os.path.join(entry.name, lockfile)):
+                        log.info("unable to remove {}. User data directory is currently in use by another process.".format(path))
+                    else:
+                        try:
+                            shutil.rmtree(path)
+                            log.info("removed {}".format(path))
+                        except Exception as e:
+                            log.exception(e)
+
+        log.info("cleaning complete")
+    else:
+        log.info("skipping. User data directory is not set in kairos.cfg")
 
 
 main()

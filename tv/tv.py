@@ -13,6 +13,7 @@
 import datetime
 import getpass
 import json
+import shutil
 import math
 import numbers
 import os
@@ -26,7 +27,8 @@ import numpy
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException, TimeoutException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
+    TimeoutException, InvalidArgumentException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -74,6 +76,7 @@ ALERT_NUMBER = 0
 SEARCH_FOR_WARNING = True
 REFRESH_START = timing.time()
 REFRESH_INTERVAL = 3600  # Refresh the browser each hour
+ALREADY_LOGGED_IN = False
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
 OS = 'windows'
@@ -1548,6 +1551,7 @@ def set_expiration(browser, _alert_dialog, alert_config):
 def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
+    global ALREADY_LOGGED_IN
     if uid == '' and config.has_option('tradingview', 'username'):
         uid = config.get('tradingview', 'username')
     if pwd == '' and config.has_option('tradingview', 'password'):
@@ -1570,10 +1574,11 @@ def login(browser, uid='', pwd='', retry_login=False):
                 elem_username = wait_and_visible(browser, css_selectors['username'], 5)
                 if type(elem_username) is WebElement:
                     if elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
-                        log.info("Already logged in")
+                        ALREADY_LOGGED_IN = True
+                        log.info("already logged in")
                         return True
                     else:
-                        log.info("Logged in under a different username. Logging out.")
+                        log.info("logged in under a different username. Logging out.")
                         wait_and_click(browser, css_selectors['username'])
                         wait_and_click(browser, css_selectors['signout'])
             except TimeoutException as e:
@@ -1590,12 +1595,12 @@ def login(browser, uid='', pwd='', retry_login=False):
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
             while uid == '':
-                uid = input("Type your TradingView username and press enter: ")
+                uid = input("yype your TradingView username and press enter: ")
 
         input_password = find_element(browser, css_selectors['input_password'])
         if input_password.get_attribute('value') == '' or retry_login:
             while pwd == '':
-                pwd = getpass.getpass("Type your TradingView password and press enter: ")
+                pwd = getpass.getpass("yype your TradingView password and press enter: ")
 
         # set credentials on website login page
         if uid != '' and pwd != '':
@@ -1605,7 +1610,7 @@ def login(browser, uid='', pwd='', retry_login=False):
             time.sleep(DELAY_BREAK_MINI)
         # if there are no user credentials then exit
         else:
-            log.info("No credentials provided.")
+            log.info("no credentials provided.")
             write_console_log(browser)
             exit(0)
 
@@ -1635,21 +1640,76 @@ def login(browser, uid='', pwd='', retry_login=False):
         snapshot(browser, True)
 
 
+def assign_user_data_directory():
+    lockfile = 'lockfile'
+    if OS != 'windows':
+        lockfile = 'SingletonSocket'
+
+    user_data_directory = config.get('webdriver', 'user_data_directory')
+    user_data_base_dir, tail = os.path.split(user_data_directory)
+    kairos_data_directory = os.path.join(user_data_base_dir, 'kairos')
+    if kairos_data_directory == user_data_directory:
+        log.critical("{} is reserved as a backup to create new user data directories from. Please, set a different user data directory under [webdriver] -> kairos_data_directory and restart Kairos.")
+        exit(1)
+    if not os.path.exists(kairos_data_directory):
+        if os.path.exists(os.path.join(user_data_directory, lockfile)):
+            log.critical("Your user data directory is locked. Please close your browser and restart Kairos.")
+            exit(1)
+        # create new user data directory for Kairos
+        log.info("creating base user data directory 'kairos'. Please be patient while data is being copied.")
+        shutil.copytree(user_data_directory, kairos_data_directory)
+        return kairos_data_directory, True
+        # tools.chmod_r(kairos_data_directory, 0o777)
+
+    # user_data_directory = kairos_data_directory
+    if config.has_option('webdriver', 'share_user_data') and config.getboolean('webdriver', 'share_user_data'):
+        log.debug("{} in use? {}".format(user_data_directory, os.path.exists(os.path.join(user_data_directory, lockfile))))
+        user_data_directory_found = False
+
+        # find an unused kairos user data directory
+        user_data_base_dir, tail = os.path.split(user_data_directory)
+        try:
+            with os.scandir(user_data_base_dir) as user_data_directories:
+                number_of_kairos_user_data_directories = 0
+                for entry in user_data_directories:
+                    if entry.name.startswith('kairos_'):
+                        number_of_kairos_user_data_directories += 1
+                        path = os.path.join(user_data_base_dir, entry)
+                        if not os.path.exists(os.path.join(path, lockfile)) and not user_data_directory_found:
+                            user_data_directory = path
+                            user_data_directory_found = True
+                            break
+
+                # make a copy of the default user data directory if it is not found
+                if not user_data_directory_found:
+                    new_user_data_dir = os.path.join(user_data_base_dir, "kairos_{}".format(number_of_kairos_user_data_directories))
+                    log.info("creating new user data directory 'kairos_{}'. Please be patient while data is being copied.".format(number_of_kairos_user_data_directories))
+                    shutil.copytree(kairos_data_directory, new_user_data_dir)
+                    # tools.chmod_r(new_user_data_dir, 0o777)
+                    user_data_directory = new_user_data_dir
+        except Exception as e:
+            log.exception(e)
+
+    user_data_base_dir, name = os.path.split(user_data_directory)
+    log.info("{} assigned".format(name))
+    return r"" + str(user_data_directory), False
+
+
 def create_browser(run_in_background):
     capabilities = DesiredCapabilities.CHROME.copy()
+    initial_setup = False
 
     options = webdriver.ChromeOptions()
+    if config.has_option('webdriver', 'web_browser_path'):
+        web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
+        options.binary_location = web_browser_path
     if OS == 'linux':
         options.add_argument('--no-sandbox')
         options.add_argument("--disable-dev-shm-usage")
-    if config.has_option('webdriver', 'profile_path'):
-        profile_path = config.get('webdriver', 'profile_path')
-        if OS == 'windows':
-            profile_path = str(profile_path).replace('\\', '\\\\')
-        log.info(profile_path)
-        options.add_argument('--user-data-dir=' + profile_path)
-    # options.add_argument('--user-data-dir=C:\\PyCharm Projects\\Kairos\\profile')
-    # options.add_argument('--user-data-dir=profile')
+    if config.has_option('webdriver', 'user_data_directory'):
+        kairos_data_directory, initial_setup = assign_user_data_directory()
+        options.add_argument('--user-data-dir=' + kairos_data_directory)
+
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-notifications')
     options.add_argument('--noerrdialogs')
@@ -1697,12 +1757,23 @@ def create_browser(run_in_background):
             browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-    except WebDriverException as web_err:
-        log.exception(web_err)
-        exit(0)
+        if initial_setup:
+            log.info("creating shared session for kairos user data directory")
+            login(browser)
+            global ALREADY_LOGGED_IN
+            ALREADY_LOGGED_IN = True
+            destroy_browser(browser)
+            log.info("restarting kairos ... ")
+            return create_browser(run_in_background)
+    except InvalidArgumentException as e:
+        if e.msg.index("user data directory is already in use") >= 0:
+            log.critical("your web browser's user data directory is in use. Please, close your web browser and restart Kairos.")
+            exit(0)
+        else:
+            log.exception(e)
     except Exception as e:
         log.exception(e)
-        exit(0)
+        exit(1)
 
     return browser
 
@@ -1737,7 +1808,8 @@ def destroy_browser(browser):
     try:
         if type(browser) is webdriver.Chrome:
             close_all_popups(browser)
-            logout(browser)
+            if not ALREADY_LOGGED_IN:
+                logout(browser)
             write_console_log(browser)
     except Exception as e:
         log.exception(e)
@@ -2837,7 +2909,7 @@ def generate_config_values(value):
         #     result.append(int(end))
     else:
         result = value
-        log.error("unable to convert {} is of numpy type {} to a python type".format(value, type(value)))
+        # log.error("unable to convert {} is of numpy type {} to a python type".format(value, type(value)))
     return result
 
 

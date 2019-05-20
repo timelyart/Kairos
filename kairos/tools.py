@@ -1,6 +1,7 @@
 # File: tools.py
 import os
 import re
+import sys
 from datetime import datetime, timedelta
 import time
 import yaml
@@ -199,3 +200,19 @@ def display_time(seconds, granularity=2):
                 name = name.rstrip('s')
             result.append("{} {}".format(int(value), name))
     return ', '.join(result[:granularity])
+
+
+def chmod_r(path, permission):
+    """
+    Set permissions recursively for POSIX systems
+    :param path: the file/directory to set permissions for
+    :param permission: octal integer, e.g. 0o755 to set permission 755
+    :return:
+    """
+    if os.name == 'posix' or sys.platform == 'os2':
+        os.chmod(path, permission)
+        for dir_path, dir_names, file_names in os.walk(path):
+            for name in dir_names:
+                os.chmod(os.path.join(dir_path, name), permission)
+            for name in file_names:
+                os.chmod(os.path.join(dir_path, name), permission)
