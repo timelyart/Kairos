@@ -511,7 +511,7 @@ def set_delays(chart):
             DELAY_KEYSTROKE = config.getfloat('delays', 'keystroke')
 
 
-def get_indicator_values(browser, indicator, symbol, retry_number=0):
+def get_indicator_values(browser, indicator, symbol, previous_result, retry_number=0):
     result = []
     chart_index = -1
     pane_index = -1
@@ -539,25 +539,25 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
                 try:
                     if str(study_name).lower().index('loading'):
                         time.sleep(0.1)
-                        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+                        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
                     if str(study_name).lower().index('compiling'):
                         time.sleep(0.1)
-                        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+                        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
                     if str(study_name).lower().index('error'):
                         time.sleep(0.1)
-                        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+                        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
                 except ValueError:
                     pass
         except StaleElementReferenceException:
             log.debug('StaleElementReferenceException in studies')
-            return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+            return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
         except TimeoutException:
             log.warning('timeout in finding studies')
             # return False which will force a browser refresh
             result = False
         except Exception as e:
             log.exception(e)
-            return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+            return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
         # use css
     try:
         if 0 <= indicator_index < len(studies):
@@ -572,32 +572,35 @@ def get_indicator_values(browser, indicator, symbol, retry_number=0):
                 result.append(e.text)
     except StaleElementReferenceException:
         log.debug('StaleElementReferenceException in values')
-        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
     except TimeoutException:
         log.warning('timeout in getting values', )
         # return False which will force a browser refresh
         result = False
     except Exception as e:
         log.exception(e)
+        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+
+    # Check if we at least have a value, if not then the chart isn't loaded yet
+    only_na_values = True
+    for value in result:
+        if value != 'n/a':
+            only_na_values = False
+            break
+
+    # Check if there is a result and if the result differs from the previous result, otherwise we might have accidentally copied the values from the previous chart
+    if not result or (isinstance(result, list) and len(result) == 0) or only_na_values or result == previous_result:
         return retry_get_indicator_values(browser, indicator, symbol, retry_number)
 
-    # values_read = False
-    # for value in result:
-    #     if value != 'n/a':
-    #         values_read = True
-    #         break
-    if not result or (isinstance(result, list) and len(result) == 0):
-        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
-    # log.info(result)
     return result
 
 
-def retry_get_indicator_values(browser, indicator, symbol, retry_number=0):
+def retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number=0):
     max_retries = config.getint('tradingview', 'create_alert_max_retries') * 10
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
     if retry_number < max_retries:
-        return get_indicator_values(browser, indicator, symbol, retry_number + 1)
+        return get_indicator_values(browser, indicator, symbol, previous_result, retry_number + 1)
 
 
 def is_indicator_triggered(indicator, values):
@@ -897,7 +900,8 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
         snapshot(browser)
 
     # check for errors /
-
+    previous_values = []
+    last_indicator_name = ""
     try:
         if 'signals' in chart:
             for signal in chart['signals']:
@@ -931,7 +935,15 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                 signal_triggered = True
                 for m, indicator in enumerate(indicators):
                     indicator = indicators[m]
-                    values = get_indicator_values(browser, indicator, symbol)
+
+                    # We don't have to extract the values if the previous indicator is the same as the current one, e.g. when finding both short and long signals
+                    if indicator['name'] == last_indicator_name and previous_values:
+                        values = previous_values
+                    else:
+                        values = get_indicator_values(browser, indicator, symbol, previous_values)
+                        previous_values = values
+                    last_indicator_name = indicator['name']
+
                     # if we can't find a value, process this symbol again until we hit max retries which at that point we assume that the symbol doesn't exist or only hav 'n/a' values is correct
                     if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
                         return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
@@ -963,6 +975,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     #  action.perform()
                     html = find_element(browser, 'html', By.TAG_NAME)
                     html.send_keys(Keys.TAB)
+                    previous_values = values
 
                 if signal_triggered:
                     signal['triggered'] = signal_triggered
@@ -1808,7 +1821,8 @@ def destroy_browser(browser):
     try:
         if type(browser) is webdriver.Chrome:
             close_all_popups(browser)
-            if not ALREADY_LOGGED_IN:
+            share_user_data = config.has_option('webdriver', 'share_user_data') and config.getboolean('webdriver', 'share_user_data')
+            if not ALREADY_LOGGED_IN and not share_user_data:
                 logout(browser)
             write_console_log(browser)
     except Exception as e:
@@ -2341,19 +2355,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         log.info(symbol)
         if first_symbol:
             open_performance_summary_tab(browser)
-        # max_tries = 2
-        # local_tries = 0
-        # while local_tries < max_tries:
-        #     try:
-        #         input_symbol = find_element(browser, css_selectors['input_symbol'])
-        #         set_value(browser, input_symbol, symbol)
-        #         input_symbol.send_keys(Keys.ENTER)
-        #         local_tries = max_tries
-        #     except Exception as e:
-        #         local_tries += 1
-        #         if local_tries == max_tries:
-        #             log.exception(e)
-        #             snapshot(browser, True)
+
         input_symbol = find_element(browser, css_selectors['input_symbol'])
         set_value(browser, input_symbol, symbol)
         input_symbol.send_keys(Keys.ENTER)
@@ -2371,15 +2373,12 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_average['Avg # Bars In Trade'] = 0
         symbol_average['Counter'] = 0
 
+        previous_net_profit_value = ""
         for chart_index in range(number_of_charts):
 
             # move to correct chart
-            # css = "td.chart-markup-table.price-axis-container:nth-child({})".format((chart_index+1))
-            # css = "div.chart-container:nth-child({})".format(chart_index+1)
             charts = find_elements(browser, "div.chart-container")
             charts[chart_index].click()
-            # log.info(css)
-            # wait_and_click(browser, css)
             # first time chart setup
             # - set inputs and properties of charts
             # - get interval of chart
@@ -2394,17 +2393,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     format_strategy(browser, inputs, properties, input_locations, property_locations)
                 elem_interval = find_element(browser, css_selectors['active_chart_interval'])
                 interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
-                # local_tries = 0
-                # interval = 'na'
-                # while local_tries < max_tries:
-                #     try:
-                #         interval = repr(find_element(browser, css_selectors['active_chart_interval']).get_attribute('innerHTML')).replace(', ', '')
-                #         local_tries = max_tries
-                #     except Exception as e:
-                #         local_tries += 1
-                #         if local_tries == max_tries:
-                #             log.exception(e)
-                #             snapshot(browser, True)
                 intervals.append(interval)
 
                 if not (interval in interval_averages):
@@ -2424,10 +2412,23 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             interval = intervals[chart_index]
 
-            # Extract Strategy Tester result:
+            # Extract results:
             performance_summary_net_profit = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit'])
-            performance_summary_net_profit_percentage = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit_percentage'])
+            # Make sure that we are extracting data which has been refreshed
+            try_counter = 0
+            max_tries = 10
+            while previous_net_profit_value == performance_summary_net_profit and previous_net_profit_value != 0 and try_counter < max_tries:
+                performance_summary_net_profit = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit'])
+                try_counter += 1
+            if try_counter > 0:
+                log.warning("[{}] net profit value is the same as on the previous time frame: {} {} = {}".format(try_counter + 1, symbol, interval, performance_summary_net_profit))
+
+            # Extract the rest of the result:
             performance_summary_total_closed_trades = get_strategy_statistic(browser, css_selectors['performance_summary_total_closed_trades'])
+            # If there were no trades made, exclude the data for this time frame from the results
+            # if performance_summary_total_closed_trades == 0:
+            #     continue
+            performance_summary_net_profit_percentage = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit_percentage'])
             performance_summary_percent_profitable = get_strategy_statistic(browser, css_selectors['performance_summary_percent_profitable'])
             performance_summary_profit_factor = get_strategy_statistic(browser, css_selectors['performance_summary_profit_factor'])
             performance_summary_max_drawdown = get_strategy_statistic(browser, css_selectors['performance_summary_max_drawdown'])
@@ -2435,21 +2436,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             performance_summary_avg_trade = get_strategy_statistic(browser, css_selectors['performance_summary_avg_trade'])
             performance_summary_avg_trade_percentage = get_strategy_statistic(browser, css_selectors['performance_summary_avg_trade_percentage'])
             performance_summary_avg_bars_in_trade = get_strategy_statistic(browser, css_selectors['performance_summary_avg_bars_in_trade'])
-
-            # Focus the next chart
-            # if number_of_charts > 1:
-            #     action = ActionChains(browser)
-            #     action.send_keys(Keys.TAB)
-            #     action.perform()
-            # local_tries = 0
-            # while local_tries < max_tries:
-            # try:
-            #     action = ActionChains(browser)
-            #     action.send_keys(Keys.TAB)
-            #     action.perform()
-            # except Exception as e:
-            #     local_tries += 1
-            #     retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries, e)
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
