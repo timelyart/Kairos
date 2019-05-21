@@ -2426,8 +2426,9 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             # Extract the rest of the result:
             performance_summary_total_closed_trades = get_strategy_statistic(browser, css_selectors['performance_summary_total_closed_trades'])
             # If there were no trades made, exclude the data for this time frame from the results
-            # if performance_summary_total_closed_trades == 0:
-            #     continue
+            if config.has_option('backtesting', 'threshold') and config.getint('backtesting', 'threshold') > performance_summary_total_closed_trades:
+                log.info("{} {}: number of closed trades ({}) didn't reach the threshold ({}) and have been excluded from the data set.".format(symbol, interval, performance_summary_total_closed_trades, config.getint('backtesting', 'threshold')))
+                continue
             performance_summary_net_profit_percentage = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit_percentage'])
             performance_summary_percent_profitable = get_strategy_statistic(browser, css_selectors['performance_summary_percent_profitable'])
             performance_summary_profit_factor = get_strategy_statistic(browser, css_selectors['performance_summary_profit_factor'])
