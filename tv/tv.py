@@ -172,6 +172,7 @@ css_selectors = dict(
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
     tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
     btn_strategy_dialog='div.icon-button.backtesting-open-format-dialog',
+    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting > div.backtesting-head-wrapper > div:nth-child(1) > div > span',
     performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',
     performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
     performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
@@ -590,6 +591,8 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
 
     # Check if there is a result and if the result differs from the previous result, otherwise we might have accidentally copied the values from the previous chart
     if not result or (isinstance(result, list) and len(result) == 0) or only_na_values or result == previous_result:
+        # if only_na_values:
+        #     time.sleep(0.1)
         return retry_get_indicator_values(browser, indicator, symbol, retry_number)
 
     return result
@@ -758,9 +761,26 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
         if 'strategies' in chart:
+            date = datetime.datetime.strptime(time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime()), '%Y-%m-%dT%H:%M:%S%z')
+            btn_strategy_inactive = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, True)
+            if btn_strategy_inactive:
+                btn_strategy_inactive.click()
+                btn_performance_tab = find_element(browser, css_selectors['tab_strategy_tester_performance_summary'], By.CSS_SELECTOR, False, True)
+                if btn_performance_tab:
+                    btn_performance_tab.click()
+
             summaries = dict()
+            summaries['chart'] = chart['url']
+            summaries['datetime'] = date.strftime('%Y-%m-%d %H:%M:%S %z')
             for strategy in chart['strategies']:
                 summaries[strategy['name']] = dict()
+                summaries[strategy['name']]['id'] = "unknown"
+                strategy_element = find_element(browser, css_selectors['strategy_id'])
+                if strategy_element:
+                    summaries[strategy['name']]['id'] = strategy_element.text
+                default_chart_inputs, default_chart_properties = get_strategy_default_values(browser)
+                summaries[strategy['name']]['default_inputs'] = default_chart_inputs
+                summaries[strategy['name']]['default_properties'] = default_chart_properties
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
                     summaries[strategy['name']][watchlist] = back_test(browser, strategy, symbols)
@@ -882,10 +902,10 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
         #             break
         # log.info('Loaded in {} seconds'.format(total_wait_time))
 
-        # xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
-        # elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_CHANGE_SYMBOL)
-        # while elem_loading and len(elem_loading) > 0:
-        #     elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_CHANGE_SYMBOL)
+        xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
+        elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, True, DELAY_BREAK_MINI)
+        while elem_loading and len(elem_loading) > 0:
+            elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_BREAK_MINI)
         # try:
         #     if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
         #         invalid.add(symbol)
@@ -941,6 +961,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                         values = previous_values
                     else:
                         values = get_indicator_values(browser, indicator, symbol, previous_values)
+                        log.info(values)
                         previous_values = values
                     last_indicator_name = indicator['name']
 
@@ -2134,6 +2155,94 @@ def open_performance_summary_tab(browser):
         log.exception(e)
 
 
+def get_strategy_default_values(browser, retry_number=0):
+    try:
+        # open dialog
+        wait_and_click(browser, css_selectors['btn_strategy_dialog'])
+        # click and set inputs
+        wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
+        inputs = get_indicator_dialog_values(browser)
+        # click and set properties
+        wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
+        properties = get_indicator_dialog_values(browser)
+        # click OK
+        wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
+    except Exception as e:
+        return retry_get_strategy_default_values(browser, e, retry_number)
+    return inputs, properties
+
+
+def retry_get_strategy_default_values(browser, e, retry_number=0):
+    max_tries = config.getint('tradingview', 'create_alert_max_retries')
+    if retry_number < max_tries:
+        return get_strategy_default_values(browser, retry_number+1)
+    else:
+        log.exception(e)
+        return {}, {}
+
+
+def get_indicator_dialog_values(browser):
+    # get input titles
+    result = dict()
+    try:
+        cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
+        for i, cell in enumerate(cells):
+            css_class = cell.get_attribute("class")
+            if str(css_class).find('last') > 0:
+                title = re.sub(r"[\W]", '', cells[i-1].text.replace(' ', '_')).lower()
+                value = cell.text
+
+                css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
+                css_labels = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' label > span > span'
+                inputs = find_elements(browser, css, By.CSS_SELECTOR, False, False, 1)
+                labels = find_elements(browser, css_labels, By.CSS_SELECTOR, False, False, 1)
+                # one or more checkboxes
+                if labels and inputs:
+                    for j, label in enumerate(labels):
+                        value = ""
+                        title += "_" + re.sub(r"[\W]", '', label.text.replace(' ', '_')).lower()
+                        if inputs[j].get_attribute('type') == "checkbox":
+                            if is_checkbox_checked(inputs[j]):
+                                value = 'yes'
+                            else:
+                                value = 'no'
+                        result[title] = value
+                    continue
+                elif inputs:
+                    value = ""
+                    for input_element in inputs:
+                        value += input_element.get_attribute("value") + " "
+                    if value:
+                        value += cell.text
+
+                if value:
+                    result[title] = value.strip()
+            elif str(css_class).find('fill') > 0:
+                # all elements that have class '...fill...' are checkboxes
+                title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
+                css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
+                input_element = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
+                if input_element:
+                    if input_element.get_attribute('type') == "checkbox":
+                        if is_checkbox_checked(input_element):
+                            value = 'yes'
+                        else:
+                            value = 'no'
+                    else:
+                        value = input_element.get_attribute("value")
+                else:
+                    value = cell.text
+                if value:
+                    result[title] = value.strip()
+            else:
+                continue
+    except StaleElementReferenceException:
+        pass
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
 def back_test(browser, strategy_config, symbols):
     try:
 
@@ -2152,11 +2261,9 @@ def back_test(browser, strategy_config, symbols):
 
         if 'inputs' in strategy_config:
             inputs = get_config_values(strategy_config['inputs'])
-            # log.info(inputs)
             generate_atomic_values(inputs, atomic_inputs)
         if 'properties' in strategy_config:
             properties = get_config_values(strategy_config['properties'])
-            # log.info(properties)
             generate_atomic_values(properties, atomic_properties)
 
         number_of_strategies = max(len(atomic_properties), 1) * max(len(atomic_inputs), 1)
@@ -2245,9 +2352,11 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     intervals = []
 
     duration = 0
+    previous_net_profit_value = ""
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value)
+        previous_net_profit_value = raw[len(raw)-1]['Net Profit']
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -2255,10 +2364,8 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     log.info("Test run is expected to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals)
-    # else:
-    #     for i, symbol in enumerate(symbols):
-    #         back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, results, input_locations, property_locations, interval_averages, symbol_averages, intervals)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value)
+        previous_net_profit_value = raw[len(raw)-1]['Net Profit']
 
     # calculate interval averages
     total_average = dict()
@@ -2350,7 +2457,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     return result
 
 
-def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries=0):
+def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value="", tries=0):
     try:
         log.info(symbol)
         if first_symbol:
@@ -2373,9 +2480,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_average['Avg # Bars In Trade'] = 0
         symbol_average['Counter'] = 0
 
-        previous_net_profit_value = ""
         for chart_index in range(number_of_charts):
-
             # move to correct chart
             charts = find_elements(browser, "div.chart-container")
             charts[chart_index].click()
@@ -2416,18 +2521,20 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             performance_summary_net_profit = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit'])
             # Make sure that we are extracting data which has been refreshed
             try_counter = 0
-            max_tries = 10
+            max_tries = 10000
+            # try again every millisecond for 10 seconds
             while previous_net_profit_value == performance_summary_net_profit and previous_net_profit_value != 0 and try_counter < max_tries:
+                time.sleep(0.001)
                 performance_summary_net_profit = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit'])
                 try_counter += 1
             if try_counter > 0:
-                log.warning("[{}] net profit value is the same as on the previous time frame: {} {} = {}".format(try_counter + 1, symbol, interval, performance_summary_net_profit))
+                log.debug("[{}] net profit value is the same as on the previous time frame: {} {} = {}".format(try_counter + 1, symbol, interval, performance_summary_net_profit))
 
             # Extract the rest of the result:
             performance_summary_total_closed_trades = get_strategy_statistic(browser, css_selectors['performance_summary_total_closed_trades'])
             # If there were no trades made, exclude the data for this time frame from the results
             if config.has_option('backtesting', 'threshold') and config.getint('backtesting', 'threshold') > performance_summary_total_closed_trades:
-                log.info("{} {}: number of closed trades ({}) didn't reach the threshold ({}) and have been excluded from the data set.".format(symbol, interval, performance_summary_total_closed_trades, config.getint('backtesting', 'threshold')))
+                log.info("{}: data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, performance_summary_total_closed_trades, config.getint('backtesting', 'threshold')))
                 continue
             performance_summary_net_profit_percentage = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit_percentage'])
             performance_summary_percent_profitable = get_strategy_statistic(browser, css_selectors['performance_summary_percent_profitable'])
@@ -2503,10 +2610,10 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_averages[symbol] = symbol_average
 
     except Exception as e:
-        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries, e)
+        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value, tries, e)
 
 
-def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries, e):
+def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value, tries, e):
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
     if tries < max_tries:
         # log.debug("try {}".format(tries))
@@ -2514,7 +2621,7 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
         if not isinstance(e, StaleElementReferenceException):
             log.exception(e)
             # browser.refresh()
-        return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, tries+1)
+        return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value, tries+1)
     else:
         log.exception(e)
         snapshot(browser, True)
