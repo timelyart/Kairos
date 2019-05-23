@@ -593,7 +593,7 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
     if not result or (isinstance(result, list) and len(result) == 0) or only_na_values or result == previous_result:
         # if only_na_values:
         #     time.sleep(0.1)
-        return retry_get_indicator_values(browser, indicator, symbol, retry_number)
+        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
 
     return result
 
@@ -628,7 +628,7 @@ def is_indicator_triggered(indicator, values):
                             lhs = values[index]
                     except IndexError:
                         log.exception('YAML value trigger -> left-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
-                if not lhs and indicator['trigger']['left-hand-side']['value']:
+                if lhs == '' and indicator['trigger']['left-hand-side']['value'] != '':
                     lhs = indicator['trigger']['left-hand-side']['value']
             if 'right-hand-side' in indicator['trigger']:
                 if 'index' in indicator['trigger']['right-hand-side'] and str(indicator['trigger']['right-hand-side']['index']).isdigit():
@@ -641,26 +641,37 @@ def is_indicator_triggered(indicator, values):
                             rhs = values[index]
                     except IndexError:
                         log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
-                if not rhs and indicator['trigger']['right-hand-side']['value']:
+                if rhs == '' and indicator['trigger']['right-hand-side']['value'] != '':
                     rhs = indicator['trigger']['right-hand-side']['value']
 
-            if lhs and rhs:
-                if comparison == '=':
-                    result = lhs == rhs
-                elif comparison == '!=':
-                    result = lhs != rhs
-                elif comparison == '>=':
-                    result = lhs >= rhs
-                elif comparison == '>':
-                    result = lhs > rhs
-                elif comparison == '<=':
-                    result = lhs <= rhs
-                elif comparison == '<':
-                    result = lhs < rhs
+            if not (lhs is None or lhs == '' or rhs is None or rhs == ''):
+                try:
+                    lhs = float(lhs)
+                    rhs = float(rhs)
+                except Exception as e:
+                    log.debug(e)
+                    lhs = str(lhs)
+                    rhs = str(rhs)
+
+                try:
+                    if comparison == '=':
+                        result = lhs == rhs
+                    elif comparison == '!=':
+                        result = lhs != rhs
+                    elif comparison == '>=':
+                        result = lhs >= rhs
+                    elif comparison == '>':
+                        result = lhs > rhs
+                    elif comparison == '<=':
+                        result = lhs <= rhs
+                    elif comparison == '<':
+                        result = lhs < rhs
+                except Exception as e:
+                    log.exception(e)
             else:
-                if not lhs:
+                if lhs == '':
                     lhs = 'undefined'
-                if not rhs:
+                if rhs == '':
                     rhs = 'undefined'
             log.debug('({} {} {}) returned {}'.format(str(lhs), comparison, str(rhs), str(result)))
 
@@ -961,7 +972,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                         values = previous_values
                     else:
                         values = get_indicator_values(browser, indicator, symbol, previous_values)
-                        log.info(values)
+                        log.debug(values)
                         previous_values = values
                     last_indicator_name = indicator['name']
 
