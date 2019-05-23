@@ -510,7 +510,7 @@ def post_process_signals(triggered_signals):
                 continue
 
             if isinstance(value, str):
-                json_string = json_string.replace('%' + _key.upper(), str(value))
+                json_string = json_string.replace('%' + _key.upper(), str(value.replace("'", "\\'")))
             else:
                 json_string = json_string.replace("'%" + _key.upper() + "'", str(value))
                 json_string = json_string.replace('"%' + _key.upper() + '"', str(value))
@@ -540,7 +540,7 @@ def post_process_signals(triggered_signals):
                 text = text.replace('%' + _key.upper(), str(value))
                 search_text = search_text.replace('%' + _key.upper(), str(value))
 
-        json_yaml = yaml.safe_load(json_string)
+        json_yaml = yaml.safe_load(json_string.replace("'", '"').replace("\\'", "'"))
         json_data = json.dumps(json_yaml)
 
         data['text'] = text
