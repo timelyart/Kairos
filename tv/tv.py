@@ -10,6 +10,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import ast
 import datetime
 import getpass
 import json
@@ -2337,7 +2338,7 @@ def back_test(browser, strategy_config, symbols):
         if 'sort_by' in strategy_config and isinstance(strategy_config['sort_by'], list):
             sort_reverse = 'sort_asc' in strategy_config and not strategy_config['sort_asc']
             for item in strategy_config['sort_by']:
-                summaries_sort += sort_template.format(item)
+                summaries_sort += sort_template.format(ast.literal_eval(item))
 
             # remove last ', '
             if len(summaries_sort) > 0:
