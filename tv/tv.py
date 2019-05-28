@@ -10,7 +10,6 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-import ast
 import datetime
 import getpass
 import json
@@ -29,7 +28,7 @@ from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
-    TimeoutException, InvalidArgumentException
+    TimeoutException, InvalidArgumentException, ElementClickInterceptedException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -1646,12 +1645,12 @@ def login(browser, uid='', pwd='', retry_login=False):
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
             while uid == '':
-                uid = input("yype your TradingView username and press enter: ")
+                uid = input("type your TradingView username and press enter: ")
 
         input_password = find_element(browser, css_selectors['input_password'])
         if input_password.get_attribute('value') == '' or retry_login:
             while pwd == '':
-                pwd = getpass.getpass("yype your TradingView password and press enter: ")
+                pwd = getpass.getpass("type your TradingView password and press enter: ")
 
         # set credentials on website login page
         if uid != '' and pwd != '':
@@ -1915,7 +1914,6 @@ def run(file, export_signals_immediately, multi_threading=False):
             browser = create_browser(RUN_IN_BACKGROUND)
             login(browser, TV_UID, TV_PWD)
             if has_screeners:
-                time.sleep(10)
                 try:
                     screeners_yaml = tv['screeners']
 
@@ -1999,20 +1997,33 @@ def get_screener_markets(browser, screener_yaml):
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
-    time.sleep(DELAY_BREAK * 2)
-
-    wait_and_click(browser, css_selectors['select_screener'])
-    time.sleep(DELAY_BREAK_MINI)
+    loaded = False
+    max_runs = 1000
+    counter = 0
+    while not loaded and counter < max_runs:
+        try:
+            wait_and_click(browser, css_selectors['select_screener'], 30)
+            loaded = True
+        except ElementClickInterceptedException:
+            time.sleep(0.1)
+            pass
+        counter += 1
 
     el_options = find_elements(browser, css_selectors['options_screeners'])
-    time.sleep(DELAY_BREAK)
+    # time.sleep(DELAY_BREAK)
     found = False
 
-    for option in el_options:
-        if str(option.text) == screener_yaml['name']:
-            option.click()
-            found = True
-            break
+    for i in range(len(el_options)):
+        option = el_options[i]
+        try:
+            log.debug(option.text)
+            if str(option.text) == screener_yaml['name']:
+                option.click()
+                found = True
+                break
+        except StaleElementReferenceException:
+            el_options = find_elements(browser, css_selectors['options_screeners'])
+        i += 1
 
     if not found:
         log.warn("screener '{}' doesn't exist.".format(screener_yaml['name']))
@@ -2024,41 +2035,32 @@ def get_screener_markets(browser, screener_yaml):
         time.sleep(DELAY_SCREENER_SEARCH)
 
     el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
-    match = re.search("(\\d+)", el_total_found.text)
-    html = find_element(browser, 'html', By.TAG_NAME)
-    chunck_size = 150
+    total_found = 0
+    try:
+        match = re.search("(\\d+)", el_total_found.text)
+        total_found = int(match.group(1))
+    except StaleElementReferenceException:
+        pass
+    log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
 
-    scroll_delay = 2
-    if 'scroll_delay' in screener_yaml and screener_yaml['scroll_delay'] != '':
-        scroll_delay = screener_yaml['scroll_delay']
+    while len(markets) < total_found:
+        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 30)
+        for i, row in enumerate(rows):
+            try:
+                market = rows[i].get_attribute('data-symbol')
+            except StaleElementReferenceException:
+                WebDriverWait(browser, 5).until(
+                    ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
+                # try again
+                browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
+                market = rows[i].get_attribute('data-symbol')
 
-    if re.Match:
-        number_of_scrolls = math.ceil(int(match.group(1)) / chunck_size) - 1
-        for scroll in range(number_of_scrolls):
-            for j in range(20):
-                # TODO replace 'element.send_keys" with
-                #  action = ActionChains(browser)
-                #  action.send_keys(Keys.TAB)
-                #  action.perform()
-                html.send_keys(Keys.PAGE_DOWN)
-                time.sleep(DELAY_BREAK_MINI)
-            time.sleep(scroll_delay)
+            markets.append(market)
+        markets = list(set(markets))
 
-    rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
-    for i, row in enumerate(rows):
-        try:
-            market = rows[i].get_attribute('data-symbol')
-        except StaleElementReferenceException:
-            WebDriverWait(browser, 5).until(
-                ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
-            # try again
-            rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
-            market = rows[i].get_attribute('data-symbol')
-        markets.append(market)
-
-    # markets = list(sorted(set(markets)))
-    markets = list(set(markets))
-    log.debug('found {} unique markets'.format(str(len(markets))))
+    log.debug('extracted {} markets'.format(str(len(markets))))
     return markets
 
 
