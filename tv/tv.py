@@ -735,7 +735,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         for i, watchlist in enumerate(chart['watchlists']):
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
-            log.info("collecting symbols from watchlist {}".format(watchlist))
+            log.debug("collecting symbols from watchlist {}".format(watchlist))
             wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
             # load watchlist
@@ -761,7 +761,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
                             break
                     # symbols = list(sorted(set(symbols)))
-                    log.info("{} symbols found for '{}'".format(str(len(dict_symbols)), watchlist))
+                    log.info("{}: {} markets found".format(watchlist, len(dict_symbols)))
                 except Exception as e:
                     log.exception(e)
                     snapshot(browser)
@@ -784,14 +784,28 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             summaries['chart'] = chart['url']
             summaries['datetime'] = date.strftime('%Y-%m-%d %H:%M:%S %z')
             for strategy in chart['strategies']:
+                log.info("running strategy {}".format(strategy['name']))
                 summaries[strategy['name']] = dict()
                 summaries[strategy['name']]['id'] = "unknown"
                 strategy_element = find_element(browser, css_selectors['strategy_id'])
                 if strategy_element:
                     summaries[strategy['name']]['id'] = strategy_element.text
                 default_chart_inputs, default_chart_properties = get_strategy_default_values(browser)
+                log.info("default_inputs: {}".format(default_chart_inputs))
+                log.info("default_properties: {}".format(default_chart_properties))
                 summaries[strategy['name']]['default_inputs'] = default_chart_inputs
                 summaries[strategy['name']]['default_properties'] = default_chart_properties
+
+                # generate input/property sets
+                atomic_inputs = []
+                atomic_properties = []
+                if 'inputs' in strategy:
+                    inputs = get_config_values(strategy['inputs'])
+                    generate_atomic_values(inputs, atomic_inputs)
+                if 'properties' in strategy:
+                    properties = get_config_values(strategy['properties'])
+                    generate_atomic_values(properties, atomic_properties)
+                log.info("{} tests will be run for each watchlist".format(max(1, len(atomic_inputs)) * max(1, len(atomic_properties))))
 
                 sort_by = False
                 if 'sort_by' in strategy:
@@ -799,9 +813,12 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 reverse = False
                 if 'sort_asc' in strategy:
                     reverse = not strategy['sort_asc']
+
+                # test the strategy and sort the results
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    summaries[strategy['name']][watchlist] = back_test_sort_watchlist(back_test(browser, strategy, symbols), sort_by, reverse)
+                    test_results = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                    summaries[strategy['name']][watchlist] = back_test_sort_watchlist(test_results, sort_by, reverse)
 
             # save the results
             filename = save_as
@@ -2262,12 +2279,10 @@ def get_indicator_dialog_values(browser):
     return result
 
 
-def back_test(browser, strategy_config, symbols):
+def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
     try:
 
         summaries = list()
-        atomic_inputs = []
-        atomic_properties = []
         name = strategy_config['name']
 
         try:
@@ -2277,13 +2292,6 @@ def back_test(browser, strategy_config, symbols):
         except TimeoutException:
             number_of_charts = 1
         log.info("Found {} charts on the layout".format(number_of_charts))
-
-        if 'inputs' in strategy_config:
-            inputs = get_config_values(strategy_config['inputs'])
-            generate_atomic_values(inputs, atomic_inputs)
-        if 'properties' in strategy_config:
-            properties = get_config_values(strategy_config['properties'])
-            generate_atomic_values(properties, atomic_properties)
 
         number_of_strategies = max(len(atomic_properties), 1) * max(len(atomic_inputs), 1)
         # Both inputs and properties have been defined
