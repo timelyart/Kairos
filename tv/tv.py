@@ -708,7 +708,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
     try:
         # load the chart
         close_all_popups(browser)
-        log.info("Opening chart " + chart['url'])
+        log.info("opening chart " + chart['url'])
 
         # set wait times defined in chart
         set_delays(chart)
@@ -735,7 +735,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         for i, watchlist in enumerate(chart['watchlists']):
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
-            log.info("Collecting symbols from watchlist " + watchlist)
+            log.info("collecting symbols from watchlist {}".format(watchlist))
             wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
             # load watchlist
@@ -745,7 +745,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 if option.text == watchlist:
                     option.click()
                     watchlist_exists = True
-                    log.debug('Watchlist \'' + watchlist + '\' found')
+                    log.debug("watchlist '{}' found".format(watchlist))
                     break
 
             if watchlist_exists:
@@ -821,7 +821,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
                 # iterate over each symbol per watchlist
                 for watchlist in chart['watchlists']:
-                    log.info("Opening watchlist " + watchlist)
+                    log.info("opening watchlist " + watchlist)
                     try:
                         number_of_windows = 2
                         symbols = dict_watchlist[watchlist]
@@ -876,12 +876,11 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
     try:
         # Try to browse through the watchlist using space instead of setting the symbol value
         if use_space:
-            # TODO replace 'element.send_keys" with
-            #  action = ActionChains(browser)
-            #  action.send_keys(Keys.TAB)
-            #  action.perform()
-            html = find_element(browser, 'html', By.TAG_NAME)
-            html.send_keys(Keys.SPACE)
+            action = ActionChains(browser)
+            action.send_keys(Keys.SPACE)
+            action.perform()
+            # html = find_element(browser, 'html', By.TAG_NAME)
+            # html.send_keys(Keys.SPACE)
         else:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
@@ -931,7 +930,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
         #     pass
 
     except Exception as err:
-        log.debug('Unable to change to symbol')
+        log.debug('unable to change to symbol')
         log.exception(err)
         snapshot(browser)
 
