@@ -26,7 +26,12 @@ def print_help():
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
     print("-cls\t\t Clean session data that is exclusively used by Kairos. Your browser's user data folder is left untouched by this action.")
-    print("-m\t\t Flag. Run in multiprocessing mode. This requires setting up Selenium Grid. More information can be found here: https://www.seleniumhq.org/docs/07_selenium_grid.jsp\n")
+    print("-sort\t\t Sort existing back testing results (json). Requires 3 parameters -sort <filename> <sort_by> <reverse>:")
+    print("\t\t Example usage: output\\my_back_test_20190527_1048.json \"Net Profit %\" no")
+    print("\t\t\t <filename>: the file to sort")
+    print("\t\t\t <sort_by>: define on which value to sort (use quites). Accepted values are: \"Net Profit\", \"Net Profit %\", \"Closed Trades\", \"Percent Profitable\", \"Profit Factor\", \"Max Drawdown\", \"Max Drawdown %\", \"Avg Trade\", \"Avg Trade %\"")
+    print("\t\t\t <reverse>: optional. Sort in ascending or descending order? Default is 'yes' (descending)")
+    # print("-m\t\t Flag. Run in multiprocessing mode. This requires setting up Selenium Grid. More information can be found here: https://www.seleniumhq.org/docs/07_selenium_grid.jsp\n")
     print("-h\t\t Flag. Show this help.")
     print("-d\t\t Flag. Show disclaimer.\n")
 
@@ -57,6 +62,15 @@ def main():
                 delay_summary = int(sys.argv[i])
             elif str(sys.argv[i]) == '-cls':
                 clean_browser_data()
+            elif str(sys.argv[i]) == '-sort':
+                if i+2 < len(sys.argv):
+                    back_test_file = str(sys.argv[i+1])
+                    sort_by = str(sys.argv[i+2])
+                    reverse = True
+                    if i+3 < len(sys.argv):
+                        reverse = str(sys.argv[i+3]).casefold().startswith("y") or str(sys.argv[i+3]).casefold().startswith("t") or str(sys.argv[i+3]) == 1
+                    sort_back_test_data(back_test_file, sort_by, reverse)
+                break
             elif not str(sys.argv[i]).endswith('main.py'):
                 print("No such argument: " + str(sys.argv[i]))
             i += 1
@@ -126,6 +140,33 @@ def clean_browser_data():
         log.info("cleaning complete")
     else:
         log.info("skipping. User data directory is not set in kairos.cfg")
+
+
+def sort_back_test_data(filename, sort_by, reverse=True):
+    from kairos import tools
+    from tv import tv
+
+    debug.file_name = 'sort_back_test_data.log'
+    log = debug.create_log()
+    log.setLevel(20)
+    config = tools.get_config()
+    log.setLevel(config.getint('logging', 'level'))
+    # log.info("{} {} {}".format(filename, sort_by, reverse))
+
+    path = os.path.join(os.path.curdir, filename)
+    if os.path.exists(path):
+        try:
+            import json
+            with open(path, 'r') as stream:
+                data = json.load(stream)
+                data = tv.back_test_sort(data, sort_by, reverse)
+            with open(path, 'w') as stream:
+                stream.write(json.dumps(data, indent=4))
+        except Exception as e:
+            log.exception(e)
+    else:
+        log.error("{} doesn't exist".format(filename))
+        exit(1)
 
 
 main()

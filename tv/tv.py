@@ -793,19 +793,24 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 default_chart_inputs, default_chart_properties = get_strategy_default_values(browser)
                 summaries[strategy['name']]['default_inputs'] = default_chart_inputs
                 summaries[strategy['name']]['default_properties'] = default_chart_properties
+
+                sort_by = False
+                if 'sort_by' in strategy:
+                    sort_by = strategy['sort_by']
+                reverse = False
+                if 'sort_asc' in strategy:
+                    reverse = not strategy['sort_asc']
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    summaries[strategy['name']][watchlist] = back_test(browser, strategy, symbols)
+                    summaries[strategy['name']][watchlist] = back_test_sort_watchlist(back_test(browser, strategy, symbols), sort_by, reverse)
 
             # save the results
-            # log.info(json.dumps(summaries))
             filename = save_as
             match = re.search(r"([\w\-_]*)", save_as)
             if match:
                 filename = match.group(1)
             elif save_as == "":
                 filename = "run"
-            log.info(filename)
             save_strategy_results(json.dumps(summaries, indent=4), filename)
 
         if 'alerts' in chart or 'signals' in chart:
@@ -1910,6 +1915,7 @@ def run(file, export_signals_immediately, multi_threading=False):
             browser = create_browser(RUN_IN_BACKGROUND)
             login(browser, TV_UID, TV_PWD)
             if has_screeners:
+                time.sleep(10)
                 try:
                     screeners_yaml = tv['screeners']
 
@@ -2332,6 +2338,7 @@ def back_test(browser, strategy_config, symbols):
         if isinstance(strategy_tab, WebElement):
             strategy_tab.click()
 
+        """
         # sort strategy variants by summary total
         sort_template = "x['summary']['total']['{}'], "
         summaries_sort = ""
@@ -2346,7 +2353,7 @@ def back_test(browser, strategy_config, symbols):
 
             summaries.sort(key=lambda x: (eval(summaries_sort)), reverse=sort_reverse)
         # summaries.sort(key=lambda x: (x['summary']['total']['Profit Factor'], x['summary']['total']['Percent Profitable']), reverse=True)
-
+        """
         return summaries
 
     except ValueError as e:
@@ -2373,7 +2380,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
             duration += (time.time() - timer_symbol) * (len(symbols)-2) * (number_of_variants + 1 - strategy_number)
-    log.info("Test run is expected to finish in {}.".format(tools.display_time(duration)))
+    log.info("test run is expected to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
         back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value)
@@ -2430,32 +2437,24 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     total_average['Avg Trade %'] = total_average['Avg Trade %'] / max(len(interval_averages), 1)
     total_average['Avg # Bars In Trade'] = total_average['Avg # Bars In Trade'] / max(len(interval_averages), 1)
 
-    result = [total_average, interval_averages, symbol_averages, raw]
+    return [total_average, interval_averages, symbol_averages, raw]
 
-    # sort
-    # log.info("Sorting data by Percent Profitable, Profit Factor, descending")
-    # sort_template = "{}[x]['{}'], "
-    # interval_averages_sort = ""
-    # symbol_averages_sort = ""
-    sort_reverse = 'sort_asc' in strategy_config and not strategy_config['sort_asc']
-    if 'sort_by' in strategy_config or sort_reverse:
-        # interval_averages_keys = sorted(interval_averages, key=lambda x: (interval_averages[x][strategy_config['sort_by']], interval_averages[x]['Profit Factor']), reverse=sort_reverse)
-        # for item in strategy_config['sort_by']:
-        #     interval_averages_sort += sort_template.format('interval_averages', item)
-        #     symbol_averages_sort += sort_template.format('symbol_averages', item)
-        # remove last ', '
-        # if len(interval_averages_sort) > 0:
-        #     interval_averages_sort = interval_averages_sort[:-2]
-        #     symbol_averages_sort = symbol_averages_sort[:-2]
-        # s_sort = "sorted(interval_averages, key=lambda x: ({}), reverse={})".format(interval_averages_sort, sort_reverse)
-        # log.info(s_sort)
-        # interval_averages_keys = eval(s_sort)
-        if 'sort_by' in strategy_config:
-            interval_averages_keys = sorted(interval_averages, key=lambda x: interval_averages[x][strategy_config['sort_by']], reverse=sort_reverse)
-            symbol_averages_keys = sorted(symbol_averages, key=lambda x: symbol_averages[x][strategy_config['sort_by']], reverse=sort_reverse)
+
+def back_test_sort_watchlist(test_runs, sort_by, reverse=True):
+
+    for i, test_run in enumerate(test_runs):
+        raw = test_run["raw"]
+        interval_averages = test_run["summary"]["interval"]
+        symbol_averages = test_run["summary"]["symbol"]
+        if sort_by:
+            interval_averages_keys = sorted(interval_averages, key=lambda x: interval_averages[x][sort_by], reverse=reverse)
+            symbol_averages_keys = sorted(symbol_averages, key=lambda x: symbol_averages[x][sort_by], reverse=reverse)
+            raw = sorted(raw, key=lambda x: x[sort_by], reverse=reverse)
         else:
-            interval_averages_keys = sorted(interval_averages, reverse=sort_reverse)
-            symbol_averages_keys = sorted(symbol_averages, reverse=sort_reverse)
+            # fall back to default sorting
+            interval_averages_keys = sorted(interval_averages)
+            symbol_averages_keys = sorted(symbol_averages)
+            raw = sorted(raw)
 
         interval_averages_sorted = dict()
         for key in interval_averages_keys:
@@ -2464,9 +2463,30 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
         for key in symbol_averages_keys:
             symbol_averages_sorted[key] = symbol_averages[key]
 
-        result = [total_average, interval_averages_sorted, symbol_averages_sorted, raw]
+        test_run["summary"]["interval"] = interval_averages_sorted
+        test_run["summary"]["symbol"] = symbol_averages_sorted
+        test_run["raw"] = raw
+
+    if sort_by:
+        result = sorted(test_runs, key=lambda x: x["summary"]["total"][sort_by], reverse=reverse)
+    else:
+        result = sorted(test_runs)
 
     return result
+
+
+def back_test_sort(json_data, sort_by, reverse=True):
+    # log.info("{} {}".format(sort_by, reverse))
+    try:
+        for strategy in json_data:
+            # log.info("{}: {}".format(strategy, type(json_data[strategy])))
+            if isinstance(json_data[strategy], dict):
+                for watchlist in json_data[strategy]:
+                    if (watchlist not in ["id", "default_inputs", "default_properties"]) and isinstance(json_data[strategy][watchlist], list):
+                        json_data[strategy][watchlist] = back_test_sort_watchlist(json_data[strategy][watchlist], sort_by, reverse)
+        return json_data
+    except Exception as e:
+        log.exception(e)
 
 
 def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, previous_net_profit_value="", tries=0):
@@ -2546,7 +2566,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             performance_summary_total_closed_trades = get_strategy_statistic(browser, css_selectors['performance_summary_total_closed_trades'])
             # If there were no trades made, exclude the data for this time frame from the results
             if config.has_option('backtesting', 'threshold') and config.getint('backtesting', 'threshold') > performance_summary_total_closed_trades:
-                log.info("{}: data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, performance_summary_total_closed_trades, config.getint('backtesting', 'threshold')))
+                log.info("{}: data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, performance_summary_total_closed_trades, config.getint('backtesting', 'threshold')))
                 continue
             performance_summary_net_profit_percentage = get_strategy_statistic(browser, css_selectors['performance_summary_net_profit_percentage'])
             performance_summary_percent_profitable = get_strategy_statistic(browser, css_selectors['performance_summary_percent_profitable'])
