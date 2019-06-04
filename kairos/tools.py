@@ -1,10 +1,15 @@
 # File: tools.py
+import contextlib
 import os
 import re
 import sys
 from datetime import datetime, timedelta
 import time
+import math
 import yaml
+from selenium.common.exceptions import StaleElementReferenceException
+from selenium.webdriver.support.expected_conditions import staleness_of
+from selenium.webdriver.support.wait import WebDriverWait
 
 from kairos import debug
 from collections import OrderedDict
@@ -202,6 +207,11 @@ def display_time(seconds, granularity=2):
     return ', '.join(result[:granularity])
 
 
+def round_up(n, decimals=0):
+    multiplier = 10 ** decimals
+    return math.ceil(n * multiplier) / multiplier
+
+
 def chmod_r(path, permission):
     """
     Set permissions recursively for POSIX systems
@@ -216,3 +226,71 @@ def chmod_r(path, permission):
                 os.chmod(os.path.join(dir_path, name), permission)
             for name in file_names:
                 os.chmod(os.path.join(dir_path, name), permission)
+
+
+def format_number(value, precision=8):
+    global float_precision
+    float_precision = precision
+    result = value
+    if isinstance(value, int):
+        result = value
+    elif isinstance(value, float):
+        negative = value < 0
+        if result.is_integer():
+            result = int(result)
+            if result == 0 and negative:
+                result = result * -1
+        else:
+            result = round_up(result, precision)
+
+    return result
+
+
+def wait_for(condition_function, timeout=5):
+    start_time = time.time()
+    while time.time() < start_time + (timeout / 0.01):
+        if condition_function():
+            return True
+        else:
+            time.sleep(0.01)
+    raise Exception(
+        'Timeout waiting for {}'.format(condition_function.__name__)
+    )
+
+
+def wait_for_element_is_stale(element):
+    """
+    If you keep some references to elements from the old page lying around, then they will become stale once the DOM refreshes, and stale elements cause selenium to raise a
+    StaleElementReferenceException if you try and interact with them. So just poll one until you get an error. Bulletproof!
+    @see http://www.obeythetestinggoat.com/how-to-get-selenium-to-wait-for-page-load-after-a-click.html
+    :param element:
+    :return:
+    """
+    # link = browser.find_element_by_link_text('my link')
+    # link.click()
+
+    def has_gone_stale():
+        try:
+            # poll the link with an arbitrary call
+            value = element.text
+            # always return false and fool PyCharm check of unused var 'value'
+            return value == "" and value != ""
+        except StaleElementReferenceException:
+            return True
+
+    wait_for(has_gone_stale)
+
+
+@contextlib.contextmanager
+def wait_for_page_load(self, timeout=10):
+    """
+    This solution only works for "non-javascript" clicks, ie clicks that will cause the browser to load a brand new page, and thus load a brand new HTML body element.
+    @see http://www.obeythetestinggoat.com/how-to-get-selenium-to-wait-for-page-load-after-a-click.html
+    :param self:
+    :param timeout:
+    :return:
+    """
+    self.log.debug("Waiting for page to load at {}.".format(self.driver.current_url))
+    old_page = self.find_element_by_tag_name('html')
+    yield
+    WebDriverWait(self, timeout).until(staleness_of(old_page))
