@@ -13,6 +13,7 @@ oauth2client
 pymongo
 dill
 numpy
+fastnumbers
 
 [platform_system == "Darwin"]
 pyobjc-core
