@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 import time
 import math
+import psutil
 import yaml
 from selenium.common.exceptions import StaleElementReferenceException
 from selenium.webdriver.support.expected_conditions import staleness_of
@@ -24,6 +25,10 @@ def create_log(mode='a'):
 
 def write_console_log(browser, mode='a'):
     return debug.write_console_log(browser, mode)
+
+
+def shutdown_logging():
+    debug.shutdown_logging()
 
 
 def get_config():
@@ -294,3 +299,32 @@ def wait_for_page_load(self, timeout=10):
     old_page = self.find_element_by_tag_name('html')
     yield
     WebDriverWait(self, timeout).until(staleness_of(old_page))
+
+
+def path_in_use(path, log=None):
+    for process in psutil.process_iter():
+        try:
+            if process.name().find('chrome') >= 0:
+                files = process.open_files()
+                if files:
+                    for f in files:
+                        # log.info("{}\t{}".format(message, f.path))
+                        if f.path.find(path) >= 0:
+                            return True
+        # This catches a race condition where a process ends
+        # before we can examine its files
+        except Exception as e:
+            if log:
+                log.exception(e)
+            else:
+                debug.log("ERROR", "path_in_use", e)
+    return False
+
+
+def get_operating_system():
+    result = 'windows'
+    if sys.platform == 'os2':
+        result = 'macos'
+    elif os.name == 'posix':
+        result = 'linux'
+    return result

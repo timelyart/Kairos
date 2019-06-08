@@ -18,7 +18,6 @@ import math
 import numbers
 import os
 import re
-import sys
 import time
 import errno
 import dill
@@ -27,8 +26,7 @@ import numpy
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
-    TimeoutException, InvalidArgumentException, ElementClickInterceptedException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, TimeoutException, InvalidArgumentException, ElementClickInterceptedException, WebDriverException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -81,12 +79,10 @@ REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 ALREADY_LOGGED_IN = False
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
-OS = 'windows'
-if sys.platform == 'os2':
-    OS = 'macos'
+OS = tools.get_operating_system()
+if OS == 'macos':
     MODIFIER_KEY = Keys.COMMAND
-elif os.name == 'posix':
-    OS = 'linux'
+
 SELECT_ALL = MODIFIER_KEY + 'a'
 CUT = MODIFIER_KEY + 'x'
 PASTE = MODIFIER_KEY + 'v'
@@ -96,6 +92,7 @@ TV_UID = ''
 TV_PWD = ''
 
 NEGATIVE_COLOR = '#DD2E02'
+WEBDRIVER_INSTANCE = 0
 
 css_selectors = dict(
     # ALERTS
@@ -448,7 +445,7 @@ def get_interval(timeframe):
     :param timeframe: String.
     :return: interval: Short timeframe notation if found, empty string otherwise.
     """
-    match = re.search("(\\d+)\\s(\\w\\w\\w)", timeframe)
+    match = re.search(r"(\d+)\s(\w\w\w)", timeframe)
     interval = ""
     if match is None:
         log.warning("Cannot find match for timeframe '{}' with regex (\\d+)\\s(\\w\\w\\w). [0]".format(timeframe))
@@ -1259,7 +1256,7 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
 
         elif screenshot_dir != '':
             chart_dir = ''
-            match = re.search("^.*chart.(\\w+).*", browser.current_url)
+            match = re.search(r"^.*chart.(\w+).*", browser.current_url)
             if re.Match:
                 today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime(tpl_strftime))
                 if not os.path.exists(today_dir):
@@ -1765,11 +1762,11 @@ def assign_user_data_directory():
         log.critical("{} is reserved as a backup to create new user data directories from. Please, set a different user data directory under [webdriver] -> kairos_data_directory and restart Kairos.")
         exit(1)
     if not os.path.exists(kairos_data_directory):
-        if os.path.exists(os.path.join(user_data_directory, lockfile)):
+        if os.path.isfile(os.path.join(user_data_directory, lockfile)) or os.path.islink(os.path.join(user_data_directory, lockfile)):
             log.critical("Your user data directory is locked. Please close your browser and restart Kairos.")
             exit(1)
         # create new user data directory for Kairos
-        log.info("creating base user data directory 'kairos'. Please be patient while data is being copied.")
+        log.info("creating base user data directory 'kairos'. Please be patient while data is being copied ...")
         shutil.copytree(user_data_directory, kairos_data_directory)
         return kairos_data_directory, True
         # tools.chmod_r(kairos_data_directory, 0o777)
@@ -1783,23 +1780,28 @@ def assign_user_data_directory():
         user_data_base_dir, tail = os.path.split(user_data_directory)
         try:
             with os.scandir(user_data_base_dir) as user_data_directories:
-                number_of_kairos_user_data_directories = 0
+                # number_of_kairos_user_data_directories = 0
                 for entry in user_data_directories:
                     if entry.name.startswith('kairos_'):
-                        number_of_kairos_user_data_directories += 1
+                        # number_of_kairos_user_data_directories += 1
                         path = os.path.join(user_data_base_dir, entry)
-                        if not os.path.exists(os.path.join(path, lockfile)) and not user_data_directory_found:
+                        if not tools.path_in_use(path, log) and not user_data_directory_found:
                             user_data_directory = path
                             user_data_directory_found = True
                             break
 
                 # make a copy of the default user data directory if it is not found
-                if not user_data_directory_found:
-                    new_user_data_dir = os.path.join(user_data_base_dir, "kairos_{}".format(number_of_kairos_user_data_directories))
-                    log.info("creating new user data directory 'kairos_{}'. Please be patient while data is being copied.".format(number_of_kairos_user_data_directories))
-                    shutil.copytree(kairos_data_directory, new_user_data_dir)
-                    # tools.chmod_r(new_user_data_dir, 0o777)
-                    user_data_directory = new_user_data_dir
+                i = 0
+                while not user_data_directory_found and i < 100:
+                    path = os.path.join(user_data_base_dir, "kairos_{}".format(i))
+                    if not os.path.exists(path):
+                        user_data_directory_found = True
+                        log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
+                        shutil.copytree(kairos_data_directory, path)
+                        if OS == 'linux':
+                            tools.chmod_r(path, 0o777)
+                        user_data_directory = path
+                    i += 1
         except Exception as e:
             log.exception(e)
 
@@ -1809,6 +1811,7 @@ def assign_user_data_directory():
 
 
 def create_browser(run_in_background):
+    global log
     capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
 
@@ -1821,7 +1824,22 @@ def create_browser(run_in_background):
         options.add_argument("--disable-dev-shm-usage")
     if config.has_option('webdriver', 'user_data_directory'):
         kairos_data_directory, initial_setup = assign_user_data_directory()
+        match = re.search(r".*(\d+)", kairos_data_directory)
+        if match:
+            instance = match.group(1)
+            fn = tools.debug.file_name
+            match = re.search(r".*(\..*)", tools.debug.file_name)
+            if match:
+                fn = fn.replace(match.group(1), "_{}{}".format(instance, match.group(1)))
+            tools.shutdown_logging()
+            tools.debug.file_name = fn
+            log = tools.create_log()
+
         options.add_argument('--user-data-dir=' + kairos_data_directory)
+        match = re.search(r".*(\d+)", kairos_data_directory)
+        if match:
+            global WEBDRIVER_INSTANCE
+            WEBDRIVER_INSTANCE = int(match.group(1))
 
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-notifications')
@@ -1862,12 +1880,14 @@ def create_browser(run_in_background):
     # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 
     try:
+        log_path = r"--log-path=.\chromedriver_{}.log".format(int(WEBDRIVER_INSTANCE))
+
         # Create webdriver.remote
         # Note, we cannot serialize webdriver.Chrome
         if MULTI_THREADING:
             browser = webdriver.Remote(command_executor=EXECUTOR, options=options, desired_capabilities=capabilities)
         else:
-            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
+            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", log_path])
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
         if initial_setup:
@@ -1875,7 +1895,7 @@ def create_browser(run_in_background):
             login(browser)
             global ALREADY_LOGGED_IN
             ALREADY_LOGGED_IN = True
-            destroy_browser(browser)
+            destroy_browser(browser, False)
             log.info("restarting kairos ... ")
             return create_browser(run_in_background)
     except InvalidArgumentException as e:
@@ -1917,7 +1937,7 @@ def logout(browser):
         snapshot(browser)
 
 
-def destroy_browser(browser):
+def destroy_browser(browser, close_log=True):
     try:
         if type(browser) is webdriver.Chrome:
             close_all_popups(browser)
@@ -1925,6 +1945,8 @@ def destroy_browser(browser):
             if not ALREADY_LOGGED_IN and not share_user_data:
                 logout(browser)
             write_console_log(browser)
+            if close_log:
+                tools.shutdown_logging()
     except Exception as e:
         log.exception(e)
         snapshot(browser)
@@ -1944,12 +1966,14 @@ def run(file, export_signals_immediately, multi_threading=False):
     """
         TODO:   multi threading
     """
+    log.debug("{} detected".format(OS.capitalize()))
     counter_alerts = 0
     total_alerts = 0
     browser = None
 
     global RUN_IN_BACKGROUND
     global MULTI_THREADING
+    global WEBDRIVER_INSTANCE
     MULTI_THREADING = multi_threading
 
     save_as = ""
@@ -2100,7 +2124,7 @@ def get_screener_markets(browser, screener_yaml):
     el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
     total_found = 0
     try:
-        match = re.search("(\\d+)", el_total_found.text)
+        match = re.search(r"(\d+)", el_total_found.text)
         total_found = int(match.group(1))
     except StaleElementReferenceException:
         pass
@@ -2703,7 +2727,23 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
     if tries < max_tries:
         # log.debug("try {}".format(tries))
         first_symbol = refresh_session(browser) or first_symbol
-        if not isinstance(e, StaleElementReferenceException):
+        if isinstance(e, WebDriverException):
+            if str(e.msg).lower().find('invalid session id') >= 0:
+                log.info("invalid session id - RESTARTING")
+                url = browser.current_url
+                browser.quit()
+                browser = create_browser(RUN_IN_BACKGROUND)
+                browser.get(url)
+                # Switching to Alert
+                close_alerts(browser)
+                # Close the watchlist menu if it is open
+                if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, False, 0.5):
+                    wait_and_click(browser, css_selectors['btn_watchlist_menu'])
+                first_symbol = True
+            else:
+                log.exception(e)
+                refresh(browser)
+        elif not isinstance(e, StaleElementReferenceException):
             log.exception(e)
             refresh(browser)
         return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries+1)
@@ -2728,9 +2768,13 @@ def get_strategy_statistic(browser, key, previous_elements):
     while tries < config.getint('tradingview', 'create_alert_max_retries'):
         try:
             if isinstance(previous_elements[key], WebElement):
-                # log.info("waiting for {} to update ...".format(key))
-                wait_for_element_is_stale(previous_elements[key])
-                # log.info("... statistic updated")
+                try:
+                    wait_for_element_is_stale(previous_elements[key])
+                except TimeoutException as e:
+                    log.info(e)
+                    pass
+                except Exception as e:
+                    log.exception(e)
 
             el = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
             if not el:
@@ -2752,8 +2796,15 @@ def get_strategy_statistic(browser, key, previous_elements):
 
         except StaleElementReferenceException:
             pass
+        except WebDriverException as e:
+            if str(e.msg).lower().find('invalid session id') >= 0:
+                log.info("Handling of {} delegated to caller".format(e.msg))
+                return e
+            else:
+                log.exception(e)
+                return e
         except Exception as e:
-            log.info("{} = {}".format(By.CSS_SELECTOR, css))
+            # log.debug("{} = {}".format(By.CSS_SELECTOR, css))
             log.exception(e)
             return e
         tries += 1

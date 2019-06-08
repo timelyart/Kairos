@@ -1,6 +1,7 @@
 import shutil
 import sys
 import os
+import psutil
 from kairos import debug
 
 BATCHES = list()
@@ -120,23 +121,26 @@ def clean_browser_data():
     from kairos import tools
     config = tools.get_config()
     log.setLevel(config.getint('logging', 'level'))
+
+    DRIVER_TYPE = 'chromedriver'
+    driver_count = sum(1 for process in psutil.process_iter() if process.name().startswith(DRIVER_TYPE))
+
     if config.has_option('webdriver', 'user_data_directory'):
         user_data_directory = config.get('webdriver', 'user_data_directory')
-        lockfile = 'lockfile'
         user_data_base_dir, tail = os.path.split(user_data_directory)
         with os.scandir(user_data_base_dir) as user_data_directories:
             for entry in user_data_directories:
-                if entry.name.startswith('kairos') and entry.name != user_data_directory:
-                    path = os.path.join(user_data_base_dir, entry)
-                    if os.path.exists(os.path.join(entry.name, lockfile)):
-                        log.info("unable to remove {}. User data directory is currently in use by another process.".format(path))
-                    else:
+                # remove all directories that start with 'kairos_' followed by a number
+                path = os.path.join(user_data_base_dir, entry)
+                if (entry.name.startswith('kairos_') and not tools.path_in_use(path, log)) or (entry.name.startswith('kairos') and driver_count == 0):
+                    if entry.name != user_data_directory:
                         try:
                             shutil.rmtree(path)
-                            log.info("removed {}".format(path))
+                            log.info("{} removed".format(entry.name))
                         except Exception as e:
                             log.exception(e)
-
+                elif entry.name.startswith('kairos_'):
+                    log.info("{} is in use and cannot be removed (close all instances of {} and try again)".format(entry.name, DRIVER_TYPE))
         log.info("cleaning complete")
     else:
         log.info("skipping. User data directory is not set in kairos.cfg")
