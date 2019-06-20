@@ -252,15 +252,15 @@ def refresh(browser):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
 
-def element_exists(dom, css_selector, delay):
+def element_exists(dom, css_selector, delay, except_on_timeout=True, visible=False):
     result = False
     try:
-        element = find_element(dom, css_selector, By.CSS_SELECTOR, delay)
+        element = find_element(dom, css_selector, By.CSS_SELECTOR, except_on_timeout, visible, delay)
         result = type(element) is WebElement
     except NoSuchElementException:
         log.debug('No such element. CSS SELECTOR=' + css_selector)
     except Exception as element_exists_error:
-        log.error(element_exists_error)
+        log.exception(element_exists_error)
     finally:
         log.debug("{} ({})".format(str(result), css_selector))
         return result
@@ -825,7 +825,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
 
         # 1st row, 2nd condition (if applicable)
         css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
-        if element_exists(alert_dialog, css_1st_row_right, 0.5):
+        if element_exists(alert_dialog, css_1st_row_right, 0.5, False, True):
             current_condition += 1
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
