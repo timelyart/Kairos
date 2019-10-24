@@ -26,7 +26,8 @@ import numpy
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, TimeoutException, InvalidArgumentException, ElementClickInterceptedException, WebDriverException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, TimeoutException, InvalidArgumentException, ElementClickInterceptedException, \
+    WebDriverException, InvalidSessionIdException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -541,12 +542,11 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
     studies = []
     if indicator_index < 0:
         try:
-            # css = '.chart-container > div.chart-container-border > div > table > tbody > tr:nth-child({}) > td.chart-markup-table.pane > div > div.pane-legend > div.study > span.pane-legend-line__wrap-description > div > div.pane-legend-title__description'
-            css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
+            css = 'div.chart-container.active tr:nth-child({}) div[data-name="legend-source-item"] div[data-name="legend-source-title"]:nth-child(1)'.format((pane_index+1) * 2 - 1)
             studies = find_elements(browser, css)
             for i, study in enumerate(studies):
-                study_name = studies[i].text
-                log.debug('Found '.format(study_name))
+                study_name = str(study.text)
+                log.debug('Found {}'.format(study_name))
                 if study_name.startswith(indicator['name']):
                     indicator_index = i
                     break
@@ -581,7 +581,7 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
             action.move_to_element_with_offset(element, 5, 5)
             action.perform()
 
-            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'study', By.CLASS_NAME)[indicator_index], 'pane-legend-item-value', By.CLASS_NAME)
+            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div:nth-child(3) > div > div', By.CSS_SELECTOR)
             for e in elem_values:
                 result.append(e.text)
     except StaleElementReferenceException:
@@ -1333,6 +1333,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     :param retry_number:    Optional. Number of retries if for some reason the alert wasn't created.
     :return: true, if successful
     """
+    # noinspection PyGlobalUndefined
     global alert_dialog
     global SEARCH_FOR_WARNING
     try:
@@ -2640,6 +2641,8 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             over_the_threshold = True
             for i, key in enumerate(values):
                 value = get_strategy_statistic(browser, key, previous_elements)
+                if isinstance(value, Exception):
+                    raise value
 
                 # check if the total closed trades is over the threshold
                 if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and config.getint('backtesting', 'threshold') > value:
@@ -2726,10 +2729,10 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
     if tries < max_tries:
         # log.debug("try {}".format(tries))
-        first_symbol = refresh_session(browser) or first_symbol
-        if isinstance(e, WebDriverException):
-            if str(e.msg).lower().find('invalid session id') >= 0:
-                log.info("invalid session id - RESTARTING")
+        if isinstance(e, InvalidSessionIdException) or isinstance(e, WebDriverException):
+            log.exception(e)
+            if str(e.msg).lower().find('session') >= 0:
+                log.critical("invalid session id - RESTARTING")
                 url = browser.current_url
                 browser.quit()
                 browser = create_browser(RUN_IN_BACKGROUND)
@@ -2743,7 +2746,8 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
             else:
                 log.exception(e)
                 refresh(browser)
-        elif not isinstance(e, StaleElementReferenceException):
+        first_symbol = refresh_session(browser) or first_symbol
+        if not isinstance(e, StaleElementReferenceException):
             log.exception(e)
             refresh(browser)
         return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries+1)
@@ -2796,6 +2800,13 @@ def get_strategy_statistic(browser, key, previous_elements):
 
         except StaleElementReferenceException:
             pass
+        except InvalidSessionIdException as e:
+            if str(e.msg).lower().find('invalid session id') >= 0:
+                log.info("Handling of {} delegated to caller".format(e.msg))
+                return e
+            else:
+                log.exception(e)
+                return e
         except WebDriverException as e:
             if str(e.msg).lower().find('invalid session id') >= 0:
                 log.info("Handling of {} delegated to caller".format(e.msg))
