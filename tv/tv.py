@@ -108,7 +108,7 @@ css_selectors = dict(
     btn_watchlist_menu_menu='input.wl-symbol-edit + a.button',
     options_watchlist='div.charts-popup-list > a.item.first',
     input_symbol='#header-toolbar-symbol-search > div > input',
-    asset='div.pane-legend-title__description',
+    asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
     btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
     item_clear_alerts='div.charts-popup-list > a.item:last-child',
     item_clear_inactive_alerts='div.charts-popup-list > a.item:nth-child(8)',
