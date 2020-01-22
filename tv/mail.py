@@ -80,9 +80,11 @@ def process_data(data, browser):
                         cdispo = str(part.get('Content-Disposition'))
                         # only use parts that are text/plain and not an attachment
                         if ctype == 'text/plain' and 'attachment' not in cdispo:
+                            # noinspection PyTypeChecker
                             process_body(part, browser)
                             break
                 else:
+                    # noinspection PyTypeChecker
                     process_body(msg, browser)
 
 
@@ -1053,3 +1055,40 @@ def run(delay, file, triggered_signals):
         destroy_browser(browser)
     else:
         log.warn('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
+
+
+def send_admin_message(subject, text, to='', html=''):
+    import platform
+
+    if to == '':
+        to = uid
+        admin_email_address = str(config.get('mail', 'admin_email_address'))
+        if admin_email_address:
+            to = admin_email_address
+    recipients = [to]
+
+    subject = "Kairos: {}{}".format(subject[0:1].lower(), subject[1:])
+    hostname = os.getenv('HOSTNAME', os.getenv('COMPUTERNAME', platform.node())).split('.')[0]
+    text = "Kairos reported a message from {}\r\r{}".format(hostname, text)
+
+    headers = dict()
+    headers['Subject'] = subject
+    headers['From'] = uid
+    headers['To'] = to
+
+    context = ssl.create_default_context()
+    with smtplib.SMTP_SSL(smtp_server, context=context) as server:
+        server.login(uid, pwd)
+
+        msg = MIMEMultipart('alternative')
+        # for mime_image in mime_images:
+        #     msg.attach(mime_image)
+        msg.attach(MIMEText(text, 'plain'))
+        if html:
+            msg.attach(MIMEText(html, 'html'))
+        for key in headers:
+            msg[key] = headers[key]
+        server.sendmail(uid, recipients, msg.as_string())
+        log.info("Mail send to: " + str(recipients))
+
+        server.quit()
