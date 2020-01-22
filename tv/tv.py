@@ -26,8 +26,9 @@ import numpy
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, TimeoutException, InvalidArgumentException, ElementClickInterceptedException, \
-    WebDriverException, InvalidSessionIdException
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
+    TimeoutException, InvalidArgumentException, ElementClickInterceptedException, \
+    WebDriverException, InvalidSessionIdException, SessionNotCreatedException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -1811,6 +1812,29 @@ def assign_user_data_directory():
     return r"" + str(user_data_directory), False
 
 
+def check_driver(driver):
+    browser_version = ""
+    driver_version = ""
+    if OS == 'linux':
+        browser_version = driver.capabilities['version']
+    if OS == 'windows':
+        browser_version = driver.capabilities['browserVersion']
+
+    if driver.name in driver.capabilities:
+        for key, value in driver.capabilities[driver.name].items():
+            match = re.search(r"version", key, re.IGNORECASE)
+            if match:
+                match = re.search(r"([\d+.]+\d+) ", value)
+                if match:
+                    driver_version = match.group(1).rstrip()
+                    # log.info(key + " = " + driver_version)
+                break
+    else:
+        log.warn("browser name '{}' not found in driver".format(driver.name))
+    log.info("browser version: {}".format(browser_version))
+    log.info("driver version: {}".format(driver_version))
+
+
 def create_browser(run_in_background):
     global log
     capabilities = DesiredCapabilities.CHROME.copy()
@@ -1840,7 +1864,7 @@ def create_browser(run_in_background):
         match = re.search(r".*(\d+)", kairos_data_directory)
         if match:
             global WEBDRIVER_INSTANCE
-            WEBDRIVER_INSTANCE = int(match.group(1))
+            WEBDRIVER_INSTANCE: int = int(match.group(1))
 
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-notifications')
@@ -1881,6 +1905,7 @@ def create_browser(run_in_background):
     # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 
     try:
+        # noinspection PyUnboundLocalVariable
         log_path = r"--log-path=.\chromedriver_{}.log".format(int(WEBDRIVER_INSTANCE))
 
         # Create webdriver.remote
@@ -1889,6 +1914,10 @@ def create_browser(run_in_background):
             browser = webdriver.Remote(command_executor=EXECUTOR, options=options, desired_capabilities=capabilities)
         else:
             browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", log_path])
+
+        check_driver(browser)
+        exit(0)
+
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
         if initial_setup:
@@ -1905,6 +1934,26 @@ def create_browser(run_in_background):
             exit(0)
         else:
             log.exception(e)
+    except SessionNotCreatedException as e:
+        index = 0
+        if 'session not created: ' in e.msg:
+            index = len('session not created: ')
+        error = e.msg[index:]
+
+        if "chrome" in error.lower():
+            subject = "Outdated Chromedriver"
+            text = "Could not run due to an outdated Chromedriver.\rPlease update your Chromedriver."
+            log.error("Please update Chromedriver. {}".format(error))
+        else:
+            subject = "Outdated Geckodriver"
+            text = "Could not run due to run due to an outdated Geckodriver.\rPlease update your Geckodriver."
+            log.error("Please update Geckodriver. {}".format(error))
+
+        # Send email
+        import mail
+        # TODO: make sure to send it only once per day
+        mail.send_admin_message(subject, text)
+        exit(0)
     except Exception as e:
         log.exception(e)
         exit(1)
