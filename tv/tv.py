@@ -1864,7 +1864,7 @@ def create_browser(run_in_background):
         match = re.search(r".*(\d+)", kairos_data_directory)
         if match:
             global WEBDRIVER_INSTANCE
-            WEBDRIVER_INSTANCE: int = int(match.group(1))
+            WEBDRIVER_INSTANCE = int(match.group(1))
 
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-notifications')
@@ -1916,7 +1916,6 @@ def create_browser(run_in_background):
             browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", log_path])
 
         check_driver(browser)
-        exit(0)
 
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
