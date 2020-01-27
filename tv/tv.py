@@ -1817,11 +1817,7 @@ def assign_user_data_directory():
 
 def check_driver(driver):
     browser_version = ""
-    driver_version = ""
-    if OS == 'linux':
-        browser_version = driver.capabilities['version']
-    if OS == 'windows':
-        browser_version = driver.capabilities['browserVersion']
+    browser_version = driver.capabilities['browserVersion']
 
     if driver.name in driver.capabilities:
         for key, value in driver.capabilities[driver.name].items():
@@ -1830,7 +1826,6 @@ def check_driver(driver):
                 match = re.search(r"([\d+.]+\d+) ", value)
                 if match:
                     driver_version = match.group(1).rstrip()
-                    # log.info(key + " = " + driver_version)
                 break
     else:
         log.warn("browser name '{}' not found in driver".format(driver.name))
