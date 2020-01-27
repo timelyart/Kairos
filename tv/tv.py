@@ -235,6 +235,9 @@ if config.getboolean('logging', 'clear_on_start_up'):
     mode = 'w'  # overwrite
 log = tools.create_log(mode)
 log.setLevel(20)
+# WARNING: debug level will log all HTTP requests
+# if config.has_option('logging', 'level'):
+#     log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
@@ -582,7 +585,7 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
             action.move_to_element_with_offset(element, 5, 5)
             action.perform()
 
-            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div:nth-child(3) > div > div', By.CSS_SELECTOR)
+            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
             for e in elem_values:
                 result.append(e.text)
     except StaleElementReferenceException:
