@@ -152,6 +152,8 @@ css_selectors = dict(
     btn_create_alert_warning_continue_anyway='#overlap-manager-root button:nth-child(2)',
     btn_alerts='div[data-name="alerts"]',
     btn_calendar='div[data-name="calendar"]',
+    btn_watchlists='div[data-name="base"]',
+    btn_watchlist_submenu='.widgetbar-widget-watchlist > div:nth-child(1) > div:nth-child(1) > a:nth-child(2)',
     div_watchlist_item='div.symbol-list > div.symbol-list-item.success',
     signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
             'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a',
@@ -1816,7 +1818,7 @@ def assign_user_data_directory():
 
 
 def check_driver(driver):
-    browser_version = ""
+    driver_version = ""
     browser_version = driver.capabilities['browserVersion']
 
     if driver.name in driver.capabilities:
@@ -2201,9 +2203,10 @@ def get_screener_markets(browser, screener_yaml):
 def update_watchlist(browser, name, markets, delay_after_update):
     try:
         wait_and_click(browser, css_selectors['btn_calendar'])
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
         time.sleep(DELAY_BREAK)
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+        wait_and_click(browser, css_selectors['btn_watchlists'])
+        time.sleep(DELAY_BREAK)
+        wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
         time.sleep(DELAY_BREAK)
 
         input_symbol = find_element(browser, 'wl-symbol-edit', By.CLASS_NAME)
@@ -2250,7 +2253,7 @@ def update_watchlist(browser, name, markets, delay_after_update):
 
 def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
-    wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+    wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
     time.sleep(DELAY_BREAK)
     el_options = find_elements(browser, 'div.charts-popup-list > a.item.first:not(.active-item-backlight)')
     time.sleep(DELAY_BREAK)
@@ -2270,7 +2273,7 @@ def remove_watchlists(browser, name):
                 log.debug('watchlist {} removed'.format(name))
         except StaleElementReferenceException:
             # open the watchlists menu again and update the options to prevent 'element is stale' error
-            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
             time.sleep(DELAY_BREAK)
             el_options = find_elements(browser, 'div.charts-popup-list > a.item.first:not(.active-item-backlight)')
             time.sleep(DELAY_BREAK)
