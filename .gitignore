@@ -1,5 +1,5 @@
 *.log
-kairos.cfg
+*.cfg
 *.pyc
 *.bat
 *.zip
@@ -19,6 +19,7 @@ test/
 desktop.ini
 *.json
 *.instance
+!_kairos.cfg
 !yaml/refresh.yaml
 !yaml/root.yaml
 !yaml/branch_in_branch.yaml
