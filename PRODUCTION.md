@@ -1,11 +1,24 @@
-# Create distribution for public use
+# Optimizing with Cython (optional)
+## Introduction 
+Cython can be used to speed up code, make use of C's memory management, and to access external C libraries.
+Currently, Kairos only uses Cython to generate C code to modestly improve it's speed. 
+Therefore, using Cython is completely optional until such time that Kairos uses external C libraries, C memory management, or other C dependencies.
+
+A cohesive write up on Cython can be found [here](https://www.infoworld.com/article/3250299/what-is-cython-python-at-the-speed-of-c.html).
+For further information, please visit the [Cython website](https://cython.org/).
+
+## Prerequisites
+You will need a C compiler.
+If you are using Linux or macOS, you are in luck. You should already have a C compiler.
+
+For Windows, download and install Build Tools for Visual Studio 2019 from the [Microsoft downloads](https://visualstudio.microsoft.com/downloads/) page. 
+From that page scroll down to _All Downloads -> Tools for Visual Studio 2019_ and download _[Build Tools for Visual Studio 2019](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16)_. 
+
+## Steps
 1. [File preparation](#python-file-preparation)
 2. [Generate C code](#generate-c-code)
 3. [Install](#install-dependencies)
 4. [Clean up](#clean-up)
-
-Alternatively, you can automate steps 2-4 by running (Windows CMD):
-`build_public.bat`
 
 ## Python file preparation
 For each python file you wish to generate C for, do the following:
