@@ -1,6 +1,6 @@
 root:
   - branch:
       - branch: ["leaf", "leaf", "leaf"]
-      - file: "tv/branch_in_branch.yaml"
+      - file: "yaml/branch_in_branch.yaml"
   - branch: ["leaf", "leaf", "leaf"]
-  - file: "tv/branch_in_branch.yaml"
+  - file: "yaml/branch_in_branch.yaml"
