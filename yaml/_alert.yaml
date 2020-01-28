@@ -1,0 +1,123 @@
+# This example creates alerts on TradingView in the same way as you would do normally by hand (just automated)
+# Use a url + other settings per type of alert you want to set
+# Note that all values are case sensitive
+# Define one or more charts by providing the link(s) to your charts
+charts:
+- url: https://www.tradingview.com/chart/<my_chart>/
+  # Define for which time frames you want to generate alerts
+  timeframes: [1 day]
+  # Define one or more watchlists
+  watchlists: ["<my_watchlist>"]
+  # Create alerts on TradingView
+  # Alert listed under alerts must be available from the chart which is loaded through the 'url' parameter
+  # This particular example assumes you have the Golden Cross by Chuckytuh on your chart
+  alerts:
+    # The name is used to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts
+    # Make sure the name is unique
+  - name: "Golden Cross"
+    # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
+    # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
+    show_multi_chart_layout: no
+    # List of charts (url's) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
+    include_screenshots_of_charts: ["https://www.tradingview.com/chart/<my_chart>"]
+    # Kairos tries to find conditions based upon the values you provide below.
+    # Set the conditions as you would do manually in order from left to right and from top to bottom
+    # It is sufficient to only set the first word for each condition.
+    conditions: ["Golden", "Plot", "Crossing Up", "Golden", "Plot"]
+    # The options below correspond with the options on the Alert dialog, as are the available values for each option.
+    # How often is the alert allowed to triggers?
+    options: "Only Once"
+    # When should the alert expire?
+    expiration:
+      # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
+      # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
+      # time: 2019-05-19 13:42, or delta in minutes (max 86400, or 60 days), or leave empty to use TradingView's default of 30 days (somewhat improves performance).
+      time: 5
+      # Note that open-ended is for premium users only and - when set - will ignore the value for 'time'
+      open-ended: no
+    # Show a popup in TradingView when this alert triggers
+    show_popup: no
+    # Sound optisns
+    sound:
+      # Play a sound?
+      play: no
+      # Define the ringtone
+      ringtone: Chirpy
+      # For how long should the sound play?
+      duration: Once
+    # Communication options
+    send:
+      # Send an email?
+      # Note that in order to create a watchlist or send a summary email this needs to be set to yes
+      email: yes
+      email-to-sms: no
+      # Send a server side sms (for Premium users only)
+      sms: no
+      # Get a push notification in TradingView's app
+      notify-on-app: no
+    message:
+      prepend: no
+      # Use `\n` to add and an ENTER
+      # Use keywords to add dynamic information in your text.
+      # %TIMEFRAME, is self-explanatory
+      # %SYMBOL is <exchange>:<ticker symbol>
+      # %NAME is the name of the alert
+      # %CHART add a url to the chart (inc. timeframe and symbol)
+      # %GENERATED is the text that TradingView generates
+      # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
+      # NOTE: TradingView's default link is incomplete. I recommend including %CHART at all times.
+      # NOTE: If you want to create summary mails and generate a watchlist don't change this.
+      text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
+# The options provided here are only available if you have set up the [mail] section in your kairos.cfg
+summary:
+  # Create a summary email
+  email:
+    to: ["<my_email@my_domain.com>"]
+    subject: "TradingView Alert Summary"
+    # Use keyword %SUMMARY in your text or html to include the Kairos generated summary
+    text: "My signals: %SUMMARY"
+    html: "<p>My signals</p> %SUMMARY"
+    # If you just want to signals to webhooks (see your config file) or import them as a watchlist, set this to no
+    send: yes
+    # If you want to shield recipients from seeing each other's email address, set this to yes
+    one-mail-per-recipient: yes
+  # Create a watchlist of summarized signals
+  watchlist:
+    # Keywords %DATE (yyyymmdd), %TIME (hhmm)
+    # Note: will overwrite watchlists of the same name
+    name: "signals_%DATE_%TIME"
+    # Import the watchlist into TV
+    # Note: existing watchlists of the same name will be deleted
+    # Note: Windows only! This will make use of your clipboard to insert the filename in TV's upload file dialog
+    import: no
+    # Attach to summary email
+    attach-to-email: yes
+  # Send individual signals to one or more lists webhooks when one out of a list of search_criteria is met
+  webhooks:
+    # Define one ore more webhooks
+    - url: ["https://hooks.zapier.com/hooks/catch/<my_id>/<my_hook>/"]
+      # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
+      search_criteria: ["Golden Cross"]
+      # Define how many signals should be send per batch
+      batch: 25
+      # Enabled?
+      enabled: no
+  # Export data to Google Sheets
+  # To use this feature you'll need to have the following:
+  # - a google-api.json file to be able to login to your Google Drive and open spreadsheets
+  # - the location of the google-api.json file set in kairos.cfg
+  # - set your API call limit in kairos.cfg
+  google_sheets:
+    # File name of the Google Spreadsheet
+    - name: "<my_goodle_spreadsheet>"
+      # Sheet name (if left empty the first sheet will be used)
+      sheet: "Diary"
+      # Index, i.e. the row number where the data should be inserted. Use 1 for the top row, or 2 if the top row contains your column titles.
+      index: 2
+      # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
+      search_criteria: ["Golden Cross"]
+      # Enabled?
+      enabled: no
+webdriver:
+  # Define whether you want to run Kairos in the background. Overrides the value for the same setting in kairos.cfg.
+  run-in-background: yes

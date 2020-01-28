@@ -12,30 +12,39 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import datetime
 import getpass
+import json
+import shutil
 import math
 import numbers
 import os
 import re
-import sys
 import time
 import errno
-import yaml
+import dill
+import numpy
+
 from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
-from selenium.common.exceptions import NoSuchElementException, WebDriverException, StaleElementReferenceException, NoAlertPresentException, TimeoutException
-from selenium.webdriver import DesiredCapabilities
+from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
+    TimeoutException, InvalidArgumentException, ElementClickInterceptedException, \
+    WebDriverException, InvalidSessionIdException, SessionNotCreatedException
+from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
+from multiprocessing import Pool
 
 from kairos import timing
 from kairos import tools
+from kairos.tools import format_number, wait_for_element_is_stale
+from fastnumbers import fast_real
 
 TEST = False
 
+triggered_signals = []
 invalid = set()
 
 EXECUTOR = 'http://192.168.0.140:4444/wd/hub'
@@ -66,16 +75,16 @@ DELAY_SCREENER_SEARCH = 2
 RUN_IN_BACKGROUND = False
 MULTI_THREADING = False
 ALERT_NUMBER = 0
-# when an alert is created TV might generate a popup warning you of unintended consequences
 SEARCH_FOR_WARNING = True
+REFRESH_START = timing.time()
+REFRESH_INTERVAL = 3600  # Refresh the browser each hour
+ALREADY_LOGGED_IN = False
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
-OS = 'windows'
-if sys.platform == 'os2':
-    OS = 'macos'
+OS = tools.get_operating_system()
+if OS == 'macos':
     MODIFIER_KEY = Keys.COMMAND
-elif os.name == 'posix':
-    OS = 'linux'
+
 SELECT_ALL = MODIFIER_KEY + 'a'
 CUT = MODIFIER_KEY + 'x'
 PASTE = MODIFIER_KEY + 'v'
@@ -83,6 +92,9 @@ COPY = MODIFIER_KEY + 'c'
 
 TV_UID = ''
 TV_PWD = ''
+
+NEGATIVE_COLOR = '#DD2E02'
+WEBDRIVER_INSTANCE = 0
 
 css_selectors = dict(
     # ALERTS
@@ -97,7 +109,7 @@ css_selectors = dict(
     btn_watchlist_menu_menu='input.wl-symbol-edit + a.button',
     options_watchlist='div.charts-popup-list > a.item.first',
     input_symbol='#header-toolbar-symbol-search > div > input',
-    asset='div.pane-legend-title__description',
+    asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
     btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
     item_clear_alerts='div.charts-popup-list > a.item:last-child',
     item_clear_inactive_alerts='div.charts-popup-list > a.item:nth-child(8)',
@@ -137,8 +149,11 @@ css_selectors = dict(
     # Send SMS
     clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-true-sms"] + span + span.tv-control-checkbox__ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
+    btn_create_alert_warning_continue_anyway='#overlap-manager-root button:nth-child(2)',
     btn_alerts='div[data-name="alerts"]',
     btn_calendar='div[data-name="calendar"]',
+    btn_watchlists='div[data-name="base"]',
+    btn_watchlist_submenu='.widgetbar-widget-watchlist > div:nth-child(1) > div:nth-child(1) > a:nth-child(2)',
     div_watchlist_item='div.symbol-list > div.symbol-list-item.success',
     signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
             'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a',
@@ -148,7 +163,6 @@ css_selectors = dict(
     dlg_screenshot_url='div[class^="copyForm"] > div > input',
     dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
     btn_watchlist_sort_symbol='div.symbol-list-header.sortable > div.header-symbol',
-    btn_create_alert_warning_continue_anyway='#overlap-manager-root button:nth-child(2)',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
     select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
@@ -156,6 +170,50 @@ css_selectors = dict(
     select_screener='div.tv-screener-toolbar__button.tv-screener-toolbar__button--with-options.tv-screener-toolbar__button--arrow-down.tv-screener-toolbar__button--with-state.apply-common-tooltip.common-tooltip-fixed.js-filter-sets.tv-dropdown-behavior__button',
     options_screeners='div.tv-screener-popup__item--presets > div.tv-dropdown-behavior__item',
     input_screener_search='div.tv-screener-table__search-query.js-search-query.tv-screener-table__search-query--without-description > input',
+    # Strategy Tester
+    tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
+    tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
+    tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
+    btn_strategy_dialog='div.icon-button.backtesting-open-format-dialog',
+    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting > div.backtesting-head-wrapper > div:nth-child(1) > div > span',
+    performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',
+    performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
+    performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
+    performance_overview_percent_profitable='div.report-data > div:nth-child(3) > strong',
+    performance_overview_profit_factor='div.report-data > div:nth-child(4) > strong',
+    performance_overview_max_drawdown='div.report-data > div:nth-child(5) > strong',
+    performance_overview_max_drawdown_percentage='div.report-data > div:nth-child(5) > p > span',
+    performance_overview_avg_trade='div.report-data > div:nth-child(6) > strong',
+    performance_overview_avg_trade_percentage='div.report-data > div:nth-child(6) > p > span',
+    performance_overview_avg_bars_in_trade='div.report-data > div:nth-child(7) > strong',
+    performance_summary_net_profit='div.report-content.performance > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div:nth-child(1)',
+    performance_summary_net_profit_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div:nth-child(2) > span',
+    performance_summary_total_closed_trades='div.report-content.performance > div > table > tbody > tr:nth-child(11) > td:nth-child(2)',
+    performance_summary_percent_profitable='div.report-content.performance > div > table > tbody > tr:nth-child(15) > td:nth-child(2)',
+    performance_summary_profit_factor='div.report-content.performance > div > table > tbody > tr:nth-child(7) > td:nth-child(2)',
+    performance_summary_max_drawdown='div.report-content.performance > div > table > tbody > tr:nth-child(4) > td:nth-child(2) > div:nth-child(1)',
+    performance_summary_max_drawdown_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(4) > td:nth-child(2) > div:nth-child(2) > span',
+    performance_summary_avg_trade='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2) > div:nth-child(1)',
+    performance_summary_avg_trade_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2) > div:nth-child(2) > span',
+    performance_summary_avg_bars_in_trade='div.report-content.performance > div > table > tbody > tr:nth-child(22) > td:nth-child(2)',
+    # Indicator dialog
+    indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
+    indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
+    # indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"] > div',
+    indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"]',
+    indicator_dialog_tab_cell='#overlap-manager-root div[class^="content"] div[class^="cell-"]:nth-child({})',
+    indicator_dialog_titles='#overlap-manager-root div[class^="content"] div[class*="first"] > div',
+    indicator_dialog_checkbox_titles='#overlap-manager-root label[class^="checkbox"] span > span',
+    indicator_dialog_checkbox='#overlap-manager-root label[class^="checkbox"] input:nth-child({})',
+    indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
+    indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
+    indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
+    btn_indicator_dialog_ok='#overlap-manager-root button[name="ok"]',
+    active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
+    active_chart_interval='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__interval > div',
+    # User Menu
+    btn_user_menu="span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user",
+    btn_logout="a[href='#signout']",
 )
 
 class_selectors = dict(
@@ -168,14 +226,20 @@ name_selectors = dict(
     checkbox_dlg_create_alert_play_sound='play-sound',
     checkbox_dlg_create_alert_send_email='send-email',
     checkbox_dlg_create_alert_email_to_sms='send-sms',
-    checkbox_dlg_create_alert_send_sms='send-true-sms',
+    # checkbox_dlg_create_alert_send_sms='send-true-sms',  # option removed by TradingView
     checkbox_dlg_create_alert_send_push='send-push'
 )
 
-log = tools.create_log()
+tv_start = timing.time()
+config = tools.get_config()
+mode = 'a'  # append
+if config.getboolean('logging', 'clear_on_start_up'):
+    mode = 'w'  # overwrite
+log = tools.create_log(mode)
 log.setLevel(20)
-config = tools.get_config(CURRENT_DIR)
-log.setLevel(config.getint('logging', 'level'))
+# WARNING: debug level will log all HTTP requests
+# if config.has_option('logging', 'level'):
+#     log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
@@ -241,33 +305,37 @@ def close_alerts(browser):
 
 
 def refresh(browser):
-    log.info('refreshing browser')
+    log.debug('refreshing browser')
     browser.refresh()
     # Switching to Alert
     close_alerts(browser)
-    # Give some time to load the page
-    time.sleep(5)
     # Close the watchlist menu if it is open
-    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, True, 0.5):
+    if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, False, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
 
-def element_exists(dom, css_selector, delay, except_on_timeout=True, visible=False):
+def element_exists(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
     result = False
     try:
-        element = find_element(dom, css_selector, By.CSS_SELECTOR, except_on_timeout, visible, delay)
+        element = find_element(browser, css_selector, By.CSS_SELECTOR, delay)
         result = type(element) is WebElement
     except NoSuchElementException:
         log.debug('No such element. CSS SELECTOR=' + css_selector)
+        # print the session_id and url in case the element is not found
+        # noinspection PyProtectedMember
+        log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
     except Exception as element_exists_error:
-        log.exception(element_exists_error)
+        log.error(element_exists_error)
+        log.debug("Check your CSS locator: {}".format(css_selector))
+        # noinspection PyProtectedMember
+        log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
     finally:
         log.debug("{} ({})".format(str(result), css_selector))
         return result
 
 
 def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
-    WebDriverWait(browser, delay).until(
+    return WebDriverWait(browser, delay).until(
         ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
 
 
@@ -317,6 +385,10 @@ def find_element(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_t
             return element
         except TimeoutException as e:
             log.debug(e)
+            log.debug("Check your {} locator: {}".format(locator_strategy, locator))
+            # print the session_id and url in case the element is not found
+            # noinspection PyProtectedMember
+            log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
 
 
 def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_timeout=True, visible=False, delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -339,6 +411,10 @@ def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_
             return elements
         except TimeoutException as e:
             log.debug(e)
+            log.debug("Check your {} locator: {}".format(locator_strategy, locator))
+            # print the session_id and url in case the element is not found
+            # noinspection PyProtectedMember
+            log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
             return None
 
 
@@ -359,6 +435,10 @@ def set_timeframe(browser, timeframe):
         raise ValueError
 
     if found:
+        # TODO replace 'element.send_keys" with
+        #  action = ActionChains(browser)
+        #  action.send_keys(Keys.TAB)
+        #  action.perform()
         html = find_element(browser, 'html', By.TAG_NAME)
         html.send_keys(MODIFIER_KEY + 's')
         time.sleep(DELAY_BREAK)
@@ -372,7 +452,7 @@ def get_interval(timeframe):
     :param timeframe: String.
     :return: interval: Short timeframe notation if found, empty string otherwise.
     """
-    match = re.search("(\\d+)\\s(\\w\\w\\w)", timeframe)
+    match = re.search(r"(\d+)\s(\w\w\w)", timeframe)
     interval = ""
     if match is None:
         log.warning("Cannot find match for timeframe '{}' with regex (\\d+)\\s(\\w\\w\\w). [0]".format(timeframe))
@@ -452,10 +532,190 @@ def set_delays(chart):
             DELAY_KEYSTROKE = config.getfloat('delays', 'keystroke')
 
 
-def open_chart(browser, chart, counter_alerts, total_alerts):
+def get_indicator_values(browser, indicator, symbol, previous_result, retry_number=0):
+    result = []
+    chart_index = -1
+    pane_index = -1
+    indicator_index = -1
+
+    if 'chart_index' in indicator and str(indicator['chart_index']).isdigit():
+        chart_index = indicator['chart_index']
+    if 'pane_index' in indicator and str(indicator['pane_index']).isdigit():
+        pane_index = indicator['pane_index']
+    if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
+        indicator_index = indicator['indicator_index']
+
+    studies = []
+    if indicator_index < 0:
+        try:
+            css = 'div.chart-container.active tr:nth-child({}) div[data-name="legend-source-item"] div[data-name="legend-source-title"]:nth-child(1)'.format((pane_index+1) * 2 - 1)
+            studies = find_elements(browser, css)
+            for i, study in enumerate(studies):
+                study_name = str(study.text)
+                log.debug('Found {}'.format(study_name))
+                if study_name.startswith(indicator['name']):
+                    indicator_index = i
+                    break
+                try:
+                    if str(study_name).lower().index('loading'):
+                        time.sleep(0.1)
+                        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+                    if str(study_name).lower().index('compiling'):
+                        time.sleep(0.1)
+                        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+                    if str(study_name).lower().index('error'):
+                        time.sleep(0.1)
+                        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+                except ValueError:
+                    pass
+        except StaleElementReferenceException:
+            log.debug('StaleElementReferenceException in studies')
+            return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+        except TimeoutException:
+            log.warning('timeout in finding studies')
+            # return False which will force a browser refresh
+            result = False
+        except Exception as e:
+            log.exception(e)
+            return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+        # use css
+    try:
+        if 0 <= indicator_index < len(studies):
+            css = '#header-toolbar-symbol-search'
+            element = find_element(browser, css)
+            action = ActionChains(browser)
+            action.move_to_element_with_offset(element, 5, 5)
+            action.perform()
+
+            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
+            for e in elem_values:
+                result.append(e.text)
+    except StaleElementReferenceException:
+        log.debug('StaleElementReferenceException in values')
+        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+    except TimeoutException:
+        log.warning('timeout in getting values', )
+        # return False which will force a browser refresh
+        result = False
+    except Exception as e:
+        log.exception(e)
+        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+
+    # Check if we at least have a value, if not then the chart isn't loaded yet
+    only_na_values = True
+    for value in result:
+        if value != 'n/a':
+            only_na_values = False
+            break
+
+    # Check if there is a result and if the result differs from the previous result, otherwise we might have accidentally copied the values from the previous chart
+    if not result or (isinstance(result, list) and len(result) == 0) or only_na_values or result == previous_result:
+        # if only_na_values:
+        #     time.sleep(0.1)
+        return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
+
+    return result
+
+
+def retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number=0):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries') * 10
+    if config.has_option('tradingview', 'indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'indicator_values_max_retries')
+    if retry_number < max_retries:
+        return get_indicator_values(browser, indicator, symbol, previous_result, retry_number + 1)
+
+
+def is_indicator_triggered(indicator, values):
+    # log.info(values)
+    result = False
+    try:
+        if 'trigger' in indicator:
+            comparison = '='
+            lhs = ''
+            rhs = ''
+
+            if 'type' in indicator['trigger']:
+                comparison = indicator['trigger']['type']
+            if 'left-hand-side' in indicator['trigger']:
+                if 'index' in indicator['trigger']['left-hand-side'] and str(indicator['trigger']['left-hand-side']['index']).isdigit():
+                    ignore = []
+                    if 'ignore' in indicator['trigger']['left-hand-side'] and isinstance(indicator['trigger']['left-hand-side']['ignore'], list):
+                        ignore = indicator['trigger']['left-hand-side']['ignore']
+                    index = int(indicator['trigger']['left-hand-side']['index'])
+                    try:
+                        if index < len(values) and not (values[index] in ignore):
+                            lhs = values[index]
+                    except IndexError:
+                        log.exception('YAML value trigger -> left-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
+                if lhs == '' and indicator['trigger']['left-hand-side']['value'] != '':
+                    lhs = indicator['trigger']['left-hand-side']['value']
+            if 'right-hand-side' in indicator['trigger']:
+                if 'index' in indicator['trigger']['right-hand-side'] and str(indicator['trigger']['right-hand-side']['index']).isdigit():
+                    ignore = []
+                    if 'ignore' in indicator['trigger']['right-hand-side'] and isinstance(indicator['trigger']['right-hand-side']['ignore'], list):
+                        ignore = indicator['trigger']['right-hand-side']['ignore']
+                    index = int(indicator['trigger']['right-hand-side']['index'])
+                    try:
+                        if index < len(values) and not (values[index] in ignore):
+                            rhs = values[index]
+                    except IndexError:
+                        log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
+                if rhs == '' and indicator['trigger']['right-hand-side']['value'] != '':
+                    rhs = indicator['trigger']['right-hand-side']['value']
+
+            if not (lhs is None or lhs == '' or rhs is None or rhs == ''):
+                try:
+                    lhs = float(lhs)
+                    rhs = float(rhs)
+                except Exception as e:
+                    log.debug(e)
+                    lhs = str(lhs)
+                    rhs = str(rhs)
+
+                try:
+                    if comparison == '=':
+                        result = lhs == rhs
+                    elif comparison == '!=':
+                        result = lhs != rhs
+                    elif comparison == '>=':
+                        result = lhs >= rhs
+                    elif comparison == '>':
+                        result = lhs > rhs
+                    elif comparison == '<=':
+                        result = lhs <= rhs
+                    elif comparison == '<':
+                        result = lhs < rhs
+                except Exception as e:
+                    log.exception(e)
+            else:
+                if lhs == '':
+                    lhs = 'undefined'
+                if rhs == '':
+                    rhs = 'undefined'
+            log.debug('({} {} {}) returned {}'.format(str(lhs), comparison, str(rhs), str(result)))
+
+        else:
+            log.debug('No trigger information found, returning True')
+            result = True
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def save_strategy_results(data, save_as):
+    filename = "{}_{}.json".format(save_as, datetime.datetime.today().strftime('%Y%m%d_%H%M'))
+    if not os.path.exists('output'):
+        os.mkdir('output')
+    filename = os.path.join('output', filename)
+    with open(filename, 'w+') as file:
+        file.write(data)
+
+
+def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
     """
     :param browser:
     :param chart:
+    :param save_as:
     :param counter_alerts:
     :param total_alerts:
     :return:
@@ -467,7 +727,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
     try:
         # load the chart
         close_all_popups(browser)
-        log.info("Opening chart " + chart['url'])
+        log.info("opening chart " + chart['url'])
 
         # set wait times defined in chart
         set_delays(chart)
@@ -494,7 +754,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         for i, watchlist in enumerate(chart['watchlists']):
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
-            log.info("Collecting symbols from watchlist " + watchlist)
+            log.debug("collecting symbols from watchlist {}".format(watchlist))
             wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
             # load watchlist
@@ -504,7 +764,7 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 if option.text == watchlist:
                     option.click()
                     watchlist_exists = True
-                    log.debug('Watchlist \'' + watchlist + '\' found')
+                    log.debug("watchlist '{}' found".format(watchlist))
                     break
 
             if watchlist_exists:
@@ -514,13 +774,13 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
                 # extract symbols from watchlist
                 symbols = []
                 try:
-                    dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'])
+                    dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR, True, False, 30)
                     for symbol in dict_symbols:
                         symbols.append(symbol.get_attribute('data-symbol-full'))
                         if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
                             break
                     # symbols = list(sorted(set(symbols)))
-                    log.info("{} symbols found for '{}'".format(str(len(dict_symbols)), watchlist))
+                    log.info("{}: {} markets found".format(watchlist, len(dict_symbols)))
                 except Exception as e:
                     log.exception(e)
                     snapshot(browser)
@@ -530,21 +790,133 @@ def open_chart(browser, chart, counter_alerts, total_alerts):
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist_menu'])
 
-        # time.sleep(5)
-        # set the time frame
-        for timeframe in chart['timeframes']:
-            set_timeframe(browser, timeframe)
-            time.sleep(DELAY_TIMEFRAME)
+        if 'strategies' in chart:
+            date = datetime.datetime.strptime(time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime()), '%Y-%m-%dT%H:%M:%S%z')
+            btn_strategy_inactive = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, True)
+            if btn_strategy_inactive:
+                btn_strategy_inactive.click()
+                btn_performance_tab = find_element(browser, css_selectors['tab_strategy_tester_performance_summary'], By.CSS_SELECTOR, False, True)
+                if btn_performance_tab:
+                    btn_performance_tab.click()
 
-            # iterate over each symbol per watchlist
-            for watchlist in chart['watchlists']:
-                log.info("Opening watchlist " + watchlist)
-                try:
+            summaries = dict()
+            summaries['chart'] = chart['url']
+            summaries['datetime'] = date.strftime('%Y-%m-%d %H:%M:%S %z')
+
+            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            sort = dict()
+            for strategy in chart['strategies']:
+                if 'sort' in strategy:
+                    sort = strategy['sort']
+                    log.info(sort)
+                    continue
+                log.info("running strategy {}".format(strategy['name']))
+                if not strategy['name'] in summaries:
+                    summaries[strategy['name']] = dict()
+                    summaries[strategy['name']]['id'] = "unknown"
+                    strategy_element = find_element(browser, css_selectors['strategy_id'])
+                    if strategy_element:
+                        summaries[strategy['name']]['id'] = strategy_element.text
+                    default_chart_inputs, default_chart_properties = get_strategy_default_values(browser)
+                    log.info("default_inputs: {}".format(default_chart_inputs))
+                    log.info("default_properties: {}".format(default_chart_properties))
+                    summaries[strategy['name']]['default_inputs'] = default_chart_inputs
+                    summaries[strategy['name']]['default_properties'] = default_chart_properties
+                else:
+                    # ensure fall back to default inputs and properties
+                    refresh(browser)
+
+                # generate input/property sets
+                atomic_inputs = []
+                atomic_properties = []
+                if 'inputs' in strategy:
+                    inputs = get_config_values(strategy['inputs'])
+                    generate_atomic_values(inputs, atomic_inputs)
+                if 'properties' in strategy:
+                    properties = get_config_values(strategy['properties'])
+                    generate_atomic_values(properties, atomic_properties)
+                log.info("{} tests will be run for each watchlist".format(max(1, len(atomic_inputs)) * max(1, len(atomic_properties))))
+
+                sort_by = False
+                if 'sort_by' in strategy:
+                    sort_by = strategy['sort_by']
+                reverse = False
+                if 'sort_asc' in strategy:
+                    reverse = not strategy['sort_asc']
+
+                # test the strategy and sort the results
+                for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
-                except KeyError:
-                    log.error(watchlist + " doesn't exist")
-                    break
+                    test_results = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                    # sort if the user defined one for the strategy
+                    if sort_by:
+                        test_results = back_test_sort_watchlist(test_results, sort_by, reverse)
+
+                    if watchlist in summaries[strategy['name']]:
+                        summaries[strategy['name']][watchlist] += test_results
+                    else:
+                        summaries[strategy['name']][watchlist] = test_results
+
+            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            if sort:
+                log.info('sort')
+                if 'sort_by' in sort:
+                    sort_by = sort['sort_by']
+                    reverse = False
+                    if 'sort_asc' in sort:
+                        reverse = not sort['sort_asc']
+                    back_test_sort(summaries, sort_by, reverse)
+
+            # Save the results
+            filename = save_as
+            match = re.search(r"([\w\-_]*)", save_as)
+            if match:
+                filename = match.group(1)
+            elif save_as == "":
+                filename = "run"
+            save_strategy_results(json.dumps(summaries, indent=4), filename)
+
+        if 'alerts' in chart or 'signals' in chart:
+            # time.sleep(5)
+            # set the time frame
+            for timeframe in chart['timeframes']:
+                set_timeframe(browser, timeframe)
+                time.sleep(DELAY_TIMEFRAME)
+
+                # iterate over each symbol per watchlist
+                for watchlist in chart['watchlists']:
+                    log.info("opening watchlist " + watchlist)
+                    try:
+                        number_of_windows = 2
+                        symbols = dict_watchlist[watchlist]
+
+                        # log.info(__name__)
+                        if MULTI_THREADING:
+                            batch_size = math.ceil(len(symbols) / number_of_windows)
+                            batches = list(tools.chunks(symbols, batch_size))
+
+                            browsers = dict()
+
+                            if __name__ == 'tv.tv':
+                                pool = Pool(number_of_windows)  # use all available cores, otherwise specify the number you want as an argument
+                                for k, batch in enumerate(batches):
+                                    batch = batches[k]
+                                    if k == 0:
+                                        browsers[k] = browser
+                                    else:
+                                        browsers[k] = get_browser_instance()
+                                    result = pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
+                                    log.info(result)
+                                    # [counter_alerts, total_alerts]
+                                    # pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe))
+                                pool.close()
+                                pool.join()
+                        else:
+                            [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
+                        # pickle.dump(browser, 'webdriver.instance')
+                    except KeyError:
+                        log.error(watchlist + " doesn't exist")
+                        break
     except Exception as exc:
         log.exception(exc)
         snapshot(browser)
@@ -568,31 +940,189 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
     try:
         # Try to browse through the watchlist using space instead of setting the symbol value
         if use_space:
-            html = find_element(browser, 'html', By.TAG_NAME)
-            html.send_keys(Keys.SPACE)
-            time.sleep(DELAY_CHANGE_SYMBOL)
+            action = ActionChains(browser)
+            action.send_keys(Keys.SPACE)
+            action.perform()
+            # html = find_element(browser, 'html', By.TAG_NAME)
+            # html.send_keys(Keys.SPACE)
         else:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
             input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
 
-        try:
-            if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
-                invalid.add(symbol)
-                log.info('Invalid symbol')
-                return [counter_alerts, total_alerts]
-        except TimeoutException:
-            pass
+        # instead of a fixed delay, do a delay until there are no longer 'loading' / 'error' indicators
+        # time.sleep(DELAY_CHANGE_SYMBOL)
+        # loaded = False
+        # total_wait_time = 0
+        # while not loaded and total_wait_time < DELAY_CHANGE_SYMBOL:
+        #     css = '.study .pane-legend-title__description'
+        #     studies = find_elements(browser, css)
+        #     for i, study in enumerate(studies):
+        #         study_name = studies[i].text
+        #         try:
+        #             if str(study_name).index('loading'):
+        #                 time.sleep(0.1)
+        #                 total_wait_time += 0.1
+        #                 break
+        #             if str(study_name).index('compiling'):
+        #                 time.sleep(0.1)
+        #                 total_wait_time += 0.1
+        #                 break
+        #             if str(study_name).index('error'):
+        #                 time.sleep(0.1)
+        #                 total_wait_time += 0.1
+        #                 break
+        #             loaded = True
+        #             break
+        #         except ValueError:
+        #             loaded = True
+        #             break
+        # log.info('Loaded in {} seconds'.format(total_wait_time))
+
+        xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
+        elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, True, DELAY_BREAK_MINI)
+        while elem_loading and len(elem_loading) > 0:
+            elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_BREAK_MINI)
+        # try:
+        #     if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
+        #         invalid.add(symbol)
+        #         log.info('Invalid symbol')
+        #         return [counter_alerts, total_alerts]
+        # except TimeoutException:
+        #     pass
 
     except Exception as err:
-        log.debug('Unable to change to symbol')
+        log.debug('unable to change to symbol')
         log.exception(err)
         snapshot(browser)
 
+    # check for errors /
+    previous_values = []
+    last_indicator_name = ""
     try:
+        if 'signals' in chart:
+            for signal in chart['signals']:
+
+                triggered = []
+                indicators = signal['indicators']
+                timestamp = time.time()
+
+                data = dict()
+                data['timestamp'] = timestamp
+                data['date_utc'] = datetime.datetime.utcfromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S") + ' +0000'
+                data['date'] = datetime.datetime.fromtimestamp(timestamp).strftime("%a, %d %b %Y %H:%M:%S %z") + tools.get_timezone()
+                data['timeframe'] = timeframe
+                data['symbol'] = symbol
+                [data['exchange'], data['ticker']] = str(symbol).split(':')
+                data['name'] = signal['name']
+
+                interval = get_interval(timeframe)
+                data['interval'] = interval
+                url = browser.current_url + '?symbol=' + symbol
+                multi_time_frame_layout = False
+                try:
+                    multi_time_frame_layout = signal['multi_time_frame_layout']
+                except KeyError:
+                    if log.level == 10:
+                        log.warn('charts: multi_time_frame_layout not set in yaml, defaulting to multi_time_frame_layout = no')
+                if type(interval) is str and len(interval) > 0 and not multi_time_frame_layout:
+                    url += '&interval=' + str(interval)
+                data['url'] = url
+
+                signal_triggered = True
+                for m, indicator in enumerate(indicators):
+                    indicator = indicators[m]
+
+                    # We don't have to extract the values if the previous indicator is the same as the current one, e.g. when finding both short and long signals
+                    if indicator['name'] == last_indicator_name and previous_values:
+                        values = previous_values
+                    else:
+                        values = get_indicator_values(browser, indicator, symbol, previous_values)
+                        log.debug(values)
+                        previous_values = values
+                    last_indicator_name = indicator['name']
+
+                    # if we can't find a value, process this symbol again until we hit max retries which at that point we assume that the symbol doesn't exist or only hav 'n/a' values is correct
+                    if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+                        return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
+                    signal['indicators'][m]['values'] = values
+                    indicator_triggered = is_indicator_triggered(indicator, values)
+                    if not indicator_triggered:
+                        signal_triggered = False
+                        break
+                    signal['indicators'][m]['triggered'] = indicator_triggered
+                    triggered.append(indicator_triggered)
+                    if 'data' in indicator:
+                        for item in indicator['data']:
+                            for _key in item:
+                                if not (_key in data):
+                                    if isinstance(item[_key], list):
+                                        indices = item[_key]
+                                        data[_key] = []
+                                        for index in indices:
+                                            if index < len(values):
+                                                data[_key].append(values[index])
+                                    else:
+                                        index = item[_key]
+                                        if index < len(values):
+                                            data[_key] = values[index]
+                    # use tab to put focus on the next layout
+                    # TODO replace 'element.send_keys" with
+                    #  action = ActionChains(browser)
+                    #  action.send_keys(Keys.TAB)
+                    #  action.perform()
+                    html = find_element(browser, 'html', By.TAG_NAME)
+                    html.send_keys(Keys.TAB)
+                    previous_values = values
+
+                if signal_triggered:
+                    signal['triggered'] = signal_triggered
+                    screenshots = dict()
+                    filenames = dict()
+                    screenshots_url = []
+                    asset = ''
+                    for m in range(5):
+                        try:
+                            el_asset_name = find_element(browser, css_selectors['asset'])
+                            asset = el_asset_name.text
+                            break
+                        except StaleElementReferenceException:
+                            log.warning('Unable to retrieve asset name... trying again')
+                            pass
+                    try:
+                        for m, screenshot_chart in enumerate(signal['include_screenshots_of_charts']):
+                            screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
+                            [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
+                            if screenshot_url != '':
+                                screenshots[screenshot_chart] = screenshot_url
+                                screenshots_url.append(screenshot_url)
+                                if m == 0:
+                                    data['screenshot'] = screenshot_url
+                            if filename != '':
+                                filenames[screenshot_chart] = filename
+                    except ValueError as value_error:
+                        log.exception(value_error)
+                        snapshot(browser)
+                    except KeyError:
+                        if log.level == 10:
+                            log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+                    data['screenshots_url'] = screenshots_url
+                    data['screenshots'] = screenshots
+                    data['filenames'] = filenames
+                    data['asset'] = asset
+                    if 'labels' in signal:
+                        for label in signal['labels']:
+                            for _key in label:
+                                if not (_key in data):
+                                    data[_key] = label[_key]
+                    data['signal'] = signal
+                    log.info('"{}" triggered'.format(signal['name']))
+                    # log.info(signal['indicators'][0]['values'])
+                    triggered_signals.append(data)
+                total_alerts += 1
+
         if 'alerts' in chart:
             interval = get_interval(timeframe)
             for alert in chart['alerts']:
@@ -644,7 +1174,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
             input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
+            # time.sleep(DELAY_CHANGE_SYMBOL)
         except Exception as err:
             log.debug('Unable to change to symbol')
             log.exception(err)
@@ -656,7 +1186,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
         return False
 
 
-def snapshot(browser, quit_program=False, name=''):
+def snapshot(browser, quit_program=False, chart_only=True, name=''):
     global MAX_SCREENSHOTS_ON_ERROR
     if config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error') and MAX_SCREENSHOTS_ON_ERROR > 0:
         MAX_SCREENSHOTS_ON_ERROR -= 1
@@ -686,7 +1216,8 @@ def snapshot(browser, quit_program=False, name=''):
             width = location['x'] + size['width'] + offset_right
             height = location['y'] + size['height'] + offset_bottom
             im = Image.open(filename)
-            im = im.crop((int(x), int(y), int(width), int(height)))
+            if chart_only:
+                im = im.crop((int(x), int(y), int(width), int(height)))
             im.save(filename)
             log.error(str(filename))
         except Exception as take_screenshot_error:
@@ -696,12 +1227,14 @@ def snapshot(browser, quit_program=False, name=''):
             exit(errno.EFAULT)
 
 
-def take_screenshot(browser, symbol, interval, retry_number=0):
+def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y%m%d", retry_number=0):
     """
     Use selenium for a screenshot, or alternatively use TradingView's screenshot feature
     :param browser:
     :param symbol:
     :param interval:
+    :param chart_only:
+    :param tpl_strftime:
     :param retry_number:
     :return:
     """
@@ -711,19 +1244,27 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
     try:
 
         if config.has_option('tradingview', 'tradingview_screenshot') and config.getboolean('tradingview', 'tradingview_screenshot'):
+            # TODO replace 'element.send_keys" with
+            #  action = ActionChains(browser)
+            #  action.send_keys(Keys.TAB)
+            #  action.perform()
             html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "s")
             time.sleep(DELAY_SCREENSHOT_DIALOG)
             input_screenshot_url = find_element(html, css_selectors['dlg_screenshot_url'])
             screenshot_url = input_screenshot_url.get_attribute('value')
+            # TODO replace 'element.send_keys" with
+            #  action = ActionChains(browser)
+            #  action.send_keys(Keys.TAB)
+            #  action.perform()
             html.send_keys(Keys.ESCAPE)
             log.debug(screenshot_url)
 
         elif screenshot_dir != '':
             chart_dir = ''
-            match = re.search("^.*chart.(\\w+).*", browser.current_url)
+            match = re.search(r"^.*chart.(\w+).*", browser.current_url)
             if re.Match:
-                today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime('%Y%m%d'))
+                today_dir = os.path.join(screenshot_dir, datetime.datetime.today().strftime(tpl_strftime))
                 if not os.path.exists(today_dir):
                     os.mkdir(today_dir)
                 chart_dir = os.path.join(today_dir, match.group(1))
@@ -732,41 +1273,41 @@ def take_screenshot(browser, symbol, interval, retry_number=0):
                 chart_dir = os.path.join(chart_dir, )
             filename = symbol.replace(':', '_') + '_' + str(interval) + '.png'
             filename = os.path.join(chart_dir, filename)
-            elem_chart = find_elements(browser, 'layout__area--center', By.CLASS_NAME)
+            elem_chart = find_element(browser, 'layout__area--center', By.CLASS_NAME)
             time.sleep(DELAY_SCREENSHOT)
-
-            location = elem_chart.location
-            size = elem_chart.size
             browser.save_screenshot(filename)
-            offset_left, offset_right, offset_top, offset_bottom = [0, 0, 0, 0]
-            if config.has_option('logging', 'screenshot_offset_left'):
-                offset_left = config.getint('logging', 'screenshot_offset_right')
-            if config.has_option('logging', 'screenshot_offset_right'):
-                offset_right = config.getint('logging', 'screenshot_offset_top')
-            if config.has_option('logging', 'screenshot_offset_top'):
-                offset_top = config.getint('logging', 'screenshot_offset_left')
-            if config.has_option('logging', 'screenshot_offset_bottom'):
-                offset_bottom = config.getint('logging', 'screenshot_offset_bottom')
-            x = location['x'] + offset_left
-            y = location['y'] + offset_top
-            width = location['x'] + size['width'] + offset_right
-            height = location['y'] + size['height'] + offset_bottom
-            im = Image.open(filename)
-            im = im.crop((int(x), int(y), int(width), int(height)))
-            im.save(filename)
 
+            if chart_only:
+                location = elem_chart.location
+                size = elem_chart.size
+                offset_left, offset_right, offset_top, offset_bottom = [0, 0, 0, 0]
+                if config.has_option('logging', 'screenshot_offset_left'):
+                    offset_left = config.getint('logging', 'screenshot_offset_right')
+                if config.has_option('logging', 'screenshot_offset_right'):
+                    offset_right = config.getint('logging', 'screenshot_offset_top')
+                if config.has_option('logging', 'screenshot_offset_top'):
+                    offset_top = config.getint('logging', 'screenshot_offset_left')
+                if config.has_option('logging', 'screenshot_offset_bottom'):
+                    offset_bottom = config.getint('logging', 'screenshot_offset_bottom')
+                x = location['x'] + offset_left
+                y = location['y'] + offset_top
+                width = location['x'] + size['width'] + offset_right
+                height = location['y'] + size['height'] + offset_bottom
+                im = Image.open(filename)
+                im = im.crop((int(x), int(y), int(width), int(height)))
+                im.save(filename)
             log.debug(filename)
 
     except Exception as take_screenshot_error:
         log.exception(take_screenshot_error)
-        return retry_take_screenshot(browser, symbol, interval, retry_number)
+        return retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number)
     if screenshot_url == '' and filename == '':
-        return retry_take_screenshot(browser, symbol, interval, retry_number)
+        return retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number)
 
     return [screenshot_url, filename]
 
 
-def retry_take_screenshot(browser, symbol, interval, retry_number=0):
+def retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number=0):
 
     if retry_number + 1 == config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again ({})'.format(str(retry_number + 1)))
@@ -775,12 +1316,12 @@ def retry_take_screenshot(browser, symbol, interval, retry_number=0):
             input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
-            time.sleep(DELAY_CHANGE_SYMBOL)
+            # time.sleep(DELAY_CHANGE_SYMBOL)
         except Exception as e:
             log.exception(e)
     elif retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again ({})'.format(str(retry_number + 1)))
-        return take_screenshot(browser, symbol, interval, retry_number + 1)
+        return take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number + 1)
     else:
         log.warn('max retries reached')
         snapshot(browser)
@@ -798,10 +1339,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     :param retry_number:    Optional. Number of retries if for some reason the alert wasn't created.
     :return: true, if successful
     """
+    # noinspection PyGlobalUndefined
     global alert_dialog
     global SEARCH_FOR_WARNING
     try:
         if retry_number == 0:
+            # TODO replace 'element.send_keys" with
+            #  action = ActionChains(browser)
+            #  action.send_keys(Keys.TAB)
+            #  action.perform()
             html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "a")
         else:
@@ -825,7 +1371,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
 
         # 1st row, 2nd condition (if applicable)
         css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
-        if element_exists(alert_dialog, css_1st_row_right, 0.5, False, True):
+        if element_exists(alert_dialog, css_1st_row_right, 0.5):
             current_condition += 1
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
@@ -968,7 +1514,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             log.exception(alert_err)
             snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
-        # time.sleep(60*60*24)
+
         # Submit the form
         element = find_element(browser, css_selectors['btn_dlg_create_alert_submit'])
         element.click()
@@ -976,8 +1522,10 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         if SEARCH_FOR_WARNING:
             try:
                 wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'], 30)
+                log.info('Warning found and closed')
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
+                log.info('No warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
 
         time.sleep(DELAY_SUBMIT_ALERT)
@@ -1033,8 +1581,7 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
     if use_send_keys:
         send_keys(element, string, interval)
     else:
-
-        browser.execute_script("arguments[0].value = arguments[1];", element, string)
+        browser.execute_script("arguments[0].value = '{}';".format(string), element)
         if use_clipboard:
             if config.getboolean('webdriver', 'clipboard'):
                 element.send_keys(SELECT_ALL)
@@ -1121,6 +1668,7 @@ def set_expiration(browser, _alert_dialog, alert_config):
 def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
+    global ALREADY_LOGGED_IN
     if uid == '' and config.has_option('tradingview', 'username'):
         uid = config.get('tradingview', 'username')
     if pwd == '' and config.has_option('tradingview', 'password'):
@@ -1143,10 +1691,11 @@ def login(browser, uid='', pwd='', retry_login=False):
                 elem_username = wait_and_visible(browser, css_selectors['username'], 5)
                 if type(elem_username) is WebElement:
                     if elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
-                        log.info("Already logged in")
+                        ALREADY_LOGGED_IN = True
+                        log.info("already logged in")
                         return True
                     else:
-                        log.info("Logged in under a different username. Logging out.")
+                        log.info("logged in under a different username. Logging out.")
                         wait_and_click(browser, css_selectors['username'])
                         wait_and_click(browser, css_selectors['signout'])
             except TimeoutException as e:
@@ -1155,7 +1704,7 @@ def login(browser, uid='', pwd='', retry_login=False):
                 log.exception(e)
 
         except Exception as e:
-            log.error(e)
+            log.exception(e)
             snapshot(browser, True)
 
     try:
@@ -1163,12 +1712,12 @@ def login(browser, uid='', pwd='', retry_login=False):
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
             while uid == '':
-                uid = input("Type your TradingView username and press enter: ")
+                uid = input("type your TradingView username and press enter: ")
 
         input_password = find_element(browser, css_selectors['input_password'])
         if input_password.get_attribute('value') == '' or retry_login:
             while pwd == '':
-                pwd = getpass.getpass("Type your TradingView password and press enter: ")
+                pwd = getpass.getpass("type your TradingView password and press enter: ")
 
         # set credentials on website login page
         if uid != '' and pwd != '':
@@ -1178,7 +1727,7 @@ def login(browser, uid='', pwd='', retry_login=False):
             time.sleep(DELAY_BREAK_MINI)
         # if there are no user credentials then exit
         else:
-            log.info("No credentials provided.")
+            log.info("no credentials provided.")
             write_console_log(browser)
             exit(0)
 
@@ -1208,21 +1757,115 @@ def login(browser, uid='', pwd='', retry_login=False):
         snapshot(browser, True)
 
 
+def assign_user_data_directory():
+    lockfile = 'lockfile'
+    if OS != 'windows':
+        lockfile = 'SingletonSocket'
+
+    user_data_directory = config.get('webdriver', 'user_data_directory')
+    user_data_base_dir, tail = os.path.split(user_data_directory)
+    kairos_data_directory = os.path.join(user_data_base_dir, 'kairos')
+    if kairos_data_directory == user_data_directory:
+        log.critical("{} is reserved as a backup to create new user data directories from. Please, set a different user data directory under [webdriver] -> kairos_data_directory and restart Kairos.")
+        exit(1)
+    if not os.path.exists(kairos_data_directory):
+        if os.path.isfile(os.path.join(user_data_directory, lockfile)) or os.path.islink(os.path.join(user_data_directory, lockfile)):
+            log.critical("Your user data directory is locked. Please close your browser and restart Kairos.")
+            exit(1)
+        # create new user data directory for Kairos
+        log.info("creating base user data directory 'kairos'. Please be patient while data is being copied ...")
+        shutil.copytree(user_data_directory, kairos_data_directory)
+        return kairos_data_directory, True
+        # tools.chmod_r(kairos_data_directory, 0o777)
+
+    # user_data_directory = kairos_data_directory
+    if config.has_option('webdriver', 'share_user_data') and config.getboolean('webdriver', 'share_user_data'):
+        log.debug("{} in use? {}".format(user_data_directory, os.path.exists(os.path.join(user_data_directory, lockfile))))
+        user_data_directory_found = False
+
+        # find an unused kairos user data directory
+        user_data_base_dir, tail = os.path.split(user_data_directory)
+        try:
+            with os.scandir(user_data_base_dir) as user_data_directories:
+                # number_of_kairos_user_data_directories = 0
+                for entry in user_data_directories:
+                    if entry.name.startswith('kairos_'):
+                        # number_of_kairos_user_data_directories += 1
+                        path = os.path.join(user_data_base_dir, entry)
+                        if not tools.path_in_use(path, log) and not user_data_directory_found:
+                            user_data_directory = path
+                            user_data_directory_found = True
+                            break
+
+                # make a copy of the default user data directory if it is not found
+                i = 0
+                while not user_data_directory_found and i < 100:
+                    path = os.path.join(user_data_base_dir, "kairos_{}".format(i))
+                    if not os.path.exists(path):
+                        user_data_directory_found = True
+                        log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
+                        shutil.copytree(kairos_data_directory, path)
+                        if OS == 'linux':
+                            tools.chmod_r(path, 0o777)
+                        user_data_directory = path
+                    i += 1
+        except Exception as e:
+            log.exception(e)
+
+    user_data_base_dir, name = os.path.split(user_data_directory)
+    log.info("{} assigned".format(name))
+    return r"" + str(user_data_directory), False
+
+
+def check_driver(driver):
+    driver_version = ""
+    browser_version = driver.capabilities['browserVersion']
+
+    if driver.name in driver.capabilities:
+        for key, value in driver.capabilities[driver.name].items():
+            match = re.search(r"version", key, re.IGNORECASE)
+            if match:
+                match = re.search(r"([\d+.]+\d+) ", value)
+                if match:
+                    driver_version = match.group(1).rstrip()
+                break
+    else:
+        log.warn("browser name '{}' not found in driver".format(driver.name))
+    log.info("browser version: {}".format(browser_version))
+    log.info("driver version: {}".format(driver_version))
+
+
 def create_browser(run_in_background):
+    global log
     capabilities = DesiredCapabilities.CHROME.copy()
+    initial_setup = False
 
     options = webdriver.ChromeOptions()
+    if config.has_option('webdriver', 'web_browser_path'):
+        web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
+        options.binary_location = web_browser_path
     if OS == 'linux':
         options.add_argument('--no-sandbox')
         options.add_argument("--disable-dev-shm-usage")
-    if config.has_option('webdriver', 'profile_path'):
-        profile_path = config.get('webdriver', 'profile_path')
-        if OS == 'windows':
-            profile_path = str(profile_path).replace('\\', '\\\\')
-        log.info(profile_path)
-        options.add_argument('--user-data-dir=' + profile_path)
-    # options.add_argument('--user-data-dir=C:\\PyCharm Projects\\Kairos\\profile')
-    # options.add_argument('--user-data-dir=profile')
+    if config.has_option('webdriver', 'user_data_directory'):
+        kairos_data_directory, initial_setup = assign_user_data_directory()
+        match = re.search(r".*(\d+)", kairos_data_directory)
+        if match:
+            instance = match.group(1)
+            fn = tools.debug.file_name
+            match = re.search(r".*(\..*)", tools.debug.file_name)
+            if match:
+                fn = fn.replace(match.group(1), "_{}{}".format(instance, match.group(1)))
+            tools.shutdown_logging()
+            tools.debug.file_name = fn
+            log = tools.create_log()
+
+        options.add_argument('--user-data-dir=' + kairos_data_directory)
+        match = re.search(r".*(\d+)", kairos_data_directory)
+        if match:
+            global WEBDRIVER_INSTANCE
+            WEBDRIVER_INSTANCE = int(match.group(1))
+
     options.add_argument('--disable-extensions')
     options.add_argument('--disable-notifications')
     options.add_argument('--noerrdialogs')
@@ -1238,11 +1881,10 @@ def create_browser(run_in_background):
         # , 'disk-cache-size': 52428800
     }
     options.add_experimental_option('prefs', prefs)
-    # exclude_switches = [
-    #     'enable-automation',
-    # ]
-    # options.add_experimental_option('excludeSwitches', exclude_switches)
-
+    exclude_switches = [
+        'enable-automation',
+    ]
+    options.add_experimental_option('excludeSwitches', exclude_switches)
     # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
     # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
     if OS == 'windows':
@@ -1258,29 +1900,106 @@ def create_browser(run_in_background):
         raise FileNotFoundError
     chromedriver_file.replace('.exe', '')
 
+    # use open chrome browser
+    # options = webdriver.ChromeOptions()
+    # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+
     try:
+        # noinspection PyUnboundLocalVariable
+        log_path = r"--log-path=.\chromedriver_{}.log".format(int(WEBDRIVER_INSTANCE))
+
         # Create webdriver.remote
         # Note, we cannot serialize webdriver.Chrome
         if MULTI_THREADING:
             browser = webdriver.Remote(command_executor=EXECUTOR, options=options, desired_capabilities=capabilities)
         else:
-            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", "--log-path=.\\chromedriver.log"])
+            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", log_path])
+
+        check_driver(browser)
+
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
-    except WebDriverException as web_err:
-        log.exception(web_err)
+        if initial_setup:
+            log.info("creating shared session for kairos user data directory")
+            login(browser)
+            global ALREADY_LOGGED_IN
+            ALREADY_LOGGED_IN = True
+            destroy_browser(browser, False)
+            log.info("restarting kairos ... ")
+            return create_browser(run_in_background)
+    except InvalidArgumentException as e:
+        if e.msg.index("user data directory is already in use") >= 0:
+            log.critical("your web browser's user data directory is in use. Please, close your web browser and restart Kairos.")
+            exit(0)
+        else:
+            log.exception(e)
+    except SessionNotCreatedException as e:
+        index = 0
+        if 'session not created: ' in e.msg:
+            index = len('session not created: ')
+        error = e.msg[index:]
+
+        if "chrome" in error.lower():
+            subject = "Outdated Chromedriver"
+            text = "Could not run due to an outdated Chromedriver.\rPlease update your Chromedriver."
+            log.error("Please update Chromedriver. {}".format(error))
+        else:
+            subject = "Outdated Geckodriver"
+            text = "Could not run due to run due to an outdated Geckodriver.\rPlease update your Geckodriver."
+            log.error("Please update Geckodriver. {}".format(error))
+
+        # Send email
+        import mail
+        # TODO: make sure to send it only once per day
+        mail.send_admin_message(subject, text)
         exit(0)
     except Exception as e:
         log.exception(e)
-        exit(0)
+        exit(1)
 
     return browser
 
 
-def destroy_browser(browser):
-    if type(browser) is webdriver.Chrome:
-        close_all_popups(browser)
-        write_console_log(browser)
+def save_browser_state(browser):
+    # Serialize and save on disk
+    fp = open(FILENAME, 'wb')
+    # pickle()
+    dill.dump(browser, fp)
+    fp.close()
+
+
+def get_browser_instance(browser=None):
+    result = browser
+    if os.path.exists(FILENAME):
+        result = dill.load(open(FILENAME, 'rb'))
+    return result
+
+
+def logout(browser):
+    try:
+        browser.switch_to.window(browser.window_handles[0])
+        wait_and_click(browser, css_selectors['btn_user_menu'])
+        wait_and_click(browser, css_selectors['btn_logout'])
+        log.info("logged out of TradingView")
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser)
+
+
+def destroy_browser(browser, close_log=True):
+    try:
+        if type(browser) is webdriver.Chrome:
+            close_all_popups(browser)
+            share_user_data = config.has_option('webdriver', 'share_user_data') and config.getboolean('webdriver', 'share_user_data')
+            if not ALREADY_LOGGED_IN and not share_user_data:
+                logout(browser)
+            write_console_log(browser)
+            if close_log:
+                tools.shutdown_logging()
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser)
+    finally:
         browser.close()
         browser.quit()
 
@@ -1292,18 +2011,25 @@ def write_console_log(browser):
     tools.write_console_log(browser, write_mode)
 
 
-def run(file):
+def run(file, export_signals_immediately, multi_threading=False):
     """
         TODO:   multi threading
     """
+    log.debug("{} detected".format(OS.capitalize()))
     counter_alerts = 0
     total_alerts = 0
     browser = None
 
     global RUN_IN_BACKGROUND
+    global MULTI_THREADING
+    global WEBDRIVER_INSTANCE
+    MULTI_THREADING = multi_threading
 
+    save_as = ""
     try:
         if len(file) > 1:
+            head, tail = os.path.split(r""+file)
+            save_as = tail
             file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), file)
         else:
             file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), config.get('tradingview', 'settings'))
@@ -1311,11 +2037,8 @@ def run(file):
             log.error("File {} does not exist. Did you setup your kairos.cfg and yaml file correctly?".format(str(file)))
             raise FileNotFoundError
 
-        # get the user defined settings file
-        tv = get_yaml_config(file, True)
-        f = open(file + '.tmp', 'w')
-        f.write(yaml.dump(tv))
-        f.close()
+        # get the user defined yaml file
+        tv = tools.get_yaml_config(file, log, True)
         has_charts = 'charts' in tv
         has_screeners = 'screeners' in tv
 
@@ -1377,19 +2100,31 @@ def run(file):
                             counter_alerts = len(alerts)
                 except Exception as e:
                     log.exception(e)
-                # iterate over all items that have an 'alerts'
+                # iterate over all items that have an 'alerts' or 'signals' property
                 for file, items in tv.items():
                     if type(items) is list:
                         for item in items:
-                            if 'alerts' in item:
-                                [counter_alerts, total_alerts] = open_chart(browser, item, counter_alerts, total_alerts)
-
+                            if 'alerts' in item or 'signals' in item or 'strategies' in item:
+                                [counter_alerts, total_alerts] = open_chart(browser, item, save_as, counter_alerts, total_alerts)
                 summary(total_alerts)
+                if len(triggered_signals) > 0:
+                    from tv import mail
+                    mail.post_process_signals(triggered_signals)
+                    if export_signals_immediately:
+                        if 'summary' in tv:
+                            mail.send_mail(browser, tv['summary'], triggered_signals, False)
+                            # we've send the signals, let's make sure they aren't send a 2nd time
+                            triggered_signals.clear()
+                        else:
+                            log.warn('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
+                elif export_signals_immediately:
+                    log.info('No signals triggered. Nothing to send')
                 destroy_browser(browser)
     except Exception as exc:
         log.exception(exc)
         summary(total_alerts)
         destroy_browser(browser)
+    return triggered_signals
 
 
 def get_screener_markets(browser, screener_yaml):
@@ -1398,20 +2133,33 @@ def get_screener_markets(browser, screener_yaml):
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
-    time.sleep(DELAY_BREAK * 2)
-
-    wait_and_click(browser, css_selectors['select_screener'])
-    time.sleep(DELAY_BREAK_MINI)
+    loaded = False
+    max_runs = 1000
+    counter = 0
+    while not loaded and counter < max_runs:
+        try:
+            wait_and_click(browser, css_selectors['select_screener'], 30)
+            loaded = True
+        except ElementClickInterceptedException:
+            time.sleep(0.1)
+            pass
+        counter += 1
 
     el_options = find_elements(browser, css_selectors['options_screeners'])
-    time.sleep(DELAY_BREAK)
+    # time.sleep(DELAY_BREAK)
     found = False
 
-    for option in el_options:
-        if str(option.text) == screener_yaml['name']:
-            option.click()
-            found = True
-            break
+    for i in range(len(el_options)):
+        option = el_options[i]
+        try:
+            log.debug(option.text)
+            if str(option.text) == screener_yaml['name']:
+                option.click()
+                found = True
+                break
+        except StaleElementReferenceException:
+            el_options = find_elements(browser, css_selectors['options_screeners'])
+        i += 1
 
     if not found:
         log.warn("screener '{}' doesn't exist.".format(screener_yaml['name']))
@@ -1423,46 +2171,42 @@ def get_screener_markets(browser, screener_yaml):
         time.sleep(DELAY_SCREENER_SEARCH)
 
     el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
-    match = re.search("(\\d+)", el_total_found.text)
-    html = find_element(browser, 'html', By.TAG_NAME)
-    chunck_size = 150
+    total_found = 0
+    try:
+        match = re.search(r"(\d+)", el_total_found.text)
+        total_found = int(match.group(1))
+    except StaleElementReferenceException:
+        pass
+    log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
 
-    scroll_delay = 2
-    if 'scroll_delay' in screener_yaml and screener_yaml['scroll_delay'] != '':
-        scroll_delay = screener_yaml['scroll_delay']
+    while len(markets) < total_found:
+        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+        rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 30)
+        for i, row in enumerate(rows):
+            try:
+                market = rows[i].get_attribute('data-symbol')
+            except StaleElementReferenceException:
+                WebDriverWait(browser, 5).until(
+                    ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
+                # try again
+                browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
+                market = rows[i].get_attribute('data-symbol')
 
-    if re.Match:
-        number_of_scrolls = math.ceil(int(match.group(1)) / chunck_size) - 1
-        for scrool in range(number_of_scrolls):
-            for j in range(20):
-                html.send_keys(Keys.PAGE_DOWN)
-                time.sleep(DELAY_BREAK_MINI)
-            time.sleep(scroll_delay)
+            markets.append(market)
+        markets = list(set(markets))
 
-    rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
-    for i, row in enumerate(rows):
-        try:
-            market = rows[i].get_attribute('data-symbol')
-        except StaleElementReferenceException:
-            WebDriverWait(browser, 5).until(
-                ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
-            # try again
-            rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
-            market = rows[i].get_attribute('data-symbol')
-        markets.append(market)
-
-    # markets = list(sorted(set(markets)))
-    markets = list(set(markets))
-    log.debug('found {} unique markets'.format(str(len(markets))))
+    log.debug('extracted {} markets'.format(str(len(markets))))
     return markets
 
 
 def update_watchlist(browser, name, markets, delay_after_update):
     try:
         wait_and_click(browser, css_selectors['btn_calendar'])
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-tabs > div > div > div > div > div:nth-child(1)')
         time.sleep(DELAY_BREAK)
-        wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+        wait_and_click(browser, css_selectors['btn_watchlists'])
+        time.sleep(DELAY_BREAK)
+        wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
         time.sleep(DELAY_BREAK)
 
         input_symbol = find_element(browser, 'wl-symbol-edit', By.CLASS_NAME)
@@ -1509,7 +2253,7 @@ def update_watchlist(browser, name, markets, delay_after_update):
 
 def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
-    wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+    wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
     time.sleep(DELAY_BREAK)
     el_options = find_elements(browser, 'div.charts-popup-list > a.item.first:not(.active-item-backlight)')
     time.sleep(DELAY_BREAK)
@@ -1529,7 +2273,7 @@ def remove_watchlists(browser, name):
                 log.debug('watchlist {} removed'.format(name))
         except StaleElementReferenceException:
             # open the watchlists menu again and update the options to prevent 'element is stale' error
-            wait_and_click(browser, 'body > div.layout__area--right > div > div.widgetbar-pages > div.widgetbar-pagescontent > div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-watchlist > div.widgetbar-widgetheader > div.widgetbar-headerspace > a')
+            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
             time.sleep(DELAY_BREAK)
             el_options = find_elements(browser, 'div.charts-popup-list > a.item.first:not(.active-item-backlight)')
             time.sleep(DELAY_BREAK)
@@ -1540,64 +2284,960 @@ def remove_watchlists(browser, name):
         j = j + 1
 
 
-def summary(total_alerts):
-    if total_alerts > 0:
-        elapsed = timing.clock() - timing.start
-        avg = '%s' % float('%.5g' % (elapsed / total_alerts))
-        log.info("{} alerts set with an average process time of {} seconds".format(str(total_alerts), avg))
-    elif total_alerts == 0:
-        log.info("No alerts set")
-
-
-def get_yaml_config(file, root=False):
-    # get the user defined settings file
-    result = None
-    string_yaml = ""
+def open_performance_summary_tab(browser):
     try:
-        with open(file, 'r') as stream:
+        # open strategy tab
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, False,
+                                    1)
+        if isinstance(strategy_tab, WebElement):
+            strategy_tab.click()
+
+        # open performance summary tab
+        max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
+        tries = 0
+        while tries < max_tries:
+            # noinspection PyBroadException
             try:
-                temp_yaml = yaml.safe_load(stream)
-                string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
-                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'.:>-]+)(}?)$", string_yaml, re.MULTILINE)
-                if root:
-                    log.debug(snippets)
-                for i in range(len(snippets)):
-                    indentation = str(snippets[i][0]).replace("-", " ")
-                    search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
-                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
-                    if not os.path.exists(filename):
-                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
-                        exit(1)
-                    # recursively find and replace snippets
-                    snippet_yaml = get_yaml_config(filename)
-                    string_snippet_yaml = yaml.dump(snippet_yaml, default_flow_style=False)
+                strategy_performance_strategy_tab = find_element(browser,
+                                                                 css_selectors['tab_strategy_tester_performance_summary'],
+                                                                 By.CSS_SELECTOR, True, False, 2)
+                if isinstance(strategy_performance_strategy_tab, WebElement):
+                    strategy_performance_strategy_tab.click()
+                tries = max_tries
+            except Exception as e:
+                log.exception(e)
+                tries += 1
 
-                    # split snippet yaml into lines (platform independent)
-                    lines = string_snippet_yaml.splitlines(True)
-                    for j in range(len(lines)):
-                        # don't indent the first line, only indent the 2nd line and above
-                        if j > 0:
-                            lines[j] = indentation + lines[j]
-                    # join the lines again to form the yaml with indentation
-                    string_snippet_yaml = "".join(lines)
-                    # some debugging info
-                    log.debug(search)
-                    log.debug(string_snippet_yaml)
-                    # replace the search value with the snippet
-                    string_yaml = string_yaml.replace(search, string_snippet_yaml, 1)
+    except Exception as e:
+        log.exception(e)
 
-                # clear any empty lines
-                string_yaml = tools.remove_empty_lines(string_yaml)
-                log.debug(string_yaml)
-                result = yaml.safe_load(string_yaml)
-            except yaml.YAMLError as err_yaml:
-                log.exception(err_yaml)
-                f = open(file + ".err", 'w')
-                f.write(string_yaml)
-                f.close()
-    except FileNotFoundError as err_file:
-        log.exception(err_file)
-    except OSError as err_os:
-        log.exception(err_os)
+
+def get_strategy_default_values(browser, retry_number=0):
+    try:
+        # open dialog
+        wait_and_click(browser, css_selectors['btn_strategy_dialog'])
+        # click and set inputs
+        wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
+        inputs = get_indicator_dialog_values(browser)
+        # click and set properties
+        wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
+        properties = get_indicator_dialog_values(browser)
+        # click OK
+        wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
+    except Exception as e:
+        return retry_get_strategy_default_values(browser, e, retry_number)
+    return inputs, properties
+
+
+def retry_get_strategy_default_values(browser, e, retry_number=0):
+    max_tries = config.getint('tradingview', 'create_alert_max_retries')
+    if retry_number < max_tries:
+        return get_strategy_default_values(browser, retry_number+1)
+    else:
+        log.exception(e)
+        return {}, {}
+
+
+def get_indicator_dialog_values(browser):
+    # get input titles
+    result = dict()
+    try:
+        cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
+        for i, cell in enumerate(cells):
+            css_class = cell.get_attribute("class")
+            if str(css_class).find('last') > 0:
+                title = re.sub(r"[\W]", '', cells[i-1].text.replace(' ', '_')).lower()
+                value = cell.text
+
+                css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
+                css_labels = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' label > span > span'
+                inputs = find_elements(browser, css, By.CSS_SELECTOR, False, False, 1)
+                labels = find_elements(browser, css_labels, By.CSS_SELECTOR, False, False, 1)
+                # one or more checkboxes
+                if labels and inputs:
+                    for j, label in enumerate(labels):
+                        value = ""
+                        title += "_" + re.sub(r"[\W]", '', label.text.replace(' ', '_')).lower()
+                        if inputs[j].get_attribute('type') == "checkbox":
+                            if is_checkbox_checked(inputs[j]):
+                                value = 'yes'
+                            else:
+                                value = 'no'
+                        result[title] = value
+                    continue
+                elif inputs:
+                    value = ""
+                    for input_element in inputs:
+                        value += input_element.get_attribute("value") + " "
+                    if value:
+                        value += cell.text
+
+                if value:
+                    result[title] = value.strip()
+            elif str(css_class).find('fill') > 0:
+                # all elements that have class '...fill...' are checkboxes
+                title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
+                css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
+                input_element = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
+                if input_element:
+                    if input_element.get_attribute('type') == "checkbox":
+                        if is_checkbox_checked(input_element):
+                            value = 'yes'
+                        else:
+                            value = 'no'
+                    else:
+                        value = input_element.get_attribute("value")
+                else:
+                    value = cell.text
+                if value:
+                    result[title] = value.strip()
+            else:
+                continue
+    except StaleElementReferenceException:
+        pass
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
+    try:
+
+        summaries = list()
+        name = strategy_config['name']
+
+        try:
+            css = 'div.chart-container'
+            number_of_charts = find_elements(browser, css)
+            number_of_charts = len(number_of_charts)
+        except TimeoutException:
+            number_of_charts = 1
+        log.info("Found {} charts on the layout".format(number_of_charts))
+
+        number_of_strategies = max(len(atomic_properties), 1) * max(len(atomic_inputs), 1)
+        # Both inputs and properties have been defined
+        if len(atomic_properties) > 0 and len(atomic_inputs) > 0:
+            log.info("Back testing {} with {} input sets and {} property sets.".format(name, len(atomic_inputs), len(atomic_properties)))
+            for i, properties in enumerate(atomic_properties):
+                for j, inputs in enumerate(atomic_inputs):
+                    strategy_number = i*len(properties)+j+1
+                    log.info("Strategy variant {}/{}".format(strategy_number, number_of_strategies))
+                    strategy_summary = dict()
+                    strategy_summary['inputs'] = inputs
+                    strategy_summary['properties'] = properties
+                    strategy_summary['summary'] = dict()
+                    # strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw']
+                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies)
+                    summaries.append(strategy_summary)
+
+        # Inputs have been defined. Run back test for each input with default properties
+        elif len(atomic_inputs) > 0:
+            log.info("Back testing {} with {} input sets and default property set.".format(name, len(atomic_inputs)))
+            for i, inputs in enumerate(atomic_inputs):
+                log.info("Strategy variant {}/{}".format(i+1, number_of_strategies))
+                strategy_summary = dict()
+                strategy_summary['inputs'] = inputs
+                strategy_summary['properties'] = []
+                strategy_summary['summary'] = dict()
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies)
+                summaries.append(strategy_summary)
+        # Properties have been defined. Run back test for property with default inputs
+        elif len(atomic_properties) > 0:
+            log.info("Back testing {} with default input set and {} properties sets.".format(name, len(atomic_properties)))
+            for i, properties in enumerate(atomic_properties):
+                log.info("Strategy variant {}/{}".format(i+1, number_of_strategies))
+                strategy_summary = dict()
+                strategy_summary['inputs'] = []
+                strategy_summary['properties'] = properties
+                strategy_summary['summary'] = dict()
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies)
+                summaries.append(strategy_summary)
+        # Run just one back test with default inputs and properties
+        else:
+            log.info("Back testing {} with default input set and default property set.".format(name))
+            strategy_summary = dict()
+            strategy_summary['inputs'] = []
+            strategy_summary['properties'] = []
+            strategy_summary['summary'] = dict()
+            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1)
+            summaries.append(strategy_summary)
+
+        # close strategy tab
+        strategy_tab = find_element(browser, css_selectors['tab_strategy_tester_inactive'], By.CSS_SELECTOR, False, False, 1)
+        if isinstance(strategy_tab, WebElement):
+            strategy_tab.click()
+
+        return summaries
+
+    except ValueError as e:
+        log.exception(e)
+
+
+def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants):
+    global tv_start
+
+    raw = []
+    input_locations = dict()
+    property_locations = dict()
+    interval_averages = dict()
+    symbol_averages = dict()
+    intervals = []
+
+    duration = 0
+    values = dict(
+        performance_summary_profit_factor="",
+        performance_summary_total_closed_trades="",
+        performance_summary_net_profit="",
+        performance_summary_net_profit_percentage="",
+        performance_summary_percent_profitable="",
+        performance_summary_max_drawdown="",
+        performance_summary_max_drawdown_percentage="",
+        performance_summary_avg_trade="",
+        performance_summary_avg_trade_percentage="",
+        performance_summary_avg_bars_in_trade="",
+    )
+
+    previous_elements = dict(
+        performance_summary_profit_factor="",
+        performance_summary_total_closed_trades="",
+        performance_summary_net_profit="",
+        performance_summary_net_profit_percentage="",
+        performance_summary_percent_profitable="",
+        performance_summary_max_drawdown="",
+        performance_summary_max_drawdown_percentage="",
+        performance_summary_avg_trade="",
+        performance_summary_avg_trade_percentage="",
+        performance_summary_avg_bars_in_trade="",
+    )
+
+    for i, symbol in enumerate(symbols[0:2]):
+        timer_symbol = time.time()
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        if i == 0:
+            duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
+        else:
+            duration += (time.time() - timer_symbol) * (len(symbols)-2) * (number_of_variants + 1 - strategy_number)
+    log.info("test run is expected to finish in {}.".format(tools.display_time(duration)))
+    for symbol in symbols[2::]:
+        first_symbol = refresh_session(browser)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+
+    # calculate interval averages
+    total_average = dict()
+    total_average['Net Profit'] = 0
+    total_average['Net Profit %'] = 0
+    total_average['Closed Trades'] = 0
+    total_average['Percent Profitable'] = 0
+    total_average['Profit Factor'] = 0
+    total_average['Max Drawdown'] = 0
+    total_average['Max Drawdown %'] = 0
+    total_average['Avg Trade'] = 0
+    total_average['Avg Trade %'] = 0
+    total_average['Avg # Bars In Trade'] = 0
+
+    for interval in interval_averages:
+        counter = max(interval_averages[interval]['Counter'], 1)
+        interval_averages[interval]['Net Profit'] = format_number(float(interval_averages[interval]['Net Profit']) / counter)
+        interval_averages[interval]['Net Profit %'] = format_number(float(interval_averages[interval]['Net Profit %']) / counter)
+        interval_averages[interval]['Closed Trades'] = format_number(float(interval_averages[interval]['Closed Trades']) / counter)
+        interval_averages[interval]['Percent Profitable'] = format_number(float(interval_averages[interval]['Percent Profitable']) / counter)
+        interval_averages[interval]['Profit Factor'] = format_number(float(interval_averages[interval]['Profit Factor']) / counter)
+        interval_averages[interval]['Max Drawdown'] = format_number(float(interval_averages[interval]['Max Drawdown']) / counter)
+        interval_averages[interval]['Max Drawdown %'] = format_number(float(interval_averages[interval]['Max Drawdown %']) / counter)
+        interval_averages[interval]['Avg Trade'] = format_number(float(interval_averages[interval]['Avg Trade']) / counter)
+        interval_averages[interval]['Avg Trade %'] = format_number(float(interval_averages[interval]['Avg Trade %']) / counter)
+        interval_averages[interval]['Avg # Bars In Trade'] = format_number(float(interval_averages[interval]['Avg # Bars In Trade']) / counter)
+        del interval_averages[interval]['Counter']
+
+        # log.info("{}: {}".format(interval, averages[interval]))
+
+        total_average['Net Profit'] = format_number(float(total_average['Net Profit']) + float(interval_averages[interval]['Net Profit']))
+        total_average['Net Profit %'] = format_number(float(total_average['Net Profit %']) + float(interval_averages[interval]['Net Profit %']))
+        total_average['Closed Trades'] = format_number(float(total_average['Closed Trades']) + float(interval_averages[interval]['Closed Trades']))
+        total_average['Percent Profitable'] = format_number(float(total_average['Percent Profitable']) + float(interval_averages[interval]['Percent Profitable']))
+        total_average['Profit Factor'] = format_number(float(total_average['Profit Factor']) + float(interval_averages[interval]['Profit Factor']))
+        total_average['Max Drawdown'] = format_number(float(total_average['Max Drawdown']) + float(interval_averages[interval]['Max Drawdown']))
+        total_average['Max Drawdown %'] = format_number(float(total_average['Max Drawdown %']) + float(interval_averages[interval]['Max Drawdown %']))
+        total_average['Avg Trade'] = format_number(float(total_average['Avg Trade']) + float(interval_averages[interval]['Avg Trade']))
+        total_average['Avg Trade %'] = format_number(float(total_average['Avg Trade %']) + float(interval_averages[interval]['Avg Trade %']))
+        total_average['Avg # Bars In Trade'] = format_number(float(total_average['Avg # Bars In Trade']) + float(interval_averages[interval]['Avg # Bars In Trade']))
+
+    total_average['Net Profit'] = format_number(float(total_average['Net Profit']) / max(len(interval_averages), 1))
+    total_average['Net Profit %'] = format_number(float(total_average['Net Profit %']) / max(len(interval_averages), 1))
+    total_average['Closed Trades'] = format_number(float(total_average['Closed Trades']) / max(len(interval_averages), 1))
+    total_average['Percent Profitable'] = format_number(float(total_average['Percent Profitable']) / max(len(interval_averages), 1))
+    total_average['Profit Factor'] = format_number(float(total_average['Profit Factor']) / max(len(interval_averages), 1))
+    total_average['Max Drawdown'] = format_number(float(total_average['Max Drawdown']) / max(len(interval_averages), 1))
+    total_average['Max Drawdown %'] = format_number(float(total_average['Max Drawdown %']) / max(len(interval_averages), 1))
+    total_average['Avg Trade'] = format_number(float(total_average['Avg Trade']) / max(len(interval_averages), 1))
+    total_average['Avg Trade %'] = format_number(float(total_average['Avg Trade %']) / max(len(interval_averages), 1))
+    total_average['Avg # Bars In Trade'] = format_number(float(total_average['Avg # Bars In Trade']) / max(len(interval_averages), 1))
+
+    return [total_average, interval_averages, symbol_averages, raw]
+
+
+def back_test_sort_watchlist(test_runs, sort_by, reverse=True):
+
+    for i, test_run in enumerate(test_runs):
+        raw = test_run["raw"]
+        interval_averages = test_run["summary"]["interval"]
+        symbol_averages = test_run["summary"]["symbol"]
+        if sort_by:
+            interval_averages_keys = sorted(interval_averages, key=lambda x: interval_averages[x][sort_by], reverse=reverse)
+            symbol_averages_keys = sorted(symbol_averages, key=lambda x: symbol_averages[x][sort_by], reverse=reverse)
+            raw = sorted(raw, key=lambda x: x[sort_by], reverse=reverse)
+        else:
+            # fall back to default sorting
+            interval_averages_keys = sorted(interval_averages)
+            symbol_averages_keys = sorted(symbol_averages)
+
+        interval_averages_sorted = dict()
+        for key in interval_averages_keys:
+            interval_averages_sorted[key] = interval_averages[key]
+        symbol_averages_sorted = dict()
+        for key in symbol_averages_keys:
+            symbol_averages_sorted[key] = symbol_averages[key]
+
+        test_run["summary"]["interval"] = interval_averages_sorted
+        test_run["summary"]["symbol"] = symbol_averages_sorted
+        test_run["raw"] = raw
+
+    if sort_by:
+        result = sorted(test_runs, key=lambda x: x["summary"]["total"][sort_by], reverse=reverse)
+    else:
+        result = test_runs
+    return result
+
+
+def back_test_sort(json_data, sort_by, reverse=True):
+    # log.info("{} {}".format(sort_by, reverse))
+    try:
+        for strategy in json_data:
+            # log.info("{}: {}".format(strategy, type(json_data[strategy])))
+            if isinstance(json_data[strategy], dict):
+                for watchlist in json_data[strategy]:
+                    if (watchlist not in ["id", "default_inputs", "default_properties"]) and isinstance(json_data[strategy][watchlist], list):
+                        json_data[strategy][watchlist] = back_test_sort_watchlist(json_data[strategy][watchlist], sort_by, reverse)
+        return json_data
+    except Exception as e:
+        log.exception(e)
+
+
+def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
+    try:
+        log.info(symbol)
+        if first_symbol:
+            open_performance_summary_tab(browser)
+
+        input_symbol = find_element(browser, css_selectors['input_symbol'])
+        set_value(browser, input_symbol, symbol)
+        input_symbol.send_keys(Keys.ENTER)
+
+        symbol_average = dict()
+        symbol_average['Net Profit'] = 0
+        symbol_average['Net Profit %'] = 0
+        symbol_average['Closed Trades'] = 0
+        symbol_average['Percent Profitable'] = 0
+        symbol_average['Profit Factor'] = 0
+        symbol_average['Max Drawdown'] = 0
+        symbol_average['Max Drawdown %'] = 0
+        symbol_average['Avg Trade'] = 0
+        symbol_average['Avg Trade %'] = 0
+        symbol_average['Avg # Bars In Trade'] = 0
+        symbol_average['Counter'] = 0
+
+        for chart_index in range(number_of_charts):
+            # move to correct chart
+            charts = find_elements(browser, "div.chart-container")
+            charts[chart_index].click()
+            # first time chart setup
+            # - set inputs and properties of charts
+            # - get interval of chart
+            # - create a dict() for each interval and add it to averages
+            if first_symbol:
+                # log.debug("selecting and formatting strategy for chart {}".format(chart_index + 1))
+                # set the strategy if there are inputs or properties defined
+                if len(inputs) > 0 or len(properties) > 0:
+                    # Select correct strategy on the chart, wait for it to be loaded and get current inputs and properties
+                    select_strategy(browser, strategy_config, chart_index)
+                    # open the strategy dialog and set the input & property values
+                    format_strategy(browser, inputs, properties, input_locations, property_locations)
+                elem_interval = find_element(browser, css_selectors['active_chart_interval'])
+                interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
+                intervals.append(interval)
+
+                if not (interval in interval_averages):
+                    interval_averages[interval] = dict()
+                    interval_averages[interval]['Net Profit'] = 0
+                    interval_averages[interval]['Net Profit %'] = 0
+                    interval_averages[interval]['Closed Trades'] = 0
+                    interval_averages[interval]['Percent Profitable'] = 0
+                    interval_averages[interval]['Profit Factor'] = 0
+                    interval_averages[interval]['Max Drawdown'] = 0
+                    interval_averages[interval]['Max Drawdown %'] = 0
+                    interval_averages[interval]['Avg Trade'] = 0
+                    interval_averages[interval]['Avg Trade %'] = 0
+                    interval_averages[interval]['Avg # Bars In Trade'] = 0
+                    interval_averages[interval]['Counter'] = 0
+
+            wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
+            interval = intervals[chart_index]
+
+            # take_screenshot(browser, symbol, interval, False, '%Y%m%d_%H%M%S')
+            # log.info("previous_element is {}".format(type(previous_element)))
+
+            # Extract results
+            over_the_threshold = True
+            for i, key in enumerate(values):
+                value = get_strategy_statistic(browser, key, previous_elements)
+                if isinstance(value, Exception):
+                    raise value
+
+                # check if the total closed trades is over the threshold
+                if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and config.getint('backtesting', 'threshold') > value:
+                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
+                    over_the_threshold = False
+                    values[key] = value
+                    break
+                # Update previous values with the current ones
+                values[key] = value
+
+            # previous_element[0] = find_element(browser, css_selectors['performance_summary_profit_factor'])
+            # log.info("previous_element = {}".format(repr(previous_element[0])))
+            if not over_the_threshold:
+                continue
+            ############################################################
+            # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
+            # Exceptions may give incomplete results. Make sure that   #
+            # all Selenium interaction is done above this comment.     #
+            ############################################################
+
+            # Save the results
+            result = dict()
+            result['Symbol'] = symbol
+            result['Interval'] = interval.replace("'", "")
+            result['Net Profit'] = format_number(float(values['performance_summary_net_profit']), 8)
+            result['Net Profit %'] = format_number(float(values['performance_summary_net_profit_percentage']), 8)
+            result['Closed Trades'] = format_number(float(values['performance_summary_total_closed_trades']), 8)
+            result['Percent Profitable'] = format_number(float(values['performance_summary_percent_profitable']), 8)
+            result['Profit Factor'] = format_number(float(values['performance_summary_profit_factor']), 8)
+            result['Max Drawdown'] = format_number(float(values['performance_summary_max_drawdown']), 8)
+            result['Max Drawdown %'] = format_number(float(values['performance_summary_max_drawdown_percentage']), 8)
+            result['Avg Trade'] = format_number(float(values['performance_summary_avg_trade']), 8)
+            result['Avg Trade %'] = format_number(float(values['performance_summary_avg_trade_percentage']), 8)
+            result['Avg # Bars In Trade'] = format_number(float(values['performance_summary_avg_bars_in_trade']), 8)
+            results.append(result)
+
+            # add to averages
+            if isinstance(result['Avg # Bars In Trade'], int):
+                symbol_average['Net Profit'] = format_number(float(symbol_average['Net Profit']) + float(result['Net Profit']))
+                symbol_average['Net Profit %'] = format_number(float(symbol_average['Net Profit %']) + float(result['Net Profit %']))
+                symbol_average['Closed Trades'] += int(result['Closed Trades'])
+                symbol_average['Percent Profitable'] = format_number(float(symbol_average['Percent Profitable']) + float(result['Percent Profitable']))
+                symbol_average['Profit Factor'] = format_number(float(symbol_average['Profit Factor']) + float(result['Profit Factor']))
+                symbol_average['Max Drawdown'] = format_number(float(symbol_average['Max Drawdown']) + float(result['Max Drawdown']))
+                symbol_average['Max Drawdown %'] = format_number(float(symbol_average['Max Drawdown %']) + float(result['Max Drawdown %']))
+                symbol_average['Avg Trade'] = format_number(float(symbol_average['Avg Trade']) + float(result['Avg Trade']))
+                symbol_average['Avg Trade %'] = format_number(float(symbol_average['Avg Trade %']) + float(result['Avg Trade %']))
+                symbol_average['Avg # Bars In Trade'] += int(result['Avg # Bars In Trade'])
+                symbol_average['Counter'] += 1
+
+                interval_averages[interval]['Net Profit'] = format_number(float(interval_averages[interval]['Net Profit']) + float(result['Net Profit']))
+                interval_averages[interval]['Net Profit %'] = format_number(float(interval_averages[interval]['Net Profit %']) + float(result['Net Profit %']))
+                interval_averages[interval]['Closed Trades'] += int(result['Closed Trades'])
+                interval_averages[interval]['Percent Profitable'] = format_number(float(interval_averages[interval]['Percent Profitable']) + float(result['Percent Profitable']))
+                interval_averages[interval]['Profit Factor'] = format_number(float(interval_averages[interval]['Profit Factor']) + float(result['Profit Factor']))
+                interval_averages[interval]['Max Drawdown'] = format_number(float(interval_averages[interval]['Max Drawdown']) + float(result['Max Drawdown']))
+                interval_averages[interval]['Max Drawdown %'] = format_number(float(interval_averages[interval]['Max Drawdown %']) + float(result['Max Drawdown %']))
+                interval_averages[interval]['Avg Trade'] = format_number(float(interval_averages[interval]['Avg Trade']) + float(result['Avg Trade']))
+                interval_averages[interval]['Avg Trade %'] = format_number(float(interval_averages[interval]['Avg Trade %']) + float(result['Avg Trade %']))
+                interval_averages[interval]['Avg # Bars In Trade'] += int(result['Avg # Bars In Trade'])
+                interval_averages[interval]['Counter'] += 1
+
+        # calculate symbol averages
+        counter = max(symbol_average['Counter'], 1)
+        symbol_average['Net Profit'] = format_number(float(symbol_average['Net Profit']) / counter)
+        symbol_average['Net Profit %'] = format_number(float(symbol_average['Net Profit %']) / counter)
+        symbol_average['Closed Trades'] = format_number(float(symbol_average['Closed Trades']) / counter)
+        symbol_average['Percent Profitable'] = format_number(float(symbol_average['Percent Profitable']) / counter)
+        symbol_average['Profit Factor'] = format_number(float(symbol_average['Profit Factor']) / counter)
+        symbol_average['Max Drawdown'] = format_number(float(symbol_average['Max Drawdown']) / counter)
+        symbol_average['Max Drawdown %'] = format_number(float(symbol_average['Max Drawdown %']) / counter)
+        symbol_average['Avg Trade'] = format_number(float(symbol_average['Avg Trade']) / counter)
+        symbol_average['Avg Trade %'] = format_number(float(symbol_average['Avg Trade %']) / counter)
+        symbol_average['Avg # Bars In Trade'] = format_number(float(symbol_average['Avg # Bars In Trade']) / counter)
+        del symbol_average['Counter']
+        # log.info("{}: {}".format(symbol, symbol_average))
+        symbol_averages[symbol] = symbol_average
+
+    except Exception as e:
+        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries, e)
+
+
+def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries, e):
+    max_tries = config.getint('tradingview', 'create_alert_max_retries')
+    if tries < max_tries:
+        # log.debug("try {}".format(tries))
+        if isinstance(e, InvalidSessionIdException) or isinstance(e, WebDriverException):
+            log.exception(e)
+            if str(e.msg).lower().find('session') >= 0:
+                log.critical("invalid session id - RESTARTING")
+                url = browser.current_url
+                browser.quit()
+                browser = create_browser(RUN_IN_BACKGROUND)
+                browser.get(url)
+                # Switching to Alert
+                close_alerts(browser)
+                # Close the watchlist menu if it is open
+                if find_element(browser, css_selectors['btn_watchlist_menu'], By.CSS_SELECTOR, False, False, 0.5):
+                    wait_and_click(browser, css_selectors['btn_watchlist_menu'])
+                first_symbol = True
+            else:
+                log.exception(e)
+                refresh(browser)
+        first_symbol = refresh_session(browser) or first_symbol
+        if not isinstance(e, StaleElementReferenceException):
+            log.exception(e)
+            refresh(browser)
+        return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries+1)
+    else:
+        log.exception(e)
+        snapshot(browser, True, False)
+
+
+def refresh_session(browser):
+    global REFRESH_START
+    interval_expired = timing.time() - REFRESH_START >= REFRESH_INTERVAL
+    if interval_expired:
+        refresh(browser)
+        REFRESH_START = timing.time()
+    return interval_expired
+
+
+def get_strategy_statistic(browser, key, previous_elements):
+    result = 0
+    tries = 0
+    css = css_selectors[key]
+    while tries < config.getint('tradingview', 'create_alert_max_retries'):
+        try:
+            if isinstance(previous_elements[key], WebElement):
+                try:
+                    wait_for_element_is_stale(previous_elements[key])
+                except TimeoutException as e:
+                    log.info(e)
+                    pass
+                except Exception as e:
+                    log.exception(e)
+
+            el = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
+            if not el:
+                log.debug("NOT FOUND: {} = {}".format(By.CSS_SELECTOR, css))
+                break
+            text = repr(el.get_attribute('innerHTML')).replace('\\u2009', '')
+            negative = text.find("neg") >= 0
+
+            match = re.search(r"([\d|.]+)", text)
+            if match:
+                result = match.group(1)
+                if negative:
+                    result = "-{}".format(result)
+            result = fast_real(result)
+            if isinstance(result, float):
+                result = "{:.10f}".format(result).rstrip('0')
+            previous_elements[key] = el
+            return result
+
+        except StaleElementReferenceException:
+            pass
+        except InvalidSessionIdException as e:
+            if str(e.msg).lower().find('invalid session id') >= 0:
+                log.info("Handling of {} delegated to caller".format(e.msg))
+                return e
+            else:
+                log.exception(e)
+                return e
+        except WebDriverException as e:
+            if str(e.msg).lower().find('invalid session id') >= 0:
+                log.info("Handling of {} delegated to caller".format(e.msg))
+                return e
+            else:
+                log.exception(e)
+                return e
+        except Exception as e:
+            # log.debug("{} = {}".format(By.CSS_SELECTOR, css))
+            log.exception(e)
+            return e
+        tries += 1
 
     return result
+
+
+def format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number=0):
+    try:
+        # open dialog
+        wait_and_click(browser, css_selectors['btn_strategy_dialog'])
+        # click and set inputs
+        wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
+        set_indicator_dialog_values(browser, inputs, input_locations)
+        # click and set properties
+        wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
+        set_indicator_dialog_values(browser, properties, property_locations)
+        # click OK
+        wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
+    except StaleElementReferenceException:
+        return retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number)
+    except Exception as e:
+        return e
+        # refresh(browser)
+        # if not retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number):
+        #     log.exception(e)
+        #     snapshot(browser, True)
+    return True
+
+
+def set_indicator_dialog_values(browser, inputs, input_locations):
+    # get input titles
+    cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
+    titles = []
+    for i, cell in enumerate(cells):
+        title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
+        titles.append(title)
+
+    for key in inputs:
+        value = inputs[key]
+        index = -1
+        for i, title in enumerate(titles):
+            if (title == key) or ((not EXACT_CONDITIONS) and title.startswith(key)):
+                index = i
+
+        if index >= 0:
+            # check first if it is a set of values, e.g. 100 USD
+            if isinstance(value, dict):
+                for sub_index, sub_key in enumerate(value):
+                    sub_value = value[sub_key]
+                    set_indicator_dialog_value(browser, input_locations, key, value, index, sub_key, sub_value, sub_index)
+            else:
+                set_indicator_dialog_value(browser, input_locations, key, value, index)
+
+    return True
+
+
+def set_indicator_dialog_value(browser, locations, key, value, index, sub_key='', sub_value='', sub_index=-1, retry_number=0):
+    css = ''
+    if key in locations:
+        css = locations[key]
+        if isinstance(css, dict):
+            if sub_key and sub_key in css:
+                css = css[sub_key]
+            else:
+                css = ''
+
+    try:
+        # we need to generate the css
+        if not css:
+            # check first if it is a set of values, e.g. 100 USD
+            if sub_index >= 0:
+                # css = css_selectors['indicator_dialog_tab_cell'].format(index + 2) + ' div[class^="inputGroup"] > div:nth-child({})'.format(sub_index + 1)
+                css = css_selectors['indicator_dialog_tab_cell'].format(index + 2) + ' > div[class^="inner"] > div > div:nth-child({})'.format(sub_index + 1)
+                # check if it is a boolean
+                if isinstance(sub_value, bool):
+                    css += ' input'
+                else:
+                    input_css = ' input'
+                    element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, False, 1)
+                    if element:
+                        css += input_css
+                    else:
+                        css += ' div[class^="selected"]'
+                # save the css for future use in this run
+                if not (key in locations):
+                    locations[key] = dict()
+                locations[key][sub_key] = css
+
+            # check if it is a boolean
+            elif isinstance(value, bool):
+                css = css_selectors['indicator_dialog_tab_cell'].format(index + 1) + ' input'
+                locations[key] = css
+            else:
+                css = css_selectors['indicator_dialog_tab_cell'].format(index + 2)
+                input_css = ' input'
+                element = find_element(browser, css + input_css, By.CSS_SELECTOR, True, False, 1)
+                if element:
+                    css += input_css
+                else:
+                    css += ' div[class^="selected"]'
+                # save the css for future use in this run
+                locations[key] = css
+
+        if css:
+            val = value
+            if sub_index >= 0:
+                val = sub_value
+
+            element = find_element(browser, css)
+            if isinstance(element, WebElement):
+                # check if it is an input box
+                if element.tag_name == 'input':
+                    if element.get_attribute("type") == "checkbox":
+                        if is_checkbox_checked(element) != val:
+                            wait_and_click(browser, css + " + div")
+                    else:
+                        clear(element)
+                        set_value(browser, element, val, True)
+
+                # assume it is a select box
+                else:
+                    # click on the select box
+                    element.click()
+                    # get it's options
+                    select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
+                    for option in select_options:
+                        option_value = option.text.strip()
+                        if option_value == str(val) or ((not EXACT_CONDITIONS) and option_value.startswith(str(val))):
+                            # select the option
+                            option.click()
+                            break
+            else:
+                log.error("No element found for {}".format(css))
+        else:
+            log.error("Unable to generate CSS")
+    except StaleElementReferenceException:
+        retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
+    except Exception as e:
+        return e
+    return True
+
+
+def retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries')
+    if config.has_option('tradingview', 'indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'indicator_values_max_retries')
+    if retry_number < max_retries:
+        return set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number + 1)
+    else:
+        return False
+
+
+def retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries')
+    if config.has_option('tradingview', 'indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'indicator_values_max_retries')
+    if retry_number < max_retries:
+        return format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number + 1)
+    else:
+        return False
+
+
+def select_strategy(browser, strategy_config, chart_index, retry_number=0):
+    pane_index = -1
+    indicator_index = -1
+    if 'pane_index' in strategy_config and str(strategy_config['pane_index']).isdigit():
+        pane_index = strategy_config['pane_index']
+    # use css
+    try:
+        css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
+        studies = find_elements(browser, css)
+        for i, study in enumerate(studies):
+            study_name = studies[i].text
+            log.debug('Found '.format(study_name))
+            if study_name.startswith(strategy_config['name']):
+                indicator_index = i
+                try:
+                    if str(study_name).lower().index('loading'):
+                        time.sleep(0.1)
+                        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+                    if str(study_name).lower().index('compiling'):
+                        time.sleep(0.1)
+                        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+                    if str(study_name).lower().index('error'):
+                        time.sleep(0.1)
+                        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+                except ValueError:
+                    pass
+                break
+    except StaleElementReferenceException:
+        log.debug('StaleElementReferenceException in studies')
+        return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+    except Exception as e:
+        return e
+        # log.exception(e)
+        # refresh(browser)
+        # return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
+    return indicator_index
+
+
+def retry_select_strategy(browser, strategy_config, chart_index, retry_number):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries') * 10
+    if config.has_option('tradingview', 'indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'indicator_values_max_retries')
+    if retry_number < max_retries:
+        return select_strategy(browser, strategy_config, chart_index, retry_number + 1)
+
+
+def generate_atomic_values(items, strategies, depth=0):
+    recursive_depth = depth + 1
+    result = []
+    for item in items:
+        if isinstance(items[item], dict):
+            sub_results = []
+            generate_atomic_values(items[item], sub_results, recursive_depth)
+            for sub_result in sub_results:
+                tmp = dict(items)
+                tmp[item] = sub_result
+                tmp_result = generate_atomic_values(tmp, strategies, recursive_depth)
+                atomic = True
+
+                for tmp_item in tmp:
+                    if isinstance(tmp[tmp_item], dict):
+                        for key in tmp[tmp_item]:
+                            if isinstance(tmp[tmp_item][key], list):
+                                atomic = False
+                                break
+                        if not atomic:
+                            break
+                    if isinstance(tmp[tmp_item], list):
+                        atomic = False
+                        break
+
+                if atomic and tmp not in strategies:
+                    strategies.append(tmp)
+
+                result.append(tmp_result)
+        elif isinstance(items[item], list):
+            for value in items[item]:
+                tmp = dict(items)
+                tmp[item] = value
+                tmp_result = generate_atomic_values(tmp, strategies, recursive_depth)
+
+                atomic = True
+                for tmp_item in tmp:
+                    if isinstance(tmp[tmp_item], list) or isinstance(tmp[tmp_item], dict):
+                        atomic = False
+                        break
+                if atomic and tmp not in strategies:
+                    strategies.append(tmp)
+                result.append(tmp_result)
+        else:
+            result = [items[item]]
+    # if all we have at the end of the recursive method call is nothing, then the items is just a single variant, e.g. "{'obv': True, 'macd': False}"
+    if depth == 0 and not strategies:
+        strategies.append(items)
+    return result
+
+
+def get_config_values(items):
+    if isinstance(items, list) or isinstance(items, dict):
+        for key in items:
+            items[key] = generate_config_values(items[key])
+    return items
+
+
+def generate_config_values(value):
+    result = []
+    delimeter_range = ' - '
+    delimeter_increment = '&'
+    increment = None
+
+    # if the value is a list, generate values recursively
+    if isinstance(value, list):
+        for item in value:
+            result.append(generate_config_values(item))
+    if isinstance(value, dict):
+        for item in value:
+            value[item] = generate_config_values(value[item])
+        result = value
+    elif isinstance(value, str) and value.find(delimeter_range) > 0:
+        decimal_places = 0
+
+        if value.find(delimeter_increment) > 0:
+            [value, increment] = value.split(delimeter_increment)
+            value = value.strip()
+            increment = increment.strip()
+            decimal_places = increment[::-1].find('.')
+            try:
+                if decimal_places > 0:
+                    increment = float(increment)
+                else:
+                    increment = int(increment)
+            except Exception as e:
+                log.exception(e)
+
+        [start, end] = value.split(delimeter_range)
+        if not increment:
+            increment = 1
+            decimal_places = max(start[::-1].find('.'), end[::-1].find('.'))
+            if decimal_places > 0:
+                increment = '0.'
+                for i in range(decimal_places - 1):
+                    increment += '0'
+                increment += '1'
+                increment = float(increment)
+
+        try:
+            if start.find('.') >= 0:
+                start = float(start)
+            else:
+                start = int(start)
+            if end.find('.') >= 0:
+                end = float(end)
+            else:
+                end = int(end)
+        except Exception as e:
+            log.exception(e)
+
+        if not (isinstance(start, int) or isinstance(start, float)):
+            raise ValueError("Invalid range value: '{}'".format(start))
+        if not (isinstance(end, int) or isinstance(end, float)):
+            raise ValueError("Invalid range value: '{}'".format(end))
+        if not (isinstance(increment, int) or isinstance(increment, float)):
+            raise ValueError("Invalid increment value: '{}'".format(increment))
+
+        for number in numpy.arange(start, end, increment):
+            if decimal_places > 0:
+                result.append(float(round(number, decimal_places)))
+            else:
+                result.append(int(number))
+        result.append(end)
+        # if decimal_places > 0:
+        #     result.append(float(round(end, decimal_places)))
+        # else:
+        #     result.append(int(end))
+    else:
+        result = value
+        # log.error("unable to convert {} is of numpy type {} to a python type".format(value, type(value)))
+    return result
+
+
+def wait_until_indicator_is_loaded(browser, indicator_name, pane_index):
+    result = False
+    tries = 0
+    max_tries = 10
+    while tries < max_tries:
+        try:
+            css = 'div.chart-container.active tr:nth-child({}) .study .pane-legend-title__description'.format((pane_index+1) * 2 - 1)
+            studies = find_elements(browser, css)
+            for i, study in enumerate(studies):
+                study_name = studies[i].text
+                if study_name.startswith(indicator_name):
+                    if str(study_name).lower().find('loading') >= 0 or str(study_name).lower().find('compiling') >= 0 or str(study_name).lower().find('error') >= 0:
+                        time.sleep(0.05)
+                    else:
+                        result = True
+                        tries = max_tries
+                        break
+        except StaleElementReferenceException:
+            pass
+        except Exception as e:
+            return e
+        tries += 1
+
+    return result
+
+
+def summary(total_alerts):
+    if total_alerts > 0:
+        elapsed = timing.time() - timing.start
+        avg = '%s' % float('%.5g' % (elapsed / total_alerts))
+        log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
+    elif total_alerts == 0:
+        log.info("No alerts or signals set")

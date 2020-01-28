@@ -1,0 +1,143 @@
+# This example demonstrated how to use signals. Signals work by comparing current values of indicators on TradingView charts.
+# Unlike alerts (see _alert.yaml) nothing is created on TradingView itself and signals are not 'saved'.
+# You can, however, 'save' them in a watchlist, send a summary mail or save it in a Google Spreadsheet
+#
+# Use a url + other settings per type of signal you want to set
+# Note that all values are case sensitive
+# Define one or more charts by providing the link(s) to your charts
+charts:
+- url: https://www.tradingview.com/chart/<my_chart>/
+  # Define for which time frames you want to generate signals
+  timeframes: [1 day]
+  # Define one or more watchlists
+  watchlists: ["<my_watchlist>"]
+  # Signals listed must be available from the chart which is loaded through the 'url' parameter
+  # The chart has to be configured to 'Auto (Fits Data To Screen)'. If it isn't then you may get false positives.
+  # Note that signal results are communicated immediately if a 'summary' section is found in this file.
+  # This particular example assumes you have the Golden Cross by Chuckytuh on your chart
+  signals:
+  - name: "Golden cross"
+    # Define one or more indicators that together provide one signal
+    # For example, you can combine two indicators e.g. MA cross and RSI. At least one of the indicators must have a signal defined.
+    # A signal is only created if the trigger of all indicators is fired. If there is no trigger defined then it counts as having fired.
+    indicators:
+        # Kairos will look for the first indicator on a pane within a chart that starts with the value defined below
+      - name: "Golden Cross"
+        # A TradingView layout is divided into charts.
+        # Use 0 for the 1st chart on your layout, 1 for the 2nd, etc. The top-left chart has always index 0.
+        # Unfortunately, the order of charts within a TradingView layout isn't consistent and may change over time.
+        # You can find the chart indices depending on your layout here: <link to image>
+        # Note! For the most consistent results use only the most top-left chart at index 0.
+        chart_index: 0
+        # Charts are further subdivided into panes. This will tell Kairos on which pane the indicator is.
+        # Use 0 for the 1st pane on your chart, 1 for the 2nd pane, etc. The top pane has always index 0.
+        # Unlike the chart_index above, panes are consistently ordered from top to bottom with the top pane being 0.
+        pane_index: 0
+        # Optional. Find the index based upon it's number instead of name (see above). The index takes precedence over the name.
+        # If you have multiple indicators with the same name, e.g. EMA, then you'll need to define the index as well as the name.
+        # NOTE: if you remove and then add an indicator the order and indices of indicators will most likely have changed.
+        indicator_index: 0
+        # Optional. Define how this indicator will (partly) trigger the signal.
+        # A trigger is defined by equating a left-hand side with a right-hand side.
+        # Although optional, at least one of the indicators should have a trigger defined.
+        trigger:
+          # The left and right hand side can have one (or both) of the following values:
+          # - index: indicator provided value found at the defined index
+          # - value: a literal value which can be anything
+          # If both index and value are set, then index will take precedence
+          left-hand-side:
+            index: 2
+            value:
+            # list of values to ignore, e.g. you can use this to ignore 'n/a' values
+            ignore: [n/a, 0.0000]
+          right-hand-side:
+            index:
+            value: "n/a"
+            ignore:
+          # Define how the equation should be processed. Possible values are: =, <=, >=, <, >, != (use quotation marks)
+          type: "!='
+        # Optional. Add values at certain indices in the form of <key>:<index>.
+        # You can use any string for a key. All keys with their values defined here are keywords that can be used with 'text'and 'csv' (see further below).
+        # Note: that names for keys need to be unique among all indicators defined within this signal
+        data: [entry: 2]
+    # List of charts (url's) to include
+    # You can use %SYMBOL and %TIMEFRAME as keywords to make the link more specific (use quotation marks)
+    include_screenshots_of_charts: ["https://www.tradingview.com/chart/<my_chart>/"]
+    # Optional. Define a list of key value pairs (can be anything) which can then be used with 'text'and 'csv' (see below).
+    labels: [id: "Golden Cross", source: "TradingView", long: 1, short: 0]
+    # Define the csv to be used to export the signal to Google Sheets
+    # Supported keywords by default:
+    # Delimeter is ';' so make sure you don't use ';' in your key value pairs defined under 'labels' above
+    # %TIMESTAMP, number of seconds since 1st of January 1970 (local machine time)
+    # %DATE, written version of %TIMESTAMP
+    # %DATE_UTC, UTC version of %DATE
+    # %TIMEFRAME, time frame of the chart (1 day, 4 hourly, etc)
+    # %SYMBOL is <exchange>:<tickers>
+    # %EXCHANGE is <exchange>, e.g. COINBASE
+    # %ALERT is <name>, <timeframe>: <exchange>:<tickers>, e.g. 'Davo long., 1 day: COINBASE:BTCUSD'
+    # %TICKER is <tickers>, e.g. BTCUSD
+    # %ALERT generated alert formatted as follows: '<signal name>, <timeframe>: <exchange>:<symbol>
+    # %NAME is the name of the signal
+    # %CHART url to the first chart defined under include_screenshots_of_charts (only available when config option tradingview_screenshot is set to true)
+    # %SCREENSHOT url to a screenshot of the first chart defined under include_screenshots_of_charts (only available when config option tradingview_screenshot is set to true)
+    # %SCREENSHOTS urls of screenshots as defined under include_screenshots_of_charts (only available when config option tradingview_screenshot is set to true)
+    # Additionally, you can use any of the keys you have defined under 'values' and/or under 'labels' above prepended with % and in upper case, e.g. %ENTRY or %DESCRIPTION
+    csv: '%DATE;%NAME;%TIMEFRAME;%CHART;%SCREENSHOT;%EXCHANGE;%TICKER;%ENTRY;%STOPLOSS;%TARGET;;;;%SCREENSHOTS'
+    # Define the json data to send to webhooks
+    # Supported keywords are the same as for 'csv' above
+    json: {id: "%ID", source: "%SOURCE", date: "%DATE", exchange: "%EXCHANGE", ticker: "%TICKER", alert: "%ALERT", chart_url: "%CHART", screenshot_url: "%SCREENSHOT", screenshots: "%SCREENSHOTS", entry: "%ENTRY", long: "%LONG", short: "%SHORT"}
+    # Generate a text to be searched for values defined under search_criteria (see summary part)
+    # Supported keywords are the same as for 'csv' above
+    search_text: "%ALERT"
+summary:
+  # Create a summary email
+  email:
+    to: ["<my_email@my_domain.com>"]
+    subject: "TradingView Alert Summary"
+    # Use keyword %SUMMARY in your text or html to include the Kairos generated summary
+    text: "My signals: %SUMMARY"
+    html: "<p>My signals</p> %SUMMARY"
+    # If you just want to signals to webhooks (see your config file) or import them as a watchlist, set this to no
+    send: yes
+    # If you want to shield recipients from seeing each other's email address, set this to yes
+    one-mail-per-recipient: yes
+  # Create a watchlist of summarized signals
+  watchlist:
+    # Keywords %DATE (yyyymmdd), %TIME (hhmm)
+    # Note: will overwrite watchlists of the same name
+    name: "signals_%DATE_%TIME"
+    # Import the watchlist into TV
+    # Note: existing watchlists of the same name will be deleted
+    # Note: Windows only! This will make use of your clipboard to insert the filename in TV's upload file dialog
+    import: no
+    # Attach to summary email
+    attach-to-email: yes
+  # Send individual signals to one or more lists webhooks when one out of a list of search_criteria is met
+  webhooks:
+    # Define one ore more webhooks
+    - url: ["https://hooks.zapier.com/hooks/catch/<my_id>/<my_hook>/"]
+      # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
+      search_criteria: ["Golden Cross"]
+      # Define how many signals should be send per batch
+      batch: 25
+      # Enabled?
+      enabled: no
+  # Export data to Google Sheets
+  # To use this feature you'll need to have the following:
+  # - a google-api.json file to be able to login to your Google Drive and open spreadsheets
+  # - the location of the google-api.json file set in kairos.cfg
+  # - set your API call limit in kairos.cfg
+  google_sheets:
+    # File name of the Google Spreadsheet
+    - name: "<my_google_spreadsheet>"
+      # Sheet name (if left empty the first sheet will be used)
+      sheet: "Diary"
+      # Index, i.e. the row number where the data should be inserted. Use 1 for the top row, or 2 if the top row contains your column titles.
+      index: 2
+      # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
+      search_criteria: ["Golden Cross"]
+      # Enabled?
+      enabled: no
+webdriver:
+  # Define whether you want to run Kairos in the background. Overrides the value for the same setting in kairos.cfg.
+  run-in-background: yes

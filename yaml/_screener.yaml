@@ -1,0 +1,24 @@
+# Update / save screeners to a watchlist
+# Possible values for 'url' are:
+# - https://www.tradingview.com/crypto-screener/
+# - https://www.tradingview.com/forex-screener/
+# - https://www.tradingview.com/screener/
+screeners:
+  - url: https://www.tradingview.com/crypto-screener/
+    # Name of the screener in TradingView (the screener must already exist)
+    # This name will also be used as the Watchlist name.
+    # Warning: Kairos will delete other watchlists of the same name
+    name: USD markets
+    # As we cannot save a search value in TradingView's screeners, you can provide one here
+    search: usd
+    # TradingView lists 150 tickers expecting users to scroll down if they want to see the next 150 results.
+    # Depending on how large the result set is you may want to set this delay higher (or lower).
+    # Kairos will log how many symbols are found - make sure you get them all. If you don't, set a higher delay.
+    scroll_delay: 1
+    # It will take TradingView a certain amount of time to add all the symbols to the list.
+    # Set a delay (in seconds) below to make sure all the symbols are added to the watchlist
+    delay_after_update: 5
+    enabled: yes
+webdriver:
+  # Define whether you want to run Kairos in the background. Overrides the value for the same setting in kairos.cfg.
+  run-in-background: yes
