@@ -2,6 +2,8 @@
 Web automation tool using Python, Selenium and Chrome's Web Driver.
 Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 
+Besides this document you can also find instructional videos [here](https://www.youtube.com/channel/UCvOH0PusMl0izmdwNDegBeA/videos). 
+
 ## Table of contents
 * [Features](#features)
 * [Prerequisites](#prerequisites)
