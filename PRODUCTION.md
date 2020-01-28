@@ -20,6 +20,8 @@ From that page scroll down to _All Downloads -> Tools for Visual Studio 2019_ an
 3. [Install](#install-dependencies)
 4. [Clean up](#clean-up)
 
+If you are on Windows you can use [build_public.bat](build_public.bat) to automate the aforementioned steps. 
+
 ## Python file preparation
 For each python file you wish to generate C for, do the following:
 * Add it to setup.py under extension modules (both for generation and linking), e.g. `Extension('tv.tv', ['tv//tv.py'], **ext_options)` and `Extension('tv.tv', ['tv//tv.pyd'], **ext_options)`
