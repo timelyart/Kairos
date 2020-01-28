@@ -14,14 +14,15 @@ charts:
   # Signals listed must be available from the chart which is loaded through the 'url' parameter
   # The chart has to be configured to 'Auto (Fits Data To Screen)'. If it isn't then you may get false positives.
   # Note that signal results are communicated immediately if a 'summary' section is found in this file.
+  # This particular example assumes you have the Golden Cross by Chuckytuh on your chart
   signals:
-  - name: "<any_name>"
+  - name: "Golden cross"
     # Define one or more indicators that together provide one signal
     # For example, you can combine two indicators e.g. MA cross and RSI. At least one of the indicators must have a signal defined.
     # A signal is only created if the trigger of all indicators is fired. If there is no trigger defined then it counts as having fired.
     indicators:
         # Kairos will look for the first indicator on a pane within a chart that starts with the value defined below (case sensitive!).
-      - name: "<name_of_the_indicator>"
+      - name: "Golden Cross"
         # A TradingView layout is divided into charts.
         # Use 0 for the 1st chart on your layout, 1 for the 2nd, etc. The top-left chart is always index 0.
         # Unfortunately, the order of charts within a TradingView layout isn't consistent and may change over time.
@@ -44,6 +45,8 @@ charts:
           # - index: indicator provided value found at the defined index
           # - value: a literal value which can be anything
           # If both index and value are set, then index will take precedence
+          # In this example, the 3rd value of the indicator (at index 2) is always "n/a" unless a Golden Cross has occurred.
+          # We therefore simply check if the 3rd value != "n/a" to see if a Golden Cross has happened.
           left-hand-side:
             index: 2
             value:
@@ -58,13 +61,13 @@ charts:
         # Optional. Add values at certain indices in the form of <key>:<index>.
         # You can use any string for a key. All keys with their values defined here are keywords that can be used with 'text'and 'csv' (see further below).
         # Note: that names for keys need to be unique among all indicators defined within this signal
-        data: [my_key_1: 0, my_key_2: 1]
+        data: [indicator_value: 2]
     # List of charts (url's) to include
     # You can use %SYMBOL and %TIMEFRAME as keywords to make the link more specific (use quotation marks)
     include_screenshots_of_charts: ["https://www.tradingview.com/chart/<my_chart>/"]
     # Optional. Define a list of key value pairs (can be anything) which can then be used with 'text'and 'csv' (see below).
-    labels: [id: "my_reference", source: "TradingView", long: 1, short: 0]
-    # Define the csv to be used to export the signal to Google Sheets
+    labels: [id: "My Golden Cross", source: "TradingView", long: 1, short: 0]
+    # Define the csv to be used to export the signal to Google Sheets. Data is exported in order.
     # The delimeter for the cvs is ';' so make sure you don't use ';' in your key value pairs defined under 'labels' above.
     # Supported keywords by default:
     # %TIMESTAMP, number of seconds since 1st of January 1970 (local machine time)
@@ -116,7 +119,7 @@ summary:
     # Define one ore more webhooks
     - url: ["https://hooks.zapier.com/hooks/catch/<my_id>/<my_hook>/"]
       # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
-      search_criteria: ["my_keyword"]
+      search_criteria: ["Golden Cross"]
       # Define how many signals should be send per batch
       batch: 25
       # Enabled?
@@ -134,7 +137,7 @@ summary:
       # Index, i.e. the row number where the data should be inserted. Use 1 for the top row, or 2 if the top row contains your column titles.
       index: 2
       # Only export signals that contain one of the following of the keywords. If the list is empty, signals will always be send.
-      search_criteria: ["my_keyword"]
+      search_criteria: ["Golden Cross"]
       # Enabled?
       enabled: no
 webdriver:
