@@ -9,15 +9,16 @@ BATCHES = list()
 
 def print_disclaimer():
     print("DISCLAIMER")
-    print("You are permitted to load the Kairos software (for example a PC, laptop, mobile or tablet) under your control. You are responsible for ensuring your device meets the minimum requirements of the Kairos software.")
-    print("You are not permitted to:")
-    print("\t* Edit, alter, modify, adapt, translate or otherwise change the whole or any part of the Software nor permit the whole or any part of the Software to be combined with or become incorporated in any other software, nor decompile, disassemble or reverse engineer the Software or attempt "
-          "to do any such things")
-    print("\t* Reproduce, copy, distribute, resell or otherwise use the Software for any commercial purpose")
-    print("\t* Allow any third party to use the Software on behalf of or for the benefit of any third party")
-    print("\t* Use the Software in any way which breaches any applicable local, national or international law")
-    print("\t* use the Software for any purpose that Sanne Appel considers is a breach of the EULA agreement")
-    print("You should have received a copy of the EULA agreement along with this program (LICENSE.md). If not, see https://eulatemplate.com/live.php?token=F2am7Ud98HlFDECoTq2GYhIksQmn6T9A\n")
+    print("This program is free software: you can redistribute it and/or modify")
+    print("it under the terms of the GNU General Public License as published by")
+    print("the Free Software Foundation, either version 3 of the License, or")
+    print("(at your option) any later version.\n")
+    print("This program is distributed in the hope that it will be useful,")
+    print("but WITHOUT ANY WARRANTY; without even the implied warranty of")
+    print("MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the")
+    print("GNU General Public License for more details.\n")
+    print("You should have received a copy of the GNU General Public License")
+    print("along with this program. If not, see <http://www.gnu.org/licenses/>.\n\n")
 
 
 def print_help():
