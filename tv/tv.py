@@ -545,11 +545,10 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
     if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
         indicator_index = indicator['indicator_index']
 
-    studies = []
+    css = 'div.chart-container.active tr:nth-child({}) div[data-name="legend-source-item"] div[data-name="legend-source-title"]:nth-child(1)'.format((pane_index + 1) * 2 - 1)
+    studies = find_elements(browser, css)
     if indicator_index < 0:
         try:
-            css = 'div.chart-container.active tr:nth-child({}) div[data-name="legend-source-item"] div[data-name="legend-source-title"]:nth-child(1)'.format((pane_index+1) * 2 - 1)
-            studies = find_elements(browser, css)
             for i, study in enumerate(studies):
                 study_name = str(study.text)
                 log.debug('Found {}'.format(study_name))
