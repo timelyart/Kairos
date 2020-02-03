@@ -2164,7 +2164,7 @@ def get_screener_markets(browser, screener_yaml):
         log.warn("screener '{}' doesn't exist.".format(screener_yaml['name']))
         return False
 
-    if 'search' in screener_yaml and screener_yaml['search'] != '':
+    if 'search' in screener_yaml and screener_yaml['search'] != '' and screener_yaml['search'] is not None:
         search_box = find_element(browser, css_selectors['input_screener_search'])
         set_value(browser, search_box, screener_yaml['search'], True)
         time.sleep(DELAY_SCREENER_SEARCH)
