@@ -23,17 +23,18 @@ def print_disclaimer():
 
 def print_help():
     print("HELP")
-    print("usage: python main.py [<file>] [-s|-s <minutes>] [-h] [-d]\n")
+    print("usage: python main.py [<file>] [-s|-s <minutes>] [-h] [-d] [-n <number of runs>]\n")
     print("<file>\t\t YAML file with alert definitions and/or summary option")
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
-    print("-cls\t\t Clean session data that is exclusively used by Kairos. Your browser's user data folder is left untouched by this action.")
-    print("-sort\t\t Sort existing back testing results (json). Requires 3 parameters -sort <filename> <sort_by> <reverse>:")
+    print("-cls\t\t Flag. Clean session data that is exclusively used by Kairos. Your browser's user data folder is left untouched by this action.")
+    print("-sort\t\t Flag. Sort existing back testing results (json). Requires 3 parameters -sort <filename> <sort_by> <reverse>:")
     print("\t\t Example usage: output\\my_back_test_20190527_1048.json \"Net Profit %\" no")
     print("\t\t\t <filename>: the file to sort")
     print("\t\t\t <sort_by>: define on which value to sort (use quites). Accepted values are: \"Net Profit\", \"Net Profit %\", \"Closed Trades\", \"Percent Profitable\", \"Profit Factor\", \"Max Drawdown\", \"Max Drawdown %\", \"Avg Trade\", \"Avg Trade %\"")
     print("\t\t\t <reverse>: optional. Sort in ascending or descending order? Default is 'yes' (descending)")
     # print("-m\t\t Flag. Run in multiprocessing mode. This requires setting up Selenium Grid. More information can be found here: https://www.seleniumhq.org/docs/07_selenium_grid.jsp\n")
+    print("-n <number of runs>\t\t Flag. Define how often Kairos should run. Used for (stress) testing Kairos.")
     print("-h\t\t Flag. Show this help.")
     print("-d\t\t Flag. Show disclaimer.\n")
 
@@ -48,6 +49,8 @@ def main():
         multi_threading = False
         send_summary = False
         delay_summary = 0
+        number_of_runs = 1
+
         i = 1
         while i < len(sys.argv):
             if str(sys.argv[i]).endswith('.yaml'):
@@ -62,6 +65,8 @@ def main():
                 multi_threading = True
             elif i > 1 and str(sys.argv[(i-1)]) == '-s':
                 delay_summary = int(sys.argv[i])
+            elif i > 1 and str(sys.argv[(i-1)]) == '-n':
+                number_of_runs = int(sys.argv[i])
             elif str(sys.argv[i]) == '-cls':
                 clean_browser_data()
             elif str(sys.argv[i]) == '-sort':
@@ -79,19 +84,23 @@ def main():
 
         triggered_signals = []
         # print(__name__)
-        if len(yaml) > 0:
-            # set log name before importing... the import creates the log whatever it's file name
-            debug.file_name = os.path.basename(yaml) + '.log'
-            from tv import tv
-            send_signals_immediately = not send_summary
-            triggered_signals = tv.run(yaml, send_signals_immediately, multi_threading)
-        if send_summary:
-            # set log name before importing... the import creates the log whatever it's file name
-            debug.file_name = 'summary.log'
+
+        for k in range(number_of_runs):
+            if number_of_runs > 1:
+                print("## RUN {}/{}".format(k+1, number_of_runs))
             if len(yaml) > 0:
+                # set log name before importing... the import creates the log whatever it's file name
                 debug.file_name = os.path.basename(yaml) + '.log'
-                from tv import mail
-                mail.run(delay_summary, yaml, triggered_signals)
+                from tv import tv
+                send_signals_immediately = not send_summary
+                triggered_signals = tv.run(yaml, send_signals_immediately, multi_threading)
+            if send_summary:
+                # set log name before importing... the import creates the log whatever it's file name
+                debug.file_name = 'summary.log'
+                if len(yaml) > 0:
+                    debug.file_name = os.path.basename(yaml) + '.log'
+                    from tv import mail
+                    mail.run(delay_summary, yaml, triggered_signals)
     except Exception as e:
         print(e)
     finally:
@@ -123,8 +132,8 @@ def clean_browser_data():
     config = tools.get_config()
     log.setLevel(config.getint('logging', 'level'))
 
-    DRIVER_TYPE = 'chromedriver'
-    driver_count = sum(1 for process in psutil.process_iter() if process.name().startswith(DRIVER_TYPE))
+    driver_type = 'chromedriver'
+    driver_count = sum(1 for process in psutil.process_iter() if process.name().startswith(driver_type))
 
     if config.has_option('webdriver', 'user_data_directory'):
         user_data_directory = config.get('webdriver', 'user_data_directory')
@@ -141,7 +150,7 @@ def clean_browser_data():
                         except Exception as e:
                             log.exception(e)
                 elif entry.name.startswith('kairos_'):
-                    log.info("{} is in use and cannot be removed (close all instances of {} and try again)".format(entry.name, DRIVER_TYPE))
+                    log.info("{} is in use and cannot be removed (close all instances of {} and try again)".format(entry.name, driver_type))
         log.info("cleaning complete")
     else:
         log.info("skipping. User data directory is not set in kairos.cfg")
