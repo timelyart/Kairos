@@ -206,9 +206,9 @@ css_selectors = dict(
     indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
     indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
     indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
-    btn_indicator_dialog_ok='#overlap-manager-root button[name="ok"]',
-    active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
-    active_chart_interval='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__interval > div',
+    btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
+    active_chart_asset='div.chart-container.active div[class^="titleWrapper"] > div[data-name="legend-source-title"]:nth-child(1)',
+    active_chart_interval='div.chart-container.active div[class^="titleWrapper"] > div[data-name="legend-source-title"]:nth-child(2)',
     # Indicator values
     span_indicator_loading='div[data-name^="legend-source-item"] > div[class^="valuesWrapper"] > span[class^="loader"]',
     # User Menu
@@ -2597,7 +2597,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
             duration += (time.time() - timer_symbol) * (len(symbols)-2) * (number_of_variants + 1 - strategy_number)
-    log.info("test run is expected to finish in {}.".format(tools.display_time(duration)))
+    log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
         back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
