@@ -72,6 +72,7 @@ DELAY_KEYSTROKE = 0.01
 DELAY_WATCHLIST = 0.5
 DELAY_TIMEFRAME = 0.5
 DELAY_SCREENER_SEARCH = 2
+DELAY_EXTRACT_SYMBOLS = 0.5
 RUN_IN_BACKGROUND = False
 MULTI_THREADING = False
 ALERT_NUMBER = 0
@@ -111,9 +112,6 @@ css_selectors = dict(
     input_symbol='#header-toolbar-symbol-search > div > input',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
     btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
-    item_clear_alerts='div.charts-popup-list > a.item:last-child',
-    item_clear_inactive_alerts='div.charts-popup-list > a.item:nth-child(8)',
-    item_restart_inactive_alerts='div.charts-popup-list > a.item:nth-child(6)',
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
     btn_create_alert='#header-toolbar-alerts',
@@ -211,6 +209,8 @@ css_selectors = dict(
     btn_indicator_dialog_ok='#overlap-manager-root button[name="ok"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
     active_chart_interval='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__interval > div',
+    # Indicator values
+    span_indicator_loading='div[data-name^="legend-source-item"] > div[class^="valuesWrapper"] > span[class^="loader"]',
     # User Menu
     btn_user_menu="span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user",
     btn_logout="a[href='#signout']",
@@ -238,8 +238,8 @@ if config.getboolean('logging', 'clear_on_start_up'):
 log = tools.create_log(mode)
 log.setLevel(20)
 # WARNING: debug level will log all HTTP requests
-# if config.has_option('logging', 'level'):
-#     log.setLevel(config.getint('logging', 'level'))
+if config.has_option('logging', 'level'):
+    log.setLevel(config.getint('logging', 'level'))
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
@@ -344,13 +344,16 @@ def wait_and_click_by_xpath(browser, xpath, delay=CHECK_IF_EXISTS_TIMEOUT):
         ec.element_to_be_clickable((By.XPATH, xpath))).click()
 
 
-def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT):
+def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT, position=0):
     if type(css_class) is str and len(css_class) > 0:
         xpath = '//{0}[contains(text(), "{1}") and @class="{2}"]'.format(tag, search_text, css_class)
     else:
         xpath = '//{0}[contains(text(), "{1}")]'.format(tag, search_text)
-    WebDriverWait(browser, delay).until(
-        ec.element_to_be_clickable((By.XPATH, xpath))).click()
+    if position == 0:
+        WebDriverWait(browser, delay).until(
+            ec.element_to_be_clickable((By.XPATH, xpath))).click()
+    else:
+        find_elements(browser, xpath, By.XPATH)[position].click()
 
 
 def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -532,6 +535,40 @@ def set_delays(chart):
             DELAY_KEYSTROKE = config.getfloat('delays', 'keystroke')
 
 
+def wait_until_indicators_are_loaded(browser):
+    indicator_loading = True
+    log.info("indicators loading")
+    while indicator_loading:
+        indicator_loading = False
+        # get css selector that has the loading animation
+        elem_loading = find_elements(browser, css_selectors['span_indicator_loading'])
+        # check if any of the elements is loaded
+        for elem in elem_loading:
+            indicator_loading = elem.is_displayed()
+            if indicator_loading:
+                break
+    log.info("indicators loaded")
+
+
+def is_indicator_loaded(browser, chart_index, pane_index, indicator_index, name=""):
+    # get css selector that has the loading animation for the indicator
+    elem_loading = find_elements(find_elements(
+        find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane',
+                      By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[
+                      indicator_index], 'div[class^="valuesWrapper"] > span[class^="loader"]', By.CSS_SELECTOR)
+    # check if any of the elements is loaded
+    indicator_loaded = True
+    if len(elem_loading) == 0:
+        if name != "":
+            name = "{} at index ".format(name)
+        log.warn("unable to find 'loading' elements of indicator {}{} on pane {} on chart {}".format(name, indicator_index, pane_index, chart_index))
+    for elem in elem_loading:
+        if elem.is_displayed():
+            indicator_loaded = False
+            break
+    return indicator_loaded or len(elem_loading) == 0
+
+
 def get_indicator_values(browser, indicator, symbol, previous_result, retry_number=0):
     result = []
     chart_index = -1
@@ -586,6 +623,17 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
             action.move_to_element_with_offset(element, 5, 5)
             action.perform()
 
+            indicator_name = ""
+            if indicator['name']:
+                indicator_name = indicator['name']
+            log.debug("indicator {}loading".format(indicator_name + " "))
+            loaded = False
+            tries = 0
+            while not loaded and tries < 200:
+                tries += 1
+                loaded = is_indicator_loaded(browser, chart_index, pane_index, indicator_index, indicator_name)
+            # time.sleep(0.2)
+            log.debug("indicator {}loaded (tries: {})".format(indicator_name + " ", tries))
             elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
             for e in elem_values:
                 result.append(e.text)
@@ -769,7 +817,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             if watchlist_exists:
                 # wait until the list is loaded (unfortunately sorting doesn't get saved
                 wait_and_click(browser, css_selectors['btn_watchlist_sort_symbol'])
-
+                time.sleep(DELAY_EXTRACT_SYMBOLS)
                 # extract symbols from watchlist
                 symbols = []
                 try:
@@ -783,7 +831,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 except Exception as e:
                     log.exception(e)
                     snapshot(browser)
-
                 dict_watchlist[chart['watchlists'][i]] = symbols
 
         # close the watchlist menu to save some loading time
@@ -951,39 +998,12 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
 
-        # instead of a fixed delay, do a delay until there are no longer 'loading' / 'error' indicators
-        # time.sleep(DELAY_CHANGE_SYMBOL)
-        # loaded = False
-        # total_wait_time = 0
-        # while not loaded and total_wait_time < DELAY_CHANGE_SYMBOL:
-        #     css = '.study .pane-legend-title__description'
-        #     studies = find_elements(browser, css)
-        #     for i, study in enumerate(studies):
-        #         study_name = studies[i].text
-        #         try:
-        #             if str(study_name).index('loading'):
-        #                 time.sleep(0.1)
-        #                 total_wait_time += 0.1
-        #                 break
-        #             if str(study_name).index('compiling'):
-        #                 time.sleep(0.1)
-        #                 total_wait_time += 0.1
-        #                 break
-        #             if str(study_name).index('error'):
-        #                 time.sleep(0.1)
-        #                 total_wait_time += 0.1
-        #                 break
-        #             loaded = True
-        #             break
-        #         except ValueError:
-        #             loaded = True
-        #             break
-        # log.info('Loaded in {} seconds'.format(total_wait_time))
+        #########################################################################################################
+        # Wait until the chart is loaded.
+        # NOTE: indicators are also checked if they are loaded before reading their values
+        #########################################################################################################
+        wait_until_chart_is_loaded(browser)
 
-        xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
-        elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, True, DELAY_BREAK_MINI)
-        while elem_loading and len(elem_loading) > 0:
-            elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_BREAK_MINI)
         # try:
         #     if wait_and_visible(browser, 'span.tv-market-status--invalid--for-chart', 1):
         #         invalid.add(symbol)
@@ -1183,6 +1203,42 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
         log.error('Max retries reached.')
         snapshot(browser)
         return False
+
+
+def wait_until_chart_is_loaded(browser):
+    # instead of a fixed delay, do a delay until there are no longer 'loading' / 'error' indicators
+    # time.sleep(DELAY_CHANGE_SYMBOL)
+    # loaded = False
+    # total_wait_time = 0
+    # while not loaded and total_wait_time < DELAY_CHANGE_SYMBOL:
+    #     css = '.study .pane-legend-title__description'
+    #     studies = find_elements(browser, css)
+    #     for i, study in enumerate(studies):
+    #         study_name = studies[i].text
+    #         try:
+    #             if str(study_name).index('loading'):
+    #                 time.sleep(0.1)
+    #                 total_wait_time += 0.1
+    #                 break
+    #             if str(study_name).index('compiling'):
+    #                 time.sleep(0.1)
+    #                 total_wait_time += 0.1
+    #                 break
+    #             if str(study_name).index('error'):
+    #                 time.sleep(0.1)
+    #                 total_wait_time += 0.1
+    #                 break
+    #             loaded = True
+    #             break
+    #         except ValueError:
+    #             loaded = True
+    #             break
+    # log.info('Loaded in {} seconds'.format(total_wait_time))
+
+    xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
+    elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, True, DELAY_BREAK_MINI)
+    while elem_loading and len(elem_loading) > 0:
+        elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_BREAK_MINI)
 
 
 def snapshot(browser, quit_program=False, chart_only=True, name=''):
@@ -2075,7 +2131,15 @@ def run(file, export_signals_immediately, multi_threading=False):
                         wait_and_click(browser, css_selectors['btn_calendar'])
                         wait_and_click(browser, css_selectors['btn_alerts'])
                         wait_and_click(browser, css_selectors['btn_alert_menu'])
-                        wait_and_click(browser, css_selectors['item_clear_alerts'])
+                        # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
+                        # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+                        try:
+                            # check if we are on the front page
+                            wait_and_click_by_text(browser, 'div', 'Delete all', '', CHECK_IF_EXISTS_TIMEOUT, 1)
+                        except TimeoutException as e:
+                            log.debug(e)
+                            # check if we are on a chart
+                            wait_and_click_by_text(browser, 'span', 'Delete All', '', CHECK_IF_EXISTS_TIMEOUT, 1)
                         wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                         time.sleep(DELAY_BREAK * 2)
                     else:
@@ -2083,14 +2147,30 @@ def run(file, export_signals_immediately, multi_threading=False):
                             wait_and_click(browser, css_selectors['btn_calendar'])
                             wait_and_click(browser, css_selectors['btn_alerts'])
                             wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            wait_and_click(browser, css_selectors['item_restart_inactive_alerts'])
+                            # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
+                            # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+                            try:
+                                # check if we are on the front page
+                                wait_and_click_by_text(browser, 'div', 'Restart all inactive')
+                            except TimeoutException as e:
+                                log.debug(e)
+                                # check if we are on a chart
+                                wait_and_click_by_text(browser, 'span', 'Restart All Inactive')
                             wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                             time.sleep(DELAY_BREAK * 2)
                         elif config.getboolean('tradingview', 'clear_inactive_alerts'):
                             wait_and_click(browser, css_selectors['btn_calendar'])
                             wait_and_click(browser, css_selectors['btn_alerts'])
                             wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                            # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
+                            # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+                            try:
+                                # check if we are on the front page
+                                wait_and_click_by_text(browser, 'div', 'Delete all inactive')
+                            except TimeoutException as e:
+                                log.debug(e)
+                                # check if we are on a chart
+                                wait_and_click_by_text(browser, 'span', 'Delete All Inactive')
                             wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                             time.sleep(DELAY_BREAK * 2)
                         # count the number of existing alerts
@@ -2105,6 +2185,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                         for item in items:
                             if 'alerts' in item or 'signals' in item or 'strategies' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, save_as, counter_alerts, total_alerts)
+
                 summary(total_alerts)
                 if len(triggered_signals) > 0:
                     from tv import mail
@@ -3235,8 +3316,13 @@ def wait_until_indicator_is_loaded(browser, indicator_name, pane_index):
 
 def summary(total_alerts):
     if total_alerts > 0:
+        # counted twice for alerts as well as signals
+        total_alerts = total_alerts / 2
         elapsed = timing.time() - timing.start
         avg = '%s' % float('%.5g' % (elapsed / total_alerts))
-        log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
+        # log.info("{} markets screened and {} signals triggered with an average process time of {} seconds per market.".format(str(int(math.ceil(total_alerts))), len(triggered_signals), avg))
+        print("{} markets screened and {} signals triggered with an average process time of {} seconds per market.".format(str(int(math.ceil(total_alerts))), len(triggered_signals), avg))
+        # log.info("{} alerts and/or signals set with an average process time of {} seconds".format(str(total_alerts), avg))
+        # log.info("{} signals triggered".format(len(triggered_signals)))
     elif total_alerts == 0:
         log.info("No alerts or signals set")
