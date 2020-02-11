@@ -192,7 +192,7 @@ def process_body(msg, browser):
 
                 # page is loaded when we are done waiting for an clickable element
                 tv.wait_and_click(browser, tv.css_selectors['btn_calendar'])
-                tv.wait_and_click(browser, tv.css_selectors['btn_watchlist_menu'])
+                tv.wait_and_click(browser, tv.css_selectors['btn_watchlist'])
                 [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
                 if screenshot_url != '':
                     screenshots[screenshot_chart] = screenshot_url
@@ -1069,7 +1069,7 @@ def send_admin_message(subject, text, to='', html=''):
 
     subject = "Kairos: {}{}".format(subject[0:1].lower(), subject[1:])
     hostname = os.getenv('HOSTNAME', os.getenv('COMPUTERNAME', platform.node())).split('.')[0]
-    text = "Kairos reported a message from {}\r\r{}".format(hostname, text)
+    text = "Kairos reported a message from {}\n\n{}".format(hostname, text)
 
     headers = dict()
     headers['Subject'] = subject
