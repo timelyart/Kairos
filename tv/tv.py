@@ -2313,6 +2313,7 @@ def update_watchlist(browser, name, markets, delay_after_update):
         # sort the watchlist
         try:
             wait_and_click_by_text(browser, 'span', 'Symbol')
+
             time.sleep(DELAY_BREAK * 2)
         except Exception as e:
             log.exception(e)
@@ -2329,12 +2330,15 @@ def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
     el_options = []
     try:
+        # make sure we hover over the element to hide any tooltips of other elements
+        hover(browser, find_element(browser, css_selectors['btn_watchlist_submenu']))
         wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
         time.sleep(DELAY_BREAK)
         el_options = find_elements(browser, css_selectors['options_watchlist'])
         time.sleep(DELAY_BREAK)
     except Exception as e:
         log.exception(e)
+        snapshot(browser)
 
     j = 0
     while j < len(el_options):
