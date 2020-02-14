@@ -323,6 +323,8 @@ def element_exists(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
         # print the session_id and url in case the element is not found
         # noinspection PyProtectedMember
         log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
+    except TimeoutException:
+        log.debug('No such element. CSS SELECTOR=' + css_selector)
     except Exception as element_exists_error:
         log.error(element_exists_error)
         log.debug("Check your CSS locator: {}".format(css_selector))
@@ -2103,12 +2105,9 @@ def run(file, export_signals_immediately, multi_threading=False):
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
                             log.info("create/update watchlist '{}' from screener. Please be patient, this may take several minutes ...".format(screener_yaml['name']))
-                            delay_after_update = 5
-                            if 'delay_after_update' in screeners_yaml:
-                                delay_after_update = screeners_yaml['delay_after_update']
                             markets = get_screener_markets(browser, screener_yaml)
                             if markets:
-                                if update_watchlist(browser, screener_yaml['name'], markets, delay_after_update):
+                                if update_watchlist(browser, screener_yaml['name'], markets):
                                     log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(markets))))
                             else:
                                 log.info('no markets to update')
@@ -2226,7 +2225,7 @@ def get_screener_markets(browser, screener_yaml):
         counter += 1
 
     el_options = find_elements(browser, css_selectors['options_screeners'])
-    # time.sleep(DELAY_BREAK)
+    time.sleep(DELAY_BREAK)
     found = False
 
     for i in range(len(el_options)):
@@ -2259,9 +2258,11 @@ def get_screener_markets(browser, screener_yaml):
         pass
     log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
 
+    row_height = 50
+    scroll_factor = 40
     while len(markets) < total_found:
-        browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-        rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 30)
+        browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
+        rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 10)
         for i, row in enumerate(rows):
             try:
                 market = rows[i].get_attribute('data-symbol')
@@ -2272,7 +2273,7 @@ def get_screener_markets(browser, screener_yaml):
                 browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                 rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
                 market = rows[i].get_attribute('data-symbol')
-
+            # log.info(market)
             markets.append(market)
         markets = list(set(markets))
 
@@ -2280,7 +2281,7 @@ def get_screener_markets(browser, screener_yaml):
     return markets
 
 
-def update_watchlist(browser, name, markets, delay_after_update):
+def update_watchlist(browser, name, markets):
     try:
         wait_and_click(browser, css_selectors['btn_calendar'])
         time.sleep(DELAY_BREAK)
@@ -2293,8 +2294,6 @@ def update_watchlist(browser, name, markets, delay_after_update):
         if isinstance(markets, str):
             markets = markets.split(',')
 
-        batches = list(tools.chunks(markets, 20))
-
         wait_and_click_by_text(browser, 'div', 'Create new list')
         time.sleep(DELAY_BREAK)
 
@@ -2304,16 +2303,16 @@ def update_watchlist(browser, name, markets, delay_after_update):
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
 
-        for batch in batches:
-            csv = ",".join(batch)
-            set_value(browser, input_symbol, csv)
-            input_symbol.send_keys(Keys.ENTER)
-            time.sleep(delay_after_update)
+        added, missing = add_markets_to_watchlist(browser, input_symbol, markets)
+        time.sleep(2)
+
+        # how many were added?
+        if len(missing) > 0:
+            log.warn("unable to add the following markets: {}".format(", ".join(markets)))
 
         # sort the watchlist
         try:
             wait_and_click_by_text(browser, 'span', 'Symbol')
-
             time.sleep(DELAY_BREAK * 2)
         except Exception as e:
             log.exception(e)
@@ -2324,6 +2323,32 @@ def update_watchlist(browser, name, markets, delay_after_update):
     except Exception as e:
         log.exception(e)
         snapshot(browser)
+
+
+def add_markets_to_watchlist(browser, input_symbol, markets):
+    added = 0
+    missing = []
+    for market in markets:
+        if add_market_to_watchlist(browser, input_symbol, market):
+            added += 1
+        else:
+            missing.append(market)
+
+    return added, missing
+
+
+def add_market_to_watchlist(browser, input_symbol, market, tries=0):
+    set_value(browser, input_symbol, market)
+    input_symbol.send_keys(Keys.ENTER)
+
+    added = element_exists(browser, 'div[data-symbol-full="{}"]'.format(market))
+    if not added:
+        tries += 1
+        max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
+        if tries < max_tries:
+            add_market_to_watchlist(browser, input_symbol, market, tries)
+            log.info("{} trying again... ({}/{})".format(market, tries, max_tries))
+    return added
 
 
 def remove_watchlists(browser, name):
@@ -2351,9 +2376,13 @@ def remove_watchlists(browser, name):
                     # hover over element and click the removal button [x]
                     hover(browser, btn_delete, True)
                     # handle confirmation dialog
-                    wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
+                    time.sleep(0.5)
+                    try:
+                        wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
+                    except TimeoutException as e:
+                        log.debug(e)
+                    time.sleep(1)
                     # give TV time to remove the watchlist
-                    time.sleep(DELAY_BREAK * 2)
                     log.debug('watchlist {} removed'.format(name))
         except StaleElementReferenceException:
             # open the watchlists menu again and update the options to prevent 'element is stale' error

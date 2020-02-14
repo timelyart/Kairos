@@ -283,8 +283,8 @@ def save_watchlist_to_file(csv, filename=''):
     return [filepath, filename]
 
 
-def update_watchlist(browser, filename, markets, delay_after_update):
-    return tv.update_watchlist(browser, filename, markets, delay_after_update)
+def update_watchlist(browser, filename, markets):
+    return tv.update_watchlist(browser, filename, markets)
 
 
 def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send_signals=True):
@@ -381,7 +381,6 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
         if html[:6].lower() != '<html>':
             html = '<html><body>' + html + '</body></html>'
 
-        delay_after_update = 5
         # create watchlist
         if summary_config and 'watchlist' in summary_config:
             watchlist_config = summary_config['watchlist']
@@ -389,11 +388,11 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
             [filepath, filename] = save_watchlist_to_file(csv, filename)
             filepath = os.path.join(os.getcwd(), filepath)
             log.info('watchlist ' + filepath + ' created')
-            if 'delay_after_update' in watchlist_config:
-                delay_after_update = watchlist_config['delay_after_update']
+            # if 'delay_after_update' in watchlist_config:
+            #     delay_after_update = watchlist_config['delay_after_update']
             if watchlist_config['import']:
                 watchlist_name = filename.replace('.txt', '')
-                if update_watchlist(browser, watchlist_name, csv, delay_after_update):
+                if update_watchlist(browser, watchlist_name, csv):
                     log.info("watchlist imported into TradingView as '" + watchlist_name + "'")
             if watchlist_config['attach-to-email']:
                 watchlist_att = MIMEBase('application', "octet-stream")
