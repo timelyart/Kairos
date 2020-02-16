@@ -1,3 +1,8 @@
+![](https://img.shields.io/github/license/timelyart/kairos?style=for-the-badge)
+![](https://img.shields.io/github/repo-size/timelyart/kairos?style=for-the-badge)
+![](https://img.shields.io/github/commit-activity/y/timelyart/kairos?style=for-the-badge)
+![](https://img.shields.io/twitter/follow/timelyart?style=for-the-badge)
+
 # Kairos
 Web automation tool using Python, Selenium and Chrome's Web Driver.
 Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
