@@ -147,7 +147,7 @@ css_selectors = dict(
     # Send SMS
     clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-true-sms"] + span + span.tv-control-checkbox__ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
-    btn_create_alert_warning_continue_anyway='#overlap-manager-root button:nth-child(2)',
+    btn_create_alert_warning_continue_anyway='div[data-name^="warning"] button[name="ok-button"]',
     btn_alerts='div[data-name="alerts"]',
     btn_calendar='div[data-name="calendar"]',
     btn_watchlist='div[data-name="base"]',
@@ -1561,7 +1561,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # ignore warnings if they are there
         if SEARCH_FOR_WARNING:
             try:
-                wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'], 30)
+                wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'], 5)
                 log.info('Warning found and closed')
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
