@@ -806,24 +806,33 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         wait_and_click(browser, css_selectors['btn_calendar'], 30)
         wait_and_click(browser, css_selectors['btn_watchlist'])
         time.sleep(DELAY_WATCHLIST)
+
+        # get the currently selected watchlist
+        currently_selected = ""
+        elem = find_element(browser, 'div.widgetbar-widget-watchlist div[data-role="button"] > span >span')
+        if elem:
+            currently_selected = elem.text
         # get the symbols for each watchlist
         dict_watchlist = dict()
         for i, watchlist in enumerate(chart['watchlists']):
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
             log.debug("collecting symbols from watchlist {}".format(watchlist))
-            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-            time.sleep(DELAY_BREAK)
+            watchlist_opened = watchlist == currently_selected
 
-            # load watchlist
-            watchlist_exists = False
-            try:
-                wait_and_click_by_text(browser, 'span', watchlist)
-                watchlist_exists = True
-            except Exception as e:
-                log.debug(e)
+            # open watchlist if it isn't currently opened
+            if not watchlist_opened:
+                wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+                time.sleep(DELAY_BREAK)
+                try:
+                    xpath = '//span[contains(text(), "{}")][last()]'.format(watchlist)
+                    WebDriverWait(browser, CHECK_IF_EXISTS_TIMEOUT).until(ec.element_to_be_clickable((By.XPATH, xpath))).click()
+                    wait_and_click_by_text(browser, 'span', watchlist)
+                    watchlist_opened = True
+                except Exception as e:
+                    log.debug(e)
 
-            if watchlist_exists:
+            if watchlist_opened:
                 # wait until the list is loaded (unfortunately sorting doesn't get saved
                 wait_and_click_by_text(browser, 'span', 'Symbol')
                 time.sleep(DELAY_EXTRACT_SYMBOLS)
