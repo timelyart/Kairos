@@ -171,7 +171,7 @@ css_selectors = dict(
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
     tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
-    btn_strategy_dialog='div.icon-button.backtesting-open-format-dialog',
+    btn_strategy_dialog='div.icon-button.js-backtesting-open-format-dialog',
     strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting > div.backtesting-head-wrapper > div:nth-child(1) > div > span',
     performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',
     performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
@@ -345,11 +345,11 @@ def wait_and_click_by_xpath(browser, xpath, delay=CHECK_IF_EXISTS_TIMEOUT):
         ec.element_to_be_clickable((By.XPATH, xpath))).click()
 
 
-def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT, position=0):
+def wait_and_click_by_text(browser, tag, search_text, css_class='', delay=CHECK_IF_EXISTS_TIMEOUT, position=0, postfix=''):
     if type(css_class) is str and len(css_class) > 0:
-        xpath = '//{0}[contains(text(), "{1}") and @class="{2}"]'.format(tag, search_text, css_class)
+        xpath = '//{0}[contains(text(), "{1}") and @class="{2}"]{3}'.format(tag, search_text, css_class, postfix)
     else:
-        xpath = '//{0}[contains(text(), "{1}")]'.format(tag, search_text)
+        xpath = '//{0}[contains(text(), "{1}")]{2}'.format(tag, search_text, postfix)
     if position == 0:
         WebDriverWait(browser, delay).until(
             ec.element_to_be_clickable((By.XPATH, xpath))).click()
@@ -833,8 +833,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     log.debug(e)
 
             if watchlist_opened:
-                # wait until the list is loaded (unfortunately sorting doesn't get saved
-                wait_and_click_by_text(browser, 'span', 'Symbol')
+                # wait until the list is loaded
                 time.sleep(DELAY_EXTRACT_SYMBOLS)
                 # extract symbols from watchlist
                 symbols = []
