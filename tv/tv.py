@@ -115,6 +115,7 @@ css_selectors = dict(
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
     btn_create_alert='#header-toolbar-alerts',
+    btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
     dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1)',
     options_dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1) span.tv-control-select__option-wrap',
     exists_dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span > span',
@@ -1166,14 +1167,30 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
             for alert in chart['alerts']:
                 if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
                     # try clean inactive alerts first
-                    # open alerts tab
-                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
-                        wait_and_click(browser, css_selectors['btn_alerts'])
-                    time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
+                    wait_and_click(browser, css_selectors['btn_calendar'])
+                    wait_and_click(browser, css_selectors['btn_alerts'])
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
-                    wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                    # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
+                    # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+                    try:
+                        # check if we are on the front page
+                        wait_and_click_by_text(browser, 'div', 'Delete all inactive')
+                    except TimeoutException as e:
+                        log.debug(e)
+                        # check if we are on a chart
+                        wait_and_click_by_text(browser, 'span', 'Delete all Inactive')
                     wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                     time.sleep(DELAY_BREAK * 8)
+
+                    # # open alerts tab
+                    # if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
+                    #     wait_and_click(browser, css_selectors['btn_alerts'])
+                    # time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
+                    # wait_and_click(browser, css_selectors['btn_alert_menu'])
+                    # wait_and_click_by_text(browser, 'span', 'Delete All Inactive')
+                    # # wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                    # wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                    # time.sleep(DELAY_BREAK * 8)
                     # update counter
                     alerts = find_elements(browser, css_selectors['item_alerts'])
                     if type(alerts) is list:
@@ -1391,16 +1408,22 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     global alert_dialog
     global SEARCH_FOR_WARNING
     try:
-        if retry_number == 0:
+        indicators_present = False
+        i = 0
+        while not indicators_present and i < 20:
             # TODO replace 'element.send_keys" with
             #  action = ActionChains(browser)
             #  action.send_keys(Keys.TAB)
             #  action.perform()
             html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "a")
-        else:
-            wait_and_click(browser, css_selectors['btn_create_alert'])
-        # time.sleep(DELAY_BREAK)
+            el_options = find_elements(browser, css_selectors['options_dlg_create_alert_first_row_first_item'], By.CSS_SELECTOR, False, False, 0.5)
+            indicators_present = el_options is not None
+            if not indicators_present:
+                wait_and_click(browser, css_selectors['btn_alert_cancel'], 0.1)
+                time.sleep(1)
+            i += 1
+
         alert_dialog = find_element(browser, class_selectors['form_create_alert'], By.CLASS_NAME)
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
 
@@ -1415,7 +1438,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
 
         el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_first_item'])
         if not select(alert_config, current_condition, el_options, symbol):
-            return False
+            return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # 1st row, 2nd condition (if applicable)
         css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
