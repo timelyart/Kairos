@@ -2294,7 +2294,8 @@ def get_screener_markets(browser, screener_yaml):
     while len(markets) < total_found:
         browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
         rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 10)
-        for i, row in enumerate(rows):
+        i = 0
+        while i < len(rows):
             try:
                 market = rows[i].get_attribute('data-symbol')
             except StaleElementReferenceException:
@@ -2304,7 +2305,9 @@ def get_screener_markets(browser, screener_yaml):
                 browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                 rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
                 market = rows[i].get_attribute('data-symbol')
-            # log.info(market)
+            except IndexError as e:
+                log.exception(e)
+            i += 1
             markets.append(market)
         markets = list(set(markets))
 
