@@ -2308,6 +2308,7 @@ def get_screener_markets(browser, screener_yaml):
             except IndexError as e:
                 log.exception(e)
             i += 1
+            # noinspection PyUnboundLocalVariable
             markets.append(market)
         markets = list(set(markets))
 
