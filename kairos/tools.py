@@ -79,7 +79,7 @@ class Switch:
     def __call__(self, *mconds): return self._val in mconds
 
 
-def to_csv(log, data, delimeter=','):
+def to_csv(log, data, delimiter=','):
     result = ''
     log.info(str(type(data)) + ': ' + str(data))
     if isinstance(data, dict):
@@ -87,13 +87,13 @@ def to_csv(log, data, delimeter=','):
             if result == '':
                 result = to_csv(log, data[_key])
             else:
-                result = delimeter + to_csv(log, data[_key], delimeter)
+                result = delimiter + to_csv(log, data[_key], delimiter)
     elif isinstance(data, list):
         for item in data:
             if result == '':
                 result = to_csv(log, item)
             else:
-                result = delimeter + to_csv(log, item, delimeter)
+                result = delimiter + to_csv(log, item, delimiter)
     else:
         result = data
     return result
@@ -148,9 +148,9 @@ def get_yaml_config(file, log, root=False):
                 for i in range(len(snippets)):
                     indentation = str(snippets[i][0]).replace("-", " ")
                     search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
-                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
+                    filename = Path(file).parent.resolve() / snippets[i][3]
                     if not os.path.exists(filename):
-                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
+                        log.error("File '{}' does not exist. Please update the value in '{}'".format(filename, str(os.path.basename(file))))
                         exit(1)
                     # recursively find and replace snippets
                     snippet_yaml = get_yaml_config(filename, log)
@@ -234,6 +234,7 @@ def chmod_r(path, permission):
 
 
 def format_number(value, precision=8):
+    # noinspection PyGlobalUndefined
     global float_precision
     float_precision = precision
     result = value
