@@ -823,6 +823,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
             # open watchlist if it isn't currently opened
             if not watchlist_opened:
+                wait_and_click(browser, css_selectors['input_symbol'])
                 wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
                 time.sleep(DELAY_BREAK)
                 try:
