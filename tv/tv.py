@@ -432,6 +432,16 @@ def hover(browser, element, click=False):
     action.perform()
 
 
+def close_cookies_message(browser):
+    xpath = '//strong[contains(text(), "cookies")]/following-sibling::div/button'
+    try:
+        wait_and_click_by_xpath(browser, xpath, 2)
+        log.info("Cookie banner found")
+    except TimeoutException as e:
+        log.debug(e)
+        log.info("Cookie banner not found")
+
+
 def set_timeframe(browser, timeframe):
     log.info('Setting timeframe to ' + timeframe)
     wait_and_click(browser, css_selectors['btn_timeframe'])
@@ -1827,6 +1837,7 @@ def login(browser, uid='', pwd='', retry_login=False):
     except Exception as e:
         log.error(e)
         snapshot(browser, True)
+    close_cookies_message(browser)
 
 
 def assign_user_data_directory():
@@ -1922,6 +1933,7 @@ def create_browser(run_in_background):
     initial_setup = False
 
     options = webdriver.ChromeOptions()
+    options.add_argument("--incognito")
     if config.has_option('webdriver', 'web_browser_path'):
         web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
         options.binary_location = web_browser_path

@@ -303,7 +303,7 @@ def wait_for_page_load(self, timeout=10):
 
 
 def path_in_use(path, log=None):
-    for process in psutil.process_iter():
+    for process in psutil.process_iter(['name']):
         try:
             if process.name().find('chrome') >= 0:
                 files = process.open_files()
@@ -312,13 +312,16 @@ def path_in_use(path, log=None):
                         # log.info("{}\t{}".format(message, f.path))
                         if f.path.find(path) >= 0:
                             return True
-        # This catches a race condition where a process ends
-        # before we can examine its files
+        # This catches access denied errors of processes we don't have access to
+        except psutil.AccessDenied:
+            continue
+        # This catches a race condition where a process ends before we can examine its files
         except Exception as e:
             if log:
                 log.exception(e)
             else:
                 debug.log("ERROR", "path_in_use", e)
+            exit(0)
     return False
 
 
