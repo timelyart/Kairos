@@ -850,13 +850,21 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 # extract symbols from watchlist
                 symbols = []
                 try:
-                    dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR, True, False, 30)
-                    for symbol in dict_symbols:
-                        symbols.append(symbol.get_attribute('data-symbol-full'))
-                        if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
-                            break
-                    # symbols = list(sorted(set(symbols)))
-                    log.info("{}: {} markets found".format(watchlist, len(dict_symbols)))
+                    # scroll down
+                    last_symbol = "unknown"
+                    previous_last_symbol = ""
+                    while previous_last_symbol != last_symbol:
+                        dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR)
+                        previous_last_symbol = last_symbol
+                        last_element = dict_symbols[len(dict_symbols)-1]
+                        last_symbol = last_element.get_attribute('data-symbol-full')
+                        for symbol in dict_symbols:
+                            symbols.append(symbol.get_attribute('data-symbol-full'))
+                            if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
+                                break
+                        ActionChains(browser).move_to_element(last_element).perform()
+                    symbols = list(dict.fromkeys(symbols))
+                    log.info("{}: {} markets found".format(watchlist, len(symbols)))
                 except Exception as e:
                     log.exception(e)
                     snapshot(browser)
@@ -1933,7 +1941,7 @@ def create_browser(run_in_background):
     initial_setup = False
 
     options = webdriver.ChromeOptions()
-    options.add_argument("--incognito")
+    # options.add_argument("--incognito")
     if config.has_option('webdriver', 'web_browser_path'):
         web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
         options.binary_location = web_browser_path
