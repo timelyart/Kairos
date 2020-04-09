@@ -1009,15 +1009,16 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
     log.info(timeframe)
     # open each symbol within the watchlist
+    previous_screenshot = None
     for k, symbol in enumerate(symbols):
         use_space = False
         if k > 0:
             use_space = False
-        [counter_alerts, total_alerts] = process_symbol(browser, chart, symbols[k], timeframe, counter_alerts, total_alerts, use_space)
+        [counter_alerts, total_alerts, previous_screenshot] = process_symbol(browser, chart, symbols[k], timeframe, previous_screenshot, counter_alerts, total_alerts, use_space)
     return [counter_alerts, total_alerts]
 
 
-def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, use_space=False, retry_number=0):
+def process_symbol(browser, chart, symbol, timeframe, previous_screenshot, counter_alerts, total_alerts, use_space=False, retry_number=0):
     log.info(symbol)
     # change symbol
     try:
@@ -1104,7 +1105,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
 
                     # if we can't find a value, process this symbol again until we hit max retries which at that point we assume that the symbol doesn't exist or only hav 'n/a' values is correct
                     if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-                        return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
+                        return retry_process_symbol(browser, chart, symbol, timeframe, previous_screenshot, counter_alerts, total_alerts, retry_number)
                     signal['indicators'][m]['values'] = values
                     indicator_triggered = is_indicator_triggered(indicator, values)
                     if not indicator_triggered:
@@ -1140,6 +1141,7 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     screenshots = dict()
                     filenames = dict()
                     screenshots_url = []
+                    previous_screenshot = ''
                     asset = ''
                     for m in range(5):
                         try:
@@ -1152,12 +1154,13 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     try:
                         for m, screenshot_chart in enumerate(signal['include_screenshots_of_charts']):
                             screenshot_chart = unquote(signal['include_screenshots_of_charts'][m])
-                            [screenshot_url, filename] = take_screenshot(browser, symbol, interval)
+                            [screenshot_url, filename] = take_screenshot(browser, symbol, interval, previous_screenshot)
                             if screenshot_url != '':
                                 screenshots[screenshot_chart] = screenshot_url
                                 screenshots_url.append(screenshot_url)
                                 if m == 0:
                                     data['screenshot'] = screenshot_url
+                                previous_screenshot = screenshot_url
                             if filename != '':
                                 filenames[screenshot_chart] = filename
                     except ValueError as value_error:
@@ -1201,15 +1204,6 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
                     time.sleep(DELAY_BREAK * 8)
 
-                    # # open alerts tab
-                    # if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
-                    #     wait_and_click(browser, css_selectors['btn_alerts'])
-                    # time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
-                    # wait_and_click(browser, css_selectors['btn_alert_menu'])
-                    # wait_and_click_by_text(browser, 'span', 'Delete All Inactive')
-                    # # wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
-                    # wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                    # time.sleep(DELAY_BREAK * 8)
                     # update counter
                     alerts = find_elements(browser, css_selectors['item_alerts'])
                     if type(alerts) is list:
@@ -1224,7 +1218,8 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                 try:
                     screenshot_url = ''
                     if config.has_option('logging', 'screenshot_timing') and config.get('logging', 'screenshot_timing') == 'alert':
-                        screenshot_url = take_screenshot(browser, symbol, interval)[0]
+                        screenshot_url = take_screenshot(browser, symbol, interval, previous_screenshot)[0]
+                        previous_screenshot = screenshot_url
                     create_alert(browser, alert, timeframe, interval, symbol, screenshot_url)
                     counter_alerts += 1
                     total_alerts += 1
@@ -1235,10 +1230,10 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
     except Exception as e:
         log.exception(e)
         return retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number)
-    return [counter_alerts, total_alerts]
+    return [counter_alerts, total_alerts, previous_screenshot]
 
 
-def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, retry_number=0):
+def retry_process_symbol(browser, chart, symbol, timeframe, previous_screenshot, counter_alerts, total_alerts, retry_number=0):
     if retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again ({})'.format(str(retry_number + 1)))
         refresh(browser)
@@ -1253,7 +1248,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, counter_alerts, tota
             log.debug('Unable to change to symbol')
             log.exception(err)
             snapshot(browser)
-        return process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_alerts, False, retry_number + 1)
+        return process_symbol(browser, chart, symbol, timeframe, previous_screenshot, counter_alerts, total_alerts, False, retry_number + 1)
     else:
         log.error('Max retries reached.')
         if symbol not in processing_errors:
@@ -1311,12 +1306,13 @@ def snapshot(browser, quit_program=False, chart_only=True, name=''):
             exit(errno.EFAULT)
 
 
-def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y%m%d", retry_number=0):
+def take_screenshot(browser, symbol, interval, previous_screenshot=None, chart_only=True, tpl_strftime="%Y%m%d", retry_number=0):
     """
     Use selenium for a screenshot, or alternatively use TradingView's screenshot feature
     :param browser:
     :param symbol:
     :param interval:
+    :param previous_screenshot:
     :param chart_only:
     :param tpl_strftime:
     :param retry_number:
@@ -1384,14 +1380,18 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
 
     except Exception as take_screenshot_error:
         log.exception(take_screenshot_error)
-        return retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number)
-    if screenshot_url == '' and filename == '':
-        return retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number)
+        return retry_take_screenshot(browser, symbol, interval, previous_screenshot, chart_only, tpl_strftime, retry_number)
+    if screenshot_url == '' and filename == '' or screenshot_url == previous_screenshot or filename == previous_screenshot:
+        if screenshot_url == previous_screenshot:
+            log.warn('screenshot is the same as the previous one: {}'.format(screenshot_url))
+        if filename == previous_screenshot:
+            log.warn('filename is the same as the previous one: {}'.format(filename))
+        return retry_take_screenshot(browser, symbol, interval, previous_screenshot, chart_only, tpl_strftime, retry_number)
 
     return [screenshot_url, filename]
 
 
-def retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number=0):
+def retry_take_screenshot(browser, symbol, interval, previous_screenshot, chart_only, tpl_strftime, retry_number=0):
 
     if retry_number + 1 == config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again ({})'.format(str(retry_number + 1)))
@@ -1405,7 +1405,7 @@ def retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, r
             log.exception(e)
     elif retry_number < config.getint('tradingview', 'create_alert_max_retries'):
         log.info('trying again ({})'.format(str(retry_number + 1)))
-        return take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number + 1)
+        return take_screenshot(browser, symbol, interval, previous_screenshot, chart_only, tpl_strftime, retry_number + 1)
     else:
         log.warn('max retries reached')
         snapshot(browser)
@@ -1612,10 +1612,10 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         if SEARCH_FOR_WARNING:
             try:
                 wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'], 5)
-                log.info('Warning found and closed')
+                log.debug('Warning found and closed')
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
-                log.info('No warning found when setting the alert.')
+                log.debug('No warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
 
         time.sleep(DELAY_SUBMIT_ALERT)
