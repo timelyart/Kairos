@@ -62,8 +62,8 @@ def login(browser):
     tv.login(browser)
 
 
-def take_screenshot(browser, symbol, interval, previous_screenshot=None, retry_number=0):
-    return tv.take_screenshot(browser, symbol, interval, previous_screenshot, retry_number)
+def take_screenshot(browser, symbol, interval, retry_number=0):
+    return tv.take_screenshot(browser, symbol, interval, retry_number)
 
 
 def process_data(data, browser):
