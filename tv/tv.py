@@ -1831,7 +1831,7 @@ def assign_user_data_directory():
     if OS != 'windows':
         lockfile = 'SingletonSocket'
 
-    user_data_directory = config.get('webdriver', 'user_data_directory')
+    user_data_directory = config.get('webdriver', 'user_data_directory').strip()
     user_data_base_dir, tail = os.path.split(user_data_directory)
     kairos_data_directory = os.path.join(user_data_base_dir, 'kairos')
     if kairos_data_directory == user_data_directory:
@@ -1926,7 +1926,7 @@ def create_browser(run_in_background):
     if OS == 'linux':
         options.add_argument('--no-sandbox')
         options.add_argument("--disable-dev-shm-usage")
-    if config.has_option('webdriver', 'user_data_directory'):
+    if config.has_option('webdriver', 'user_data_directory') and config.get('webdriver', 'user_data_directory').strip() != "":
         kairos_data_directory, initial_setup = assign_user_data_directory()
         match = re.search(r".*(\d+)", kairos_data_directory)
         if match:
