@@ -9,6 +9,7 @@
 *.xcf
 *.json
 *.instance
+*deb.py
 desktop.ini
 dist/*
 *.egg-info/

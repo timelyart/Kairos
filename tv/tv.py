@@ -20,6 +20,8 @@ import os
 import re
 import time
 import errno
+from logging import DEBUG
+
 import dill
 import numpy
 
@@ -39,7 +41,7 @@ from multiprocessing import Pool
 
 from kairos import timing
 from kairos import tools
-from kairos.tools import format_number, wait_for_element_is_stale
+from kairos.tools import format_number, wait_for_element_is_stale, print_dot
 from fastnumbers import fast_real
 
 TEST = False
@@ -336,9 +338,9 @@ def element_exists(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
         return result
 
 
-def wait_and_click(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
+def wait_and_click(browser, locator, delay=CHECK_IF_EXISTS_TIMEOUT, locator_strategy=By.CSS_SELECTOR):
     return WebDriverWait(browser, delay).until(
-        ec.element_to_be_clickable((By.CSS_SELECTOR, css_selector))).click()
+        ec.element_to_be_clickable((locator_strategy, locator))).click()
 
 
 def wait_and_click_by_xpath(browser, xpath, delay=CHECK_IF_EXISTS_TIMEOUT):
@@ -1048,6 +1050,11 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
         log.exception(err)
         snapshot(browser)
 
+    # if element_exists(browser, '#overlap-manager-root > div > div._tv-dialog-nonmodal.ui-draggable'):
+    #     action = ActionChains(browser)
+    #     action.send_keys(Keys.ESCAPE)
+    #     action.perform()
+
     # check for errors /
     previous_values = []
     last_indicator_name = ""
@@ -1409,15 +1416,18 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         i = 0
         while not indicators_present and i < 20:
             # TODO replace 'element.send_keys" with
-            #  action = ActionChains(browser)
-            #  action.send_keys(Keys.TAB)
-            #  action.perform()
+            # action = ActionChains(browser)
+            # action.send_keys(Keys.ALT + "a")
+            # action.perform()
             html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "a")
             el_options = find_elements(browser, css_selectors['options_dlg_create_alert_first_row_first_item'], By.CSS_SELECTOR, False, False, 0.5)
             indicators_present = el_options is not None
             if not indicators_present:
-                wait_and_click(browser, css_selectors['btn_alert_cancel'], 0.1)
+                try:
+                    wait_and_click(browser, css_selectors['btn_alert_cancel'], 0.1)
+                except TimeoutException as e:
+                    log.debug(e)
                 time.sleep(1)
             i += 1
 
@@ -1631,8 +1641,8 @@ def select(alert_config, current_condition, el_options, ticker_id):
 
 def clear(element):
     element.clear()
-    element.send_keys(MODIFIER_KEY + 'a')
-    element.send_keys(Keys.BACKSPACE)
+    element.send_keys(SELECT_ALL)
+    element.send_keys(Keys.DELETE)
     time.sleep(DELAY_BREAK_MINI * 0.5)
 
 
@@ -1724,13 +1734,14 @@ def set_expiration(browser, _alert_dialog, alert_config):
     # For some reason TV does not register setting the date value directly.
     # Furthermore, we need to make sure that the date and time inputs are cleared beforehand.
     input_date = find_element(alert_dialog, 'alert_exp_date', By.NAME)
-    time.sleep(DELAY_BREAK_MINI)
     clear(input_date)
-    set_value(browser, input_date, date_value, True)
+    set_value(browser, input_date, date_value, False, True)
     input_time = find_element(_alert_dialog, 'alert_exp_time', By.NAME)
     time.sleep(DELAY_BREAK_MINI)
     clear(input_time)
-    set_value(browser, input_time, time_value, True)
+    set_value(browser, input_time, time_value, False, True)
+    send_keys(input_time, Keys.TAB)
+    time.sleep(DELAY_BREAK_MINI)
 
 
 def login(browser, uid='', pwd='', retry_login=False):
@@ -2094,7 +2105,7 @@ def run(file, export_signals_immediately, multi_threading=False):
     """
         TODO:   multi threading
     """
-    log.debug("{} detected".format(OS.capitalize()))
+    log.info("Running on a {} operating system".format(OS))
     counter_alerts = 0
     total_alerts = 0
     browser = None
@@ -2130,15 +2141,31 @@ def run(file, export_signals_immediately, multi_threading=False):
             login(browser, TV_UID, TV_PWD)
             if has_screeners:
                 try:
-                    screeners_yaml = tv['screeners']
+                    max_symbols_per_watchlist = 1000  # TV limit
 
+                    screeners_yaml = tv['screeners']
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
-                            log.info("create/update watchlist '{}' from screener. Please be patient, this may take several minutes ...".format(screener_yaml['name']))
+                            log.info("extracting symbols from screener '{}'. Please be patient, this may a minute or two ...".format(screener_yaml['name']))
                             markets = get_screener_markets(browser, screener_yaml)
                             if markets:
-                                if update_watchlist(browser, screener_yaml['name'], markets):
-                                    log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(markets))))
+                                markets.sort()
+                                chunks = tools.chunks(markets, max_symbols_per_watchlist)
+                                number_of_chunks = len(markets) // max_symbols_per_watchlist + 1
+                                name = screener_yaml['name'].strip()
+                                for i, chunk in enumerate(chunks):
+                                    if i > 0:
+                                        name = "{} {}/{}".format(screener_yaml['name'], str(i+1), str(number_of_chunks))
+                                    if update_watchlist(browser, name, chunk):
+                                        log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(chunk))))
+                                # remove excess pagination watchlists, e.g. 4/5 and 5/5 when there are only 3 chunks with this update
+                                if number_of_chunks == 1:
+                                    name = screener_yaml['name'].strip() + " 1/1"
+                                wait_and_click(browser, css_selectors['btn_calendar'])
+                                time.sleep(DELAY_BREAK)
+                                wait_and_click(browser, css_selectors['btn_watchlist'])
+                                time.sleep(DELAY_BREAK)
+                                remove_watchlists(browser, name, number_of_chunks+1)
                             else:
                                 log.info('no markets to update')
                 except Exception as e:
@@ -2245,30 +2272,29 @@ def get_screener_markets(browser, screener_yaml):
     loaded = False
     max_runs = 1000
     counter = 0
+    found = False
     while not loaded and counter < max_runs:
         try:
             wait_and_click(browser, css_selectors['select_screener'], 30)
-            loaded = True
+            el_options = find_elements(browser, css_selectors['options_screeners'])
+            for i in range(len(el_options)):
+                option = el_options[i]
+                try:
+                    log.debug(option.text)
+                    if str(option.text) == screener_yaml['name']:
+                        option.click()
+                        loaded = True
+                        found = True
+                        break
+                except StaleElementReferenceException:
+                    el_options = find_elements(browser, css_selectors['options_screeners'])
+                i += 1
         except ElementClickInterceptedException:
             time.sleep(0.1)
             pass
-        counter += 1
-
-    el_options = find_elements(browser, css_selectors['options_screeners'])
-    time.sleep(DELAY_BREAK)
-    found = False
-
-    for i in range(len(el_options)):
-        option = el_options[i]
-        try:
-            log.debug(option.text)
-            if str(option.text) == screener_yaml['name']:
-                option.click()
-                found = True
-                break
         except StaleElementReferenceException:
-            el_options = find_elements(browser, css_selectors['options_screeners'])
-        i += 1
+            pass
+        counter += 1
 
     if not found:
         log.warn("screener '{}' doesn't exist.".format(screener_yaml['name']))
@@ -2279,6 +2305,39 @@ def get_screener_markets(browser, screener_yaml):
         set_value(browser, search_box, screener_yaml['search'], True)
         time.sleep(DELAY_SCREENER_SEARCH)
 
+    # sort first, otherwise scrolling doesn't work
+    # sort descending on the ticker column
+    wait_and_click(browser, 'tv-screener-table__field-value--total', locator_strategy=By.CLASS_NAME)
+    time.sleep(DELAY_BREAK * 4)
+
+    # the list is ordered
+    last_symbol = ""
+    while last_symbol == "":
+        try:
+            first_row = find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[1]', By.XPATH)
+            last_symbol = first_row.get_attribute('data-symbol')
+        except StaleElementReferenceException:
+            pass
+        except Exception as e:
+            log.exception(e)
+            break
+    log.debug("last_symbol = {}".format(last_symbol))
+    # sort ascending on the ticker column
+    wait_and_click(browser, 'tv-screener-table__field-value--total', locator_strategy=By.CLASS_NAME)
+    time.sleep(DELAY_BREAK * 4)
+
+    # move to the first row
+    run_again = True
+    while run_again:
+        run_again = False
+        try:
+            ActionChains(browser).move_to_element(find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[1]', By.XPATH, False, True)).perform()
+        except StaleElementReferenceException:
+            run_again = True
+        except Exception as e:
+            log.exception(e)
+
+    # get total found
     el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
     total_found = 0
     try:
@@ -2288,35 +2347,55 @@ def get_screener_markets(browser, screener_yaml):
         pass
     log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
 
+    symbol = ""
     row_height = 50
-    scroll_factor = 40
-    while len(markets) < total_found:
-        browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
+    scroll_factor = 100
+    dots = 0
+    while symbol != last_symbol:
+        dots = print_dot(dots)
+        try:
+            browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
+            last_row = find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[last()]', By.XPATH)
+            symbol = last_row.get_attribute('data-symbol')
+            # move to the last row
+            ActionChains(browser).move_to_element(last_row).perform()
+        except StaleElementReferenceException:
+            pass
+
+    tries = 0
+    max_tries = 3
+    while len(markets) < total_found and tries < max_tries:
+        tries = tries + 1
+
         rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 10)
+
         i = 0
         while i < len(rows):
+            if i > 0 and i % 40 == 0:
+                dots = print_dot(dots)
+            market = ""
             try:
                 market = rows[i].get_attribute('data-symbol')
+                # log.info(market)
             except StaleElementReferenceException:
-                WebDriverWait(browser, 5).until(
-                    ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
-                # try again
-                browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-                rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
-                market = rows[i].get_attribute('data-symbol')
+                pass
             except IndexError as e:
                 log.exception(e)
             i += 1
-            # noinspection PyUnboundLocalVariable
             markets.append(market)
-        markets = list(set(markets))
 
-    log.debug('extracted {} markets'.format(str(len(markets))))
+        markets = list(set(markets))
+    print(' DONE')
+    log.info('extracted {} markets'.format(str(len(markets))))
     return markets
 
 
 def update_watchlist(browser, name, markets):
     try:
+        if isinstance(markets, str):
+            markets = markets.split(',')
+        log.info("updating {} with {} markets. Please be patient, this will take a while (100 markets/min or so) ...".format(name, len(markets)))
+
         wait_and_click(browser, css_selectors['btn_calendar'])
         time.sleep(DELAY_BREAK)
         wait_and_click(browser, css_selectors['btn_watchlist'])
@@ -2324,9 +2403,6 @@ def update_watchlist(browser, name, markets):
         wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
         time.sleep(DELAY_BREAK)
         input_symbol = find_element(browser, css_selectors['input_watchlist_add_symbol'])
-
-        if isinstance(markets, str):
-            markets = markets.split(',')
 
         wait_and_click_by_text(browser, 'div', 'Create new list')
         time.sleep(DELAY_BREAK)
@@ -2361,13 +2437,15 @@ def update_watchlist(browser, name, markets):
 
 def add_markets_to_watchlist(browser, input_symbol, markets):
     added = 0
+    dots = 0
     missing = []
     for market in markets:
+        dots = print_dot(dots)
         if add_market_to_watchlist(browser, input_symbol, market):
             added += 1
         else:
             missing.append(market)
-
+    print(" DONE")
     return added, missing
 
 
@@ -2379,30 +2457,59 @@ def add_market_to_watchlist(browser, input_symbol, market, tries=0):
     if not added:
         tries += 1
         max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
-        if tries < max_tries:
-            add_market_to_watchlist(browser, input_symbol, market, tries)
-            log.info("{} trying again... ({}/{})".format(market, tries, max_tries))
+        if tries <= max_tries:
+            added = add_market_to_watchlist(browser, input_symbol, market, tries)
+            if log.level == DEBUG:
+                print("")
+                log.debug("{} trying again... ({}/{})".format(market, tries, max_tries))
     return added
 
 
-def remove_watchlists(browser, name):
+def remove_watchlists(browser, name, from_pagination_page=0):
+    """
+    Removes old watchlists.
+    @param browser
+    @param name, the name of the watchlist including pagination (if any). For example, BTC markets, BTC markets 2/3
+    @param from_pagination_page, when higher than 0, this method will remove all watchlists with a pagination page higher or equal. For example, with a from_pagination_page of 3, BTC markets 3/4 and 4/4 will be removed but BTC markets 2/4 will not be removed.
+    """
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
     el_options = []
     try:
         # make sure we hover over the element to hide any tooltips of other elements
         hover(browser, find_element(browser, css_selectors['btn_watchlist_submenu']))
+        time.sleep(DELAY_BREAK)
         wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-        time.sleep(DELAY_BREAK)
+        time.sleep(DELAY_BREAK*4)
         el_options = find_elements(browser, css_selectors['options_watchlist'])
-        time.sleep(DELAY_BREAK)
     except Exception as e:
         log.exception(e)
         snapshot(browser)
 
+    page = 0
+    basename = name.strip()
+    match = re.search(rf"^(.+)\s(\d+)/(\d+)$", name)
+    if match:
+        if match[1]:
+            basename = match[1].strip()
+        if match[2]:
+            page = int(match[2])
+
+    regex = rf"^{basename}$"
+    if from_pagination_page:
+        regex = rf"^{basename}\s+(\d+)/(\d+)$"
+    elif page:
+        regex = rf"^{basename}\s+({page})/(\d+)$"
+
+    # remove all watch lists with the name, and with the name followed by pagination
+    # e.g. BTC markets, BTC markets 2/3 and BTC markets 3/3
     j = 0
     while j < len(el_options):
         try:
-            if str(el_options[j].text) == name:
+            option_title = str(el_options[j].text)
+            match = re.search(regex, option_title)
+
+            if (match and from_pagination_page == 0) or (match and match.lastindex and int(match.group(1)) >= from_pagination_page > 0):
+                log.debug("found match for {} with regex {} -> {}".format(name, regex, option_title))
                 # get the removal button
                 # the active watchlist doesn't have a remove button, so we need to check if it is actually there
                 btn_delete = find_element(el_options[j], 'span[class^="removeButton"]', By.CSS_SELECTOR, False, False, 1)

@@ -4,9 +4,9 @@ urllib3<1.25,>=1.21.1
 selenium
 configparser
 tools
-pip>=18.1
+pip
 Pillow
-requests>=2.21
+requests
 gspread
 google-api-python-client
 oauth2client
@@ -15,6 +15,7 @@ dill
 numpy
 fastnumbers
 psutil
+Cython
 
 [platform_system == "Darwin"]
 pyobjc-core

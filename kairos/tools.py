@@ -332,3 +332,13 @@ def get_operating_system():
     elif os.name == 'posix':
         result = 'linux'
     return result
+
+
+def print_dot(dots=0):
+    if dots == 100:
+        print('.')
+        dots = 0
+    else:
+        print('.', end='')
+        dots = dots + 1
+    return dots
