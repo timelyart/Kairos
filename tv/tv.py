@@ -426,10 +426,11 @@ def find_elements(browser, locator, locator_strategy=By.CSS_SELECTOR, except_on_
             return None
 
 
-def hover(browser, element, click=False):
+def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
     action = ActionChains(browser)
     action.move_to_element(element)
     if click:
+        time.sleep(delay)
         action.click(element)
     action.perform()
 
@@ -1449,7 +1450,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_first_item'])
-        if not select(alert_config, current_condition, el_options, symbol):
+        if not select(browser, alert_config, current_condition, el_options, symbol):
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # 1st row, 2nd condition (if applicable)
@@ -1458,7 +1459,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             current_condition += 1
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
-            if not select(alert_config, current_condition, el_options, symbol):
+            if not select(browser, alert_config, current_condition, el_options, symbol):
                 return False
 
         # 2nd row, 1st condition
@@ -1466,7 +1467,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         css_2nd_row = css_selectors['dlg_create_alert_second_row']
         wait_and_click(alert_dialog, css_2nd_row)
         el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_second_row'])
-        if not select(alert_config, current_condition, el_options, symbol):
+        if not select(browser, alert_config, current_condition, el_options, symbol):
             return False
 
         # 3rd+ rows, remaining conditions
@@ -1625,7 +1626,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     return True
 
 
-def select(alert_config, current_condition, el_options, ticker_id):
+def select(browser, alert_config, current_condition, el_options, ticker_id):
     log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
     value = str(alert_config['conditions'][current_condition])
 
@@ -1633,10 +1634,10 @@ def select(alert_config, current_condition, el_options, ticker_id):
         value = ticker_id.split(':')[1]
 
     found = False
-    for option in el_options:
+    for i, option in enumerate(el_options):
         option_tv = str(option.get_attribute("innerHTML")).strip()
         if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
-            option.click()
+            hover(browser, option, True, 0.5)
             found = True
             break
     if not found:
