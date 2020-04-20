@@ -316,25 +316,25 @@ def refresh(browser):
         wait_and_click(browser, css_selectors['btn_watchlist'])
 
 
-def element_exists(browser, css_selector, delay=CHECK_IF_EXISTS_TIMEOUT):
+def element_exists(browser, locator, delay=CHECK_IF_EXISTS_TIMEOUT, locator_strategy = By.CSS_SELECTOR):
     result = False
     try:
-        element = find_element(browser, css_selector, By.CSS_SELECTOR, delay)
+        element = find_element(browser, locator, locator_strategy, delay)
         result = type(element) is WebElement
     except NoSuchElementException:
-        log.debug('No such element. CSS SELECTOR=' + css_selector)
+        log.debug('No such element. SELECTOR=' + locator)
         # print the session_id and url in case the element is not found
         # noinspection PyProtectedMember
         log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
     except TimeoutException:
-        log.debug('No such element. CSS SELECTOR=' + css_selector)
+        log.debug('No such element. SELECTOR=' + locator)
     except Exception as element_exists_error:
         log.error(element_exists_error)
-        log.debug("Check your CSS locator: {}".format(css_selector))
+        log.debug("Check your locator: {}".format(locator))
         # noinspection PyProtectedMember
         log.debug("In case you want to reuse session, the session_id and _url for current browser session are: {},{}".format(browser.session_id, browser.command_executor._url))
     finally:
-        log.debug("{} ({})".format(str(result), css_selector))
+        log.debug("{} ({})".format(str(result), locator))
         return result
 
 
@@ -828,20 +828,27 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             # open list of watchlists element
             log.debug("collecting symbols from watchlist {}".format(watchlist))
 
-            # open watchlist
-            watchlist_opened = False
-            wait_and_click(browser, css_selectors['input_symbol'])
-            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-            time.sleep(DELAY_BREAK)
+            # check if watchlist is already opened
             try:
-                xpath = '//span[contains(text(), "{}")][last()]'.format(watchlist)
-                WebDriverWait(browser, CHECK_IF_EXISTS_TIMEOUT).until(ec.element_to_be_clickable((By.XPATH, xpath))).click()
-                wait_and_click_by_xpath(browser, xpath)
-                # log.info(xpath)
-                # time.sleep(2)
-                watchlist_opened = True
-            except Exception as e:
-                log.debug(e)
+                xpath = '//div[@data-role="button"]/span/span[contains(text(), "{}")][1]'.format(watchlist)
+                watchlist_opened = element_exists(browser, xpath, 0.5, By.XPATH)
+            except TimeoutException:
+                watchlist_opened = False
+
+            # open watchlist
+            if not watchlist_opened:
+                wait_and_click(browser, css_selectors['input_symbol'])
+                wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+                time.sleep(DELAY_BREAK)
+                try:
+                    xpath = '//span[contains(text(), "{}")][last()]'.format(watchlist)
+                    WebDriverWait(browser, CHECK_IF_EXISTS_TIMEOUT).until(ec.element_to_be_clickable((By.XPATH, xpath))).click()
+                    wait_and_click_by_xpath(browser, xpath)
+                    # html = find_element(browser, 'html')
+                    # html.send_keys(Keys.ESCAPE)
+                    watchlist_opened = True
+                except Exception as e:
+                    log.debug(e)
 
             if watchlist_opened:
                 # wait until the list is loaded
