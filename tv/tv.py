@@ -86,8 +86,8 @@ ALREADY_LOGGED_IN = False
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
 OS = tools.get_operating_system()
-if OS == 'macos':
-    MODIFIER_KEY = Keys.COMMAND
+# if OS == 'macos':
+#     MODIFIER_KEY = Keys.COMMAND
 
 SELECT_ALL = MODIFIER_KEY + 'a'
 CUT = MODIFIER_KEY + 'x'
@@ -1318,15 +1318,20 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
     try:
 
         if config.has_option('tradingview', 'tradingview_screenshot') and config.getboolean('tradingview', 'tradingview_screenshot'):
-            action = ActionChains(browser)
-            action.send_keys(Keys.ALT + "s")
-            action.perform()
+            #  This alternative implementation for 'element.send_keys' does not work on Linux
+            #  action = ActionChains(browser)
+            #  action.send_keys(Keys.TAB)
+            #  action.perform()
+            html = find_element(browser, 'html')
+            html.send_keys(Keys.ALT + "s")
             time.sleep(DELAY_SCREENSHOT_DIALOG)
-            input_screenshot_url = find_element(browser, css_selectors['dlg_screenshot_url'])
+            input_screenshot_url = find_element(html, css_selectors['dlg_screenshot_url'])
             screenshot_url = input_screenshot_url.get_attribute('value')
-            action = ActionChains(browser)
-            action.send_keys(Keys.ESCAPE)
-            action.perform()
+            #  This alternative implementation for 'element.send_keys' does not work on Linux
+            #  action = ActionChains(browser)
+            #  action.send_keys(Keys.TAB)
+            #  action.perform()
+            html.send_keys(Keys.ESCAPE)
             log.debug(screenshot_url)
 
         elif screenshot_dir != '':
