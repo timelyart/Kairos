@@ -6,6 +6,8 @@ import sys
 from datetime import datetime, timedelta
 import time
 import math
+import platform
+
 import psutil
 import yaml
 from selenium.common.exceptions import StaleElementReferenceException
@@ -326,11 +328,9 @@ def path_in_use(path, log=None):
 
 
 def get_operating_system():
-    result = 'windows'
-    if sys.platform == 'os2':
+    result = platform.system().lower()
+    if result == 'Darwin':
         result = 'macos'
-    elif os.name == 'posix':
-        result = 'linux'
     return result
 
 
