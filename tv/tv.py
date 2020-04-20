@@ -2146,7 +2146,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                     screeners_yaml = tv['screeners']
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
-                            log.info("extracting symbols from screener '{}'. Please be patient, this may a minute or two ...".format(screener_yaml['name']))
+                            log.info("extracting symbols from screener '{}'. Please be patient, this may take a minute or two ...".format(screener_yaml['name']))
                             markets = get_screener_markets(browser, screener_yaml)
                             if markets:
                                 markets.sort()
