@@ -1634,10 +1634,10 @@ def select(browser, alert_config, current_condition, el_options, ticker_id):
         value = ticker_id.split(':')[1]
 
     found = False
-    for i, option in enumerate(el_options):
+    for option in el_options:
         option_tv = str(option.get_attribute("innerHTML")).strip()
         if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
-            hover(browser, option, True, 0.5)
+            hover(browser, option, True)
             found = True
             break
     if not found:
