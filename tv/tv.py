@@ -104,8 +104,9 @@ css_selectors = dict(
     # ALERTS
     username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
     signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
+    show_email_or_username='div.tv-signin-dialog__area.tv-signin-dialog__area--auth > div.js-pages-wrap > div > div.i-clearfix.active > div > span',
     input_username='#signin-form > div.tv-control-error > div.tv-control-material-input__wrap > input',
-    input_password='#signin-form > div.tv-signin-dialog__forget-wrap > div.tv-control-error > div.tv-control-material-input__wrap > input',
+    input_password='#signin-form > div:nth-child(3) > div > div.tv-control-material-input__wrap > input',
     btn_login='#signin-form > div.tv-signin-dialog__footer.tv-signin-dialog__footer--login > div:nth-child(2) > button',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
@@ -113,7 +114,7 @@ css_selectors = dict(
     options_watchlist='div[data-name="menu-inner"] div[class^="item"]',
     input_symbol='#header-toolbar-symbol-search > div > input',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
-    btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > a:last-child',
+    btn_alert_menu='div.widgetbar-widget-alerts_manage > div > div > div:nth-child(2) > span',
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
     btn_create_alert='#header-toolbar-alerts',
@@ -1196,17 +1197,13 @@ def process_symbol(browser, chart, symbol, timeframe, counter_alerts, total_aler
                     wait_and_click(browser, css_selectors['btn_calendar'])
                     wait_and_click(browser, css_selectors['btn_alerts'])
                     wait_and_click(browser, css_selectors['btn_alert_menu'])
-                    # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
-                    # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+
                     try:
-                        # check if we are on the front page
                         wait_and_click_by_text(browser, 'div', 'Delete all inactive')
+                        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                        time.sleep(DELAY_BREAK * 8)
                     except TimeoutException as e:
                         log.debug(e)
-                        # check if we are on a chart
-                        wait_and_click_by_text(browser, 'span', 'Delete all Inactive')
-                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                    time.sleep(DELAY_BREAK * 8)
 
                     # update counter
                     alerts = find_elements(browser, css_selectors['item_alerts'])
@@ -1801,6 +1798,7 @@ def login(browser, uid='', pwd='', retry_login=False):
 
     try:
         wait_and_click(browser, css_selectors['signin'])
+        wait_and_click(browser, css_selectors['show_email_or_username'])
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
             while uid == '':
@@ -2192,17 +2190,14 @@ def run(file, export_signals_immediately, multi_threading=False):
                         wait_and_click(browser, css_selectors['btn_calendar'])
                         wait_and_click(browser, css_selectors['btn_alerts'])
                         wait_and_click(browser, css_selectors['btn_alert_menu'])
-                        # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
-                        # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+
                         try:
-                            # check if we are on the front page
                             wait_and_click_by_text(browser, 'div', 'Delete all', '', CHECK_IF_EXISTS_TIMEOUT, 1)
+                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                            time.sleep(DELAY_BREAK * 2)
                         except TimeoutException as e:
                             log.debug(e)
-                            # check if we are on a chart
-                            wait_and_click_by_text(browser, 'span', 'Delete All', '', CHECK_IF_EXISTS_TIMEOUT, 1)
-                        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                        time.sleep(DELAY_BREAK * 2)
+
                     else:
                         if config.getboolean('tradingview', 'restart_inactive_alerts'):
                             wait_and_click(browser, css_selectors['btn_calendar'])
@@ -2213,27 +2208,23 @@ def run(file, export_signals_immediately, multi_threading=False):
                             try:
                                 # check if we are on the front page
                                 wait_and_click_by_text(browser, 'div', 'Restart all inactive')
+                                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                                time.sleep(DELAY_BREAK * 2)
                             except TimeoutException as e:
                                 log.debug(e)
-                                # check if we are on a chart
-                                wait_and_click_by_text(browser, 'span', 'Restart All Inactive')
-                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK * 2)
+
                         elif config.getboolean('tradingview', 'clear_inactive_alerts'):
                             wait_and_click(browser, css_selectors['btn_calendar'])
                             wait_and_click(browser, css_selectors['btn_alerts'])
                             wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
-                            # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
+
                             try:
-                                # check if we are on the front page
                                 wait_and_click_by_text(browser, 'div', 'Delete all inactive')
+                                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                                time.sleep(DELAY_BREAK * 2)
                             except TimeoutException as e:
                                 log.debug(e)
-                                # check if we are on a chart
-                                wait_and_click_by_text(browser, 'span', 'Delete All Inactive')
-                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK * 2)
+
                         # count the number of existing alerts
                         alerts = find_elements(browser, css_selectors['item_alerts'], By.CSS_SELECTOR, False)
                         if isinstance(alerts, list):
