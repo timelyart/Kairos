@@ -317,7 +317,7 @@ def refresh(browser):
         wait_and_click(browser, css_selectors['btn_watchlist'])
 
 
-def element_exists(browser, locator, delay=CHECK_IF_EXISTS_TIMEOUT, locator_strategy = By.CSS_SELECTOR):
+def element_exists(browser, locator, delay=CHECK_IF_EXISTS_TIMEOUT, locator_strategy=By.CSS_SELECTOR):
     result = False
     try:
         element = find_element(browser, locator, locator_strategy, delay)
@@ -437,7 +437,7 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 
 
 def close_cookies_message(browser):
-    xpath = '//strong[contains(text(), "cookies")]/following-sibling::div/button'
+    xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/button'
     try:
         wait_and_click_by_xpath(browser, xpath, 2)
         log.info("Cookie banner found")
@@ -1775,6 +1775,8 @@ def login(browser, uid='', pwd='', retry_login=False):
             except Exception as e:
                 log.debug(e)
 
+            close_cookies_message(browser)
+
             # if logged in under a different username or not logged in at all log out and then log in again
             try:
                 elem_username = wait_and_visible(browser, css_selectors['username'], 5)
@@ -1798,7 +1800,11 @@ def login(browser, uid='', pwd='', retry_login=False):
 
     try:
         wait_and_click(browser, css_selectors['signin'])
-        wait_and_click(browser, css_selectors['show_email_or_username'])
+        show_email_or_username = find_element(browser, css_selectors['show_email_or_username'])
+        # sometimes the email/usernam & password fields are hidden, if so click on the 'expand' button
+        if show_email_or_username.get_attribute('class').find('i-hidden') < 0:
+            wait_and_click(browser, css_selectors['show_email_or_username'])
+
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
             while uid == '':
@@ -1845,7 +1851,6 @@ def login(browser, uid='', pwd='', retry_login=False):
     except Exception as e:
         log.error(e)
         snapshot(browser, True)
-    close_cookies_message(browser)
 
 
 def assign_user_data_directory():

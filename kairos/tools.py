@@ -307,7 +307,7 @@ def wait_for_page_load(self, timeout=10):
 def path_in_use(path, log=None):
     for process in psutil.process_iter(['name']):
         try:
-            if process.name().find('chrome') >= 0:
+            if process.name().lower().find('chrome') >= 0:
                 files = process.open_files()
                 if files:
                     for f in files:
