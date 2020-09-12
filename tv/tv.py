@@ -41,7 +41,7 @@ from multiprocessing import Pool
 
 from kairos import timing
 from kairos import tools
-from kairos.tools import format_number, wait_for_element_is_stale, print_dot
+from kairos.tools import format_number, wait_for_element_is_stale, print_dot, unicode_to_float_int
 from fastnumbers import fast_real
 
 TEST = False
@@ -715,11 +715,11 @@ def is_indicator_triggered(indicator, values):
                         ignore = indicator['trigger']['left-hand-side']['ignore']
                     index = int(indicator['trigger']['left-hand-side']['index'])
                     try:
-                        if index < len(values) and not (values[index] in ignore):
+                        if values and index < len(values) and not (values[index] in ignore):
                             lhs = values[index]
                     except IndexError:
                         log.exception('YAML value trigger -> left-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
-                if lhs == '' and indicator['trigger']['left-hand-side']['value'] != '':
+                if lhs == '' and 'value' in indicator['trigger']['left-hand-side'] and indicator['trigger']['left-hand-side']['value'] != '':
                     lhs = indicator['trigger']['left-hand-side']['value']
             if 'right-hand-side' in indicator['trigger']:
                 if 'index' in indicator['trigger']['right-hand-side'] and str(indicator['trigger']['right-hand-side']['index']).isdigit():
@@ -728,21 +728,16 @@ def is_indicator_triggered(indicator, values):
                         ignore = indicator['trigger']['right-hand-side']['ignore']
                     index = int(indicator['trigger']['right-hand-side']['index'])
                     try:
-                        if index < len(values) and not (values[index] in ignore):
+                        if values and index < len(values) and not (values[index] in ignore):
                             rhs = values[index]
                     except IndexError:
                         log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
-                if rhs == '' and indicator['trigger']['right-hand-side']['value'] != '':
+                if rhs == '' and 'value' in indicator['trigger']['right-hand-side'] and indicator['trigger']['right-hand-side']['value'] != '':
                     rhs = indicator['trigger']['right-hand-side']['value']
 
-            if not (lhs is None or lhs == '' or rhs is None or rhs == ''):
-                try:
-                    lhs = float(lhs)
-                    rhs = float(rhs)
-                except Exception as e:
-                    log.debug(e)
-                    lhs = str(lhs)
-                    rhs = str(rhs)
+            if not ((lhs is None or lhs == '') and (rhs is None or rhs == '')):
+                lhs = unicode_to_float_int(lhs)
+                rhs = unicode_to_float_int(rhs)
 
                 try:
                     if comparison == '=':
@@ -758,7 +753,7 @@ def is_indicator_triggered(indicator, values):
                     elif comparison == '<':
                         result = lhs < rhs
                 except Exception as e:
-                    log.exception(e)
+                    log.debug(e)
             else:
                 if lhs == '':
                     lhs = 'undefined'
