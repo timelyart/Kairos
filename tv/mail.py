@@ -307,18 +307,18 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
         email_config = None
         if summary_config and 'email' in summary_config:
             email_config = summary_config['email']
-        if 'to' in email_config and len(email_config['to']) > 0:
-            to = email_config['to']
-            if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
-                headers['To'] = ",".join(to)
-        if 'cc' in email_config and len(email_config['cc']) > 0:
-            cc = email_config['cc']
-            if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
-                headers['Cc'] = ",".join(cc)
-        if 'bcc' in email_config and len(email_config['bcc']) > 0:
-            bcc = email_config['bcc']
-        if 'subject' in email_config and email_config['subject'] != '':
-            headers['Subject'] = '' + email_config['subject']
+            if 'to' in email_config and len(email_config['to']) > 0:
+                to = email_config['to']
+                if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                    headers['To'] = ",".join(to)
+            if 'cc' in email_config and len(email_config['cc']) > 0:
+                cc = email_config['cc']
+                if 'one-mail-per-recipient' in email_config and not email_config['one-mail-per-recipient']:
+                    headers['Cc'] = ",".join(cc)
+            if 'bcc' in email_config and len(email_config['bcc']) > 0:
+                bcc = email_config['bcc']
+            if 'subject' in email_config and email_config['subject'] != '':
+                headers['Subject'] = '' + email_config['subject']
 
         count = 0
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
@@ -406,7 +406,7 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
 
         recipients = to + cc + bcc
 
-        if ((not email_config) or ('send' in email_config and email_config['send'])) and len(merged) > 0:
+        if email_config and 'send' in email_config and email_config['send'] and len(merged) > 0:
             context = ssl.create_default_context()
             with smtplib.SMTP_SSL(smtp_server, context=context) as server:
                 server.login(uid, pwd)
