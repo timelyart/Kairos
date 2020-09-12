@@ -254,6 +254,20 @@ def format_number(value, precision=8):
     return result
 
 
+def unicode_to_float_int(unicode_str):
+    if unicode_str:
+        string = unicode_str.translate({0x2c: '.', 0xa0: None, 0x2212: '-'})
+        if string.isdigit():
+            return int(string)
+        else:
+            try:
+                return float(string)
+            except ValueError:
+                return string
+    else:
+        return unicode_str
+
+
 def wait_for(condition_function, timeout=5):
     start_time = time.time()
     while time.time() < start_time + (timeout / 0.01):
