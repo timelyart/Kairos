@@ -256,7 +256,7 @@ def format_number(value, precision=8):
 
 def unicode_to_float_int(unicode_str):
     if unicode_str:
-        string = unicode_str.translate({0x2c: '.', 0xa0: None, 0x2212: '-'})
+        string = str(unicode_str).translate({0x2c: '.', 0xa0: None, 0x2212: '-'})
         if string.isdigit():
             return int(string)
         else:
