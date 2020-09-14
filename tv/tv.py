@@ -104,10 +104,10 @@ css_selectors = dict(
     # ALERTS
     username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
     signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
-    show_email_or_username='div.tv-signin-dialog__area.tv-signin-dialog__area--auth > div.js-pages-wrap > div > div.i-clearfix.active > div > span',
-    input_username='#signin-form > div.tv-control-error > div.tv-control-material-input__wrap > input',
-    input_password='#signin-form > div:nth-child(3) > div > div.tv-control-material-input__wrap > input',
-    btn_login='#signin-form > div.tv-signin-dialog__footer.tv-signin-dialog__footer--login > div:nth-child(2) > button',
+    show_email_and_username='js-show-email',
+    input_username='input[name="username"]',
+    input_password='input[name="password"]',
+    btn_login='button[type = "submit"]',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     input_watchlist_add_symbol='div.widgetbar-widget.widgetbar-widget-watchlist input',
@@ -1795,10 +1795,9 @@ def login(browser, uid='', pwd='', retry_login=False):
 
     try:
         wait_and_click(browser, css_selectors['signin'])
-        show_email_or_username = find_element(browser, css_selectors['show_email_or_username'])
-        # sometimes the email/usernam & password fields are hidden, if so click on the 'expand' button
-        if show_email_or_username.get_attribute('class').find('i-hidden') < 0:
-            wait_and_click(browser, css_selectors['show_email_or_username'])
+
+        if element_exists(browser, css_selectors['show_email_and_username']):
+            wait_and_click(browser, css_selectors['show_email_and_username'])
 
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
