@@ -1,6 +1,6 @@
 pyyaml
 beautifulsoup4
-urllib3<1.25,>=1.21.1
+urllib3
 selenium
 configparser
 tools
