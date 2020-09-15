@@ -661,7 +661,7 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
             log.debug("indicator {}loaded (tries: {})".format(indicator_name + " ", tries))
             elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
             for e in elem_values:
-                result.append(e.text)
+                result.append(str(e.text).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
     except StaleElementReferenceException:
         log.debug('StaleElementReferenceException in values')
         return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
@@ -774,7 +774,7 @@ def save_strategy_results(data, save_as):
     if not os.path.exists('output'):
         os.mkdir('output')
     filename = os.path.join('output', filename)
-    with open(filename, 'w+') as file:
+    with open(filename, 'w+', encoding="utf-8") as file:
         file.write(data)
 
 
