@@ -111,7 +111,7 @@ def process_body(msg, browser):
             url = tv_generated_url
 
         # search_screenshots =
-        match = re.search("screenshots_to_include: \\[(.*)\\]", body)
+        match = re.search("screenshots_to_include: \\[(.*)]", body)
         if match:
             screenshot_charts = match.group(1).split(',')
             log.debug('charts to include:' + str(screenshot_charts))
