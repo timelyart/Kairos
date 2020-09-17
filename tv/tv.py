@@ -1940,7 +1940,7 @@ def create_browser(run_in_background):
     initial_setup = False
 
     options = webdriver.ChromeOptions()
-    options.add_argument("--incognito")
+    # options.add_argument("--incognito")
     if config.has_option('webdriver', 'web_browser_path'):
         web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
         options.binary_location = web_browser_path
