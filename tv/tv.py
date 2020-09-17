@@ -837,9 +837,9 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
                 time.sleep(DELAY_BREAK)
                 try:
-                    xpath = '//span[contains(text(), "{}")][last()]'.format(watchlist)
+                    xpath = '//div[@data-name="menu-inner"]//span[starts-with(text(), "{}")][last()]'.format(watchlist)
                     WebDriverWait(browser, CHECK_IF_EXISTS_TIMEOUT).until(ec.element_to_be_clickable((By.XPATH, xpath))).click()
-                    wait_and_click_by_xpath(browser, xpath)
+                    # wait_and_click_by_xpath(browser, xpath, 10)
                     # html = find_element(browser, 'html')
                     # html.send_keys(Keys.ESCAPE)
                     watchlist_opened = True
@@ -2453,13 +2453,21 @@ def add_markets_to_watchlist(browser, input_symbol, markets):
 
 
 def add_market_to_watchlist(browser, input_symbol, market, tries=0):
-    set_value(browser, input_symbol, market)
-    input_symbol.send_keys(Keys.ENTER)
+    max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
+
+    try:
+        set_value(browser, input_symbol, market)
+        input_symbol.send_keys(Keys.ENTER)
+    except Exception as e:
+        if tries <= max_tries:
+            log.debug(e)
+        else:
+            log.exception(e)
+            snapshot(browser)
 
     added = element_exists(browser, 'div[data-symbol-full="{}"]'.format(market))
     if not added:
         tries += 1
-        max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
         if tries <= max_tries:
             added = add_market_to_watchlist(browser, input_symbol, market, tries)
             if log.level == DEBUG:
