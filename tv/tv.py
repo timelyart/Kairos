@@ -104,7 +104,7 @@ css_selectors = dict(
     # ALERTS
     username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
     signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
-    show_email_and_username='js-show-email',
+    show_email_and_username='span.js-show-email',
     input_username='input[name="username"]',
     input_password='input[name="password"]',
     btn_login='button[type = "submit"]',
@@ -1940,7 +1940,7 @@ def create_browser(run_in_background):
     initial_setup = False
 
     options = webdriver.ChromeOptions()
-    # options.add_argument("--incognito")
+    options.add_argument("--incognito")
     if config.has_option('webdriver', 'web_browser_path'):
         web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
         options.binary_location = web_browser_path
