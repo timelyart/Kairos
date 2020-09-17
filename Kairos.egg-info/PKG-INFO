@@ -1,8 +1,8 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 2.5
+Version: 2.6
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
-Home-page: UNKNOWN
+Home-page: https://github.com/timelyart/Kairos
 Author: timelyart
 Author-email: timelyart@protonmail.com
 License: End-User License Agreement: https://www.eulatemplate.com/live.php?token=zduUYsiBp0PFzzX0UANHUodYVMifuNRp
