@@ -17,6 +17,9 @@ charts:
   # Define performance options specific to this YAML, i.e. the values defined here overwrite those set under [performance]
   # in your kairos.cfg.
   performance: { read_all_values_at_once: yes }
+  # Checks whether a market is still listed.
+  # If you are sure that your watchlists are without delisted tickers you can set this to no and enjoy a performance gain of around 10%
+  verify_market_listing: no
   # Signals listed must be available from the chart which is loaded through the 'url' parameter
   # The chart has to be configured to 'Auto (Fits Data To Screen)'. If it isn't then you may get false positives.
   # Note that signal results are communicated immediately if a 'summary' section is found in this file.
