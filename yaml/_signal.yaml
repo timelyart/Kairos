@@ -11,6 +11,12 @@ charts:
   timeframes: [1 day]
   # Define one or more watchlists
   watchlists: ["<my_watchlist>"]
+  # Define delays specific to this YAML, i.e. the values defined here overwrite those set under [delays] in your kairos.cfg
+  # Please, see your kairos.cfg
+  delays: { change_symbol: 0.2, submit_alert: 1 }
+  # Define performance options specific to this YAML, i.e. the values defined here overwrite those set under [performance]
+  # in your kairos.cfg.
+  performance: { read_all_values_at_once: yes }
   # Signals listed must be available from the chart which is loaded through the 'url' parameter
   # The chart has to be configured to 'Auto (Fits Data To Screen)'. If it isn't then you may get false positives.
   # Note that signal results are communicated immediately if a 'summary' section is found in this file.
@@ -36,6 +42,11 @@ charts:
         # If you have multiple indicators with the same name, e.g. EMA, then you'll need to define the index as well as the name.
         # NOTE: if you remove and then add an indicator the order and indices of indicators might have changed.
         indicator_index: 0
+        # Optional. Speed up Kairos by pointing it to the index of a value of the indicator.
+        # If you don't want or can't use this option, set the value to '' or False or remove the option altogether.
+        # NOTE: the indicator's value at index <<is_loaded>> should ALWAYS have a value, i.e. the value may never be 'n/a' at
+        # any given moment or it will slow down Kairos.
+        verify_indicator_loaded: 4
         # Optional. Define how this indicator will (partly) trigger the signal. If no trigger is defined, it will always return true.
         # A trigger is defined by equating a left-hand side with a right-hand side.
         # Although optional, at least one of the indicators should have a trigger defined.
