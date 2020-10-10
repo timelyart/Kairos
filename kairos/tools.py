@@ -322,12 +322,18 @@ def path_in_use(path, log=None):
     for process in psutil.process_iter(['name']):
         try:
             if process.name().lower().find('chrome') >= 0:
-                files = process.open_files()
-                if files:
-                    for f in files:
-                        # log.info("{}\t{}".format(message, f.path))
-                        if f.path.find(path) >= 0:
-                            return True
+                try:
+                    files = process.open_files()
+                    if files:
+                        for f in files:
+                            # log.info("{}\t{}".format(message, f.path))
+                            if f.path.find(path) >= 0:
+                                return True
+                except psutil.AccessDenied:
+                    log.exception("unable to close {}. Access Denied. Please run Kairos as Administrator (Windows), or with sudo (Linux).")
+                    exit(0)
+                except Exception as e:
+                    log.exception(e)
         # This catches access denied errors of processes we don't have access to
         except psutil.AccessDenied:
             continue
