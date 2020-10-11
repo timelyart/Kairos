@@ -663,11 +663,8 @@ def move_to_data_window_indicator(browser, indicator, retry_number=0):
 
 
 def wait_until_indicator_values_are_loaded(browser, indicator):
-    if READ_FROM_DATA_WINDOW:
-        if indicator and 'verify_indicator_loaded' in indicator and indicator['verify_indicator_loaded']:
-            wait_until_data_window_indicator_is_loaded(browser, indicator)
-        else:
-            time.sleep(DELAY_READ_INDICATOR_VALUE)
+    if indicator and 'verify_indicator_loaded' in indicator and indicator['verify_indicator_loaded']:
+        wait_until_data_window_indicator_is_loaded(browser, indicator)
 
 
 def wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number=0):
@@ -892,15 +889,16 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
                         value = get_data_window_indicator_value(browser, indicator, index)
                         if not (value in ignore):
                             rhs = value
-                    try:
-                        if values and index < len(values) and not (values[index] in ignore):
-                            rhs = values[index]
-                    except IndexError:
-                        log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
+                    elif values and index < len(values):
+                        try:
+                            if not (values[index] in ignore):
+                                rhs = values[index]
+                        except IndexError:
+                            log.exception('YAML value trigger -> right-hand-side -> index is out of range. Index is {} but must be between 0 and {}'.format(str(index), str(len(values)-1)))
                 if rhs == '' and 'value' in indicator['trigger']['right-hand-side'] and indicator['trigger']['right-hand-side']['value'] != '':
                     rhs = indicator['trigger']['right-hand-side']['value']
-
-            if not ((lhs is None or lhs == '') and (rhs is None or rhs == '')):
+            # log.info('{} {} {} ?'.format(repr(lhs), comparison, repr(rhs)))
+            if (not (lhs is None or lhs == '')) and (not (rhs is None or rhs == '')):
                 lhs = unicode_to_float_int(lhs)
                 rhs = unicode_to_float_int(rhs)
 
@@ -1332,7 +1330,9 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                         first_signal = False
                         if READ_FROM_DATA_WINDOW:
                             move_to_data_window_indicator(browser, indicator)
-                        wait_until_indicator_values_are_loaded(browser, indicator)
+                            wait_until_indicator_values_are_loaded(browser, indicator)
+                        else:
+                            time.sleep(DELAY_READ_INDICATOR_VALUE)
 
                     if READ_ALL_VALUES_AT_ONCE or not READ_FROM_DATA_WINDOW:
                         # read all the indicator values
