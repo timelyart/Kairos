@@ -47,9 +47,9 @@ charts:
         indicator_index: 0
         # Optional. Speed up Kairos by pointing it to the index of a value of the indicator.
         # If you don't want or can't use this option, set the value to '' or False or remove the option altogether.
-        # NOTE: the indicator's value at index <<is_loaded>> should ALWAYS have a value, i.e. the value may never be 'n/a' at
-        # any given moment or it will slow down Kairos.
-        verify_indicator_loaded: 4
+        # NOTE: the indicator's value at index <<verify_indicator_loaded>> should ALWAYS have a value, i.e. the value may never be
+        # 'n/a' at  any given moment or it will slow down Kairos.
+        verify_indicator_loaded: 0
         # Optional. Define how this indicator will (partly) trigger the signal. If no trigger is defined, it will always return true.
         # A trigger is defined by equating a left-hand side with a right-hand side.
         # Although optional, at least one of the indicators should have a trigger defined.
