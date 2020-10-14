@@ -522,7 +522,7 @@ def get_interval(timeframe):
     return interval
 
 
-def set_delays(chart):
+def set_delays(chart=None):
     global WAIT_TIME_IMPLICIT
     global PAGE_LOAD_TIMEOUT
     global CHECK_IF_EXISTS_TIMEOUT
@@ -535,22 +535,22 @@ def set_delays(chart):
     global DELAY_READ_INDICATOR_VALUE
 
     # set delays as defined within the chart with a fallback to the config file
-    if 'wait_time_implicit' in chart and isinstance(chart['wait_time_implicit'], numbers.Real):
+    if chart and 'wait_time_implicit' in chart and isinstance(chart['wait_time_implicit'], numbers.Real):
         WAIT_TIME_IMPLICIT = chart['wait_time_implicit']
     elif config.has_option('webdriver', 'wait_time_implicit'):
         WAIT_TIME_IMPLICIT = config.getfloat('webdriver', 'wait_time_implicit')
 
-    if 'page_load_timeout' in chart and isinstance(chart['page_load_timeout'], numbers.Real):
+    if chart and 'page_load_timeout' in chart and isinstance(chart['page_load_timeout'], numbers.Real):
         PAGE_LOAD_TIMEOUT = chart['page_load_timeout']
     elif config.has_option('webdriver', 'page_load_timeout'):
         PAGE_LOAD_TIMEOUT = config.getfloat('webdriver', 'page_load_timeout')
 
-    if 'check_if_exists_timeout' in chart and isinstance(chart['check_if_exists_timeout'], numbers.Real):
+    if chart and 'check_if_exists_timeout' in chart and isinstance(chart['check_if_exists_timeout'], numbers.Real):
         CHECK_IF_EXISTS_TIMEOUT = chart['check_if_exists_timeout']
     elif config.has_option('webdriver', 'check_if_exists_timeout'):
         CHECK_IF_EXISTS_TIMEOUT = config.getfloat('webdriver', 'check_if_exists_timeout')
 
-    if 'delays' in chart and isinstance(chart['delays'], dict):
+    if chart and 'delays' in chart and isinstance(chart['delays'], dict):
         delays = chart['delays']
         if 'change_symbol' in delays and isinstance(delays['change_symbol'], numbers.Real):
             DELAY_CHANGE_SYMBOL = delays['change_symbol']
@@ -582,13 +582,13 @@ def set_delays(chart):
             DELAY_READ_INDICATOR_VALUE = config.getfloat('delays', 'read_indicator_value')
 
 
-def set_options(chart):
+def set_options(chart=None):
     global READ_FROM_DATA_WINDOW
     global WAIT_UNTIL_CHART_IS_LOADED
     global READ_ALL_VALUES_AT_ONCE
     global VERIFY_MARKET_LISTING
 
-    if 'performance' in chart and isinstance(chart['performance'], dict):
+    if chart and 'performance' in chart and isinstance(chart['performance'], dict):
         options = chart['performance']
         # performance options
         if 'read_from_data_window' in options and isinstance(options['read_from_data_window'], bool):
@@ -598,7 +598,7 @@ def set_options(chart):
         if 'read_all_values_at_once' in options and isinstance(options['read_all_values_at_once'], bool):
             READ_ALL_VALUES_AT_ONCE = options['read_all_values_at_once']
 
-    if 'verify_market_listing' in chart and isinstance(chart['verify_market_listing'], bool):
+    if chart and 'verify_market_listing' in chart and isinstance(chart['verify_market_listing'], bool):
         VERIFY_MARKET_LISTING = chart['verify_market_listing']
 
 
@@ -906,14 +906,14 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
                     log.warning("trying again. Unable to compare {} of {} with {} of {}".format(repr(lhs), repr(type(lhs)), repr(rhs), repr(type(rhs))))
                     if values:
                         values = get_data_window_indicator_values(browser, indicator)
-                    values, previous_symbol_values = is_indicator_triggered(browser, indicator, values, previous_symbol_values)
+                    return is_indicator_triggered(browser, indicator, values, previous_symbol_values)
 
                 if previous_symbol_values[0] == lhs and previous_symbol_values[1] == rhs:
                     log.warning("detected the exact same values ({}, {}) as previous market. Verifying ...".format(repr(previous_symbol_values[0]), repr(previous_symbol_values[1])))
                     time.sleep(DELAY_BREAK_MINI)
                     if values:
                         values = get_data_window_indicator_values(browser, indicator)
-                    values, previous_symbol_values = is_indicator_triggered(browser, indicator, values, ['', ''])
+                    return is_indicator_triggered(browser, indicator, values, ['', ''])
 
             try:
                 if comparison == '=':
@@ -2402,6 +2402,25 @@ def run(file, export_signals_immediately, multi_threading=False):
             browser = create_browser(RUN_IN_BACKGROUND)
             login(browser, TV_UID, TV_PWD)
             if has_screeners:
+
+                if not has_charts:
+                    set_delays()
+                    set_options()
+                    log.info("WAIT_TIME_IMPLICIT = " + str(WAIT_TIME_IMPLICIT))
+                    log.info("PAGE_LOAD_TIMEOUT = " + str(PAGE_LOAD_TIMEOUT))
+                    log.info("CHECK_IF_EXISTS_TIMEOUT = " + str(CHECK_IF_EXISTS_TIMEOUT))
+                    log.info("DELAY_BREAK_MINI = " + str(DELAY_BREAK_MINI))
+                    log.info("DELAY_BREAK = " + str(DELAY_BREAK))
+                    log.info("DELAY_SUBMIT_ALERT = " + str(DELAY_SUBMIT_ALERT))
+                    log.info("DELAY_CHANGE_SYMBOL = " + str(DELAY_CHANGE_SYMBOL))
+                    log.info("DELAY_CLEAR_INACTIVE_ALERTS = " + str(DELAY_CLEAR_INACTIVE_ALERTS))
+                    log.info("DELAY_KEYSTROKE = " + str(DELAY_KEYSTROKE))
+                    log.info("DELAY_READ_INDICATOR_VALUE = " + str(DELAY_READ_INDICATOR_VALUE))
+                    log.info("READ_FROM_DATA_WINDOW = " + str(READ_FROM_DATA_WINDOW))
+                    log.info("WAIT_UNTIL_CHART_IS_LOADED = " + str(WAIT_UNTIL_CHART_IS_LOADED))
+                    log.info("READ_ALL_VALUES_AT_ONCE = " + str(READ_ALL_VALUES_AT_ONCE))
+                    log.info("VERIFY_MARKET_LISTING = " + str(VERIFY_MARKET_LISTING))
+                    print('')
                 try:
                     max_symbols_per_watchlist = 1000  # TV limit
 
@@ -2646,6 +2665,7 @@ def get_screener_markets(browser, screener_yaml):
 
 
 def update_watchlist(browser, name, markets):
+    result = False
     try:
         if isinstance(markets, str):
             markets = markets.split(',')
@@ -2669,7 +2689,7 @@ def update_watchlist(browser, name, markets):
         time.sleep(DELAY_BREAK)
 
         added, missing = add_markets_to_watchlist(browser, input_symbol, markets)
-        time.sleep(2)
+        time.sleep(DELAY_BREAK * 4)
 
         # how many were added?
         if len(missing) > 0:
@@ -2684,10 +2704,11 @@ def update_watchlist(browser, name, markets):
 
         # remove double watchlist
         remove_watchlists(browser, name)
-        return True
+        result = True
     except Exception as e:
         log.exception(e)
         snapshot(browser)
+    return result
 
 
 def add_markets_to_watchlist(browser, input_symbol, markets):
