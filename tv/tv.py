@@ -993,7 +993,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             browser.switch_to.window(handle)
 
         wait_and_click(browser, css_selectors['btn_calendar'], 30)
-        wait_and_click(browser, css_selectors['btn_watchlist'])
+        wait_and_click(browser, css_selectors['btn_watchlist'], 30)
         time.sleep(DELAY_WATCHLIST)
 
         # get the symbols for each watchlist
@@ -1012,7 +1012,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
             # open watchlist
             if not watchlist_opened:
-                wait_and_click(browser, css_selectors['input_symbol'])
                 wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
                 time.sleep(DELAY_BREAK)
                 try:
@@ -2501,6 +2500,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                             counter_alerts = len(alerts)
                 except Exception as e:
                     log.exception(e)
+
                 # iterate over all items that have an 'alerts' or 'signals' property
                 for file, items in tv.items():
                     if type(items) is list:
