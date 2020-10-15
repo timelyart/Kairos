@@ -1370,14 +1370,41 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                                         data[_key] = []
                                         if values:
                                             for index in indices:
-                                                data[_key].append(values[index])
+                                                try:
+                                                    data[_key].append(values[index])
+                                                except IndexError as e:
+                                                    text = ""
+                                                    if not READ_FROM_DATA_WINDOW:
+                                                        text = "and is visible"
+                                                    log.exception(
+                                                        "Cannot read index {} as defined at {} in your YAML (index out of bounds). Make sure your indicator has a value at {} {}.".format(index, _key, index, text))
+                                                    log.exception(e)
+                                                    snapshot(browser)
+                                                    exit(0)
+                                                except Exception as e:
+                                                    log.exception(e)
+                                                    snapshot(browser)
+                                                    exit(0)
                                         else:
                                             for index in indices:
                                                 data[_key].append(get_data_window_indicator_value(browser, indicator, index))
                                     else:
                                         index = item[_key]
                                         if values:
-                                            data[_key] = values[index]
+                                            try:
+                                                data[_key] = values[index]
+                                            except IndexError as e:
+                                                text = ""
+                                                if not READ_FROM_DATA_WINDOW:
+                                                    text = "and is visible"
+                                                log.exception("Cannot read index {} as defined at {} in your YAML (index out of bounds). Make sure your indicator has a value at {} {}.".format(index, _key, index, text))
+                                                log.exception(e)
+                                                snapshot(browser)
+                                                exit(0)
+                                            except Exception as e:
+                                                log.exception(e)
+                                                snapshot(browser)
+                                                exit(0)
                                         else:
                                             data[_key] = get_data_window_indicator_value(browser, indicator, index)
                     # use tab to put focus on the next layout
