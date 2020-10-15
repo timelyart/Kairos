@@ -1,7 +1,7 @@
 pyyaml
 beautifulsoup4
 urllib3
-selenium
+selenium<4,>=3.141
 configparser
 tools
 pip
