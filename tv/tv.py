@@ -1375,9 +1375,9 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                                                 except IndexError as e:
                                                     text = ""
                                                     if not READ_FROM_DATA_WINDOW:
-                                                        text = "and is visible"
+                                                        text = " and is visible"
                                                     log.exception(
-                                                        "Cannot read index {} as defined at {} in your YAML (index out of bounds). Make sure your indicator has a value at {} {}.".format(index, _key, index, text))
+                                                        "Cannot read index {} as defined at {} in your YAML (index out of bounds). Make sure your indicator has a value at index {}{}.".format(index, _key, index, text))
                                                     log.exception(e)
                                                     snapshot(browser)
                                                     exit(0)
