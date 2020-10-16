@@ -29,8 +29,8 @@ from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
-    TimeoutException, InvalidArgumentException, ElementClickInterceptedException, \
-    WebDriverException, InvalidSessionIdException, SessionNotCreatedException, JavascriptException
+    TimeoutException, InvalidArgumentException, WebDriverException, InvalidSessionIdException,\
+    SessionNotCreatedException, JavascriptException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -2570,35 +2570,24 @@ def get_screener_markets(browser, screener_yaml):
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
-    loaded = False
-    max_runs = 1000
-    counter = 0
     found = False
-    while not loaded and counter < max_runs:
-        try:
-            wait_and_click(browser, css_selectors['select_screener'], 30)
-            el_options = find_elements(browser, css_selectors['options_screeners'])
-            for i in range(len(el_options)):
-                option = el_options[i]
-                try:
-                    log.debug(option.text)
-                    if str(option.text) == screener_yaml['name']:
-                        option.click()
-                        loaded = True
-                        found = True
-                        break
-                except StaleElementReferenceException:
-                    el_options = find_elements(browser, css_selectors['options_screeners'])
-                i += 1
-        except ElementClickInterceptedException:
-            time.sleep(0.1)
-            pass
-        except StaleElementReferenceException:
-            pass
-        counter += 1
 
+    try:
+        wait_and_click(browser, css_selectors['select_screener'], 30)
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser)
+
+    try:
+        wait_and_click_by_text(browser, 'span', screener_yaml['name'], 'js-filter-set-name')
+        found = True
+    except TimeoutException:
+        pass
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser)
     if not found:
-        log.warn("screener '{}' doesn't exist.".format(screener_yaml['name']))
+        log.warn("screener '{}' doesn't exist. Kairos is unable to update {} but will otherwise continue.".format(screener_yaml['name'], screener_yaml['name']))
         return False
 
     if 'search' in screener_yaml and screener_yaml['search'] != '' and screener_yaml['search'] is not None:
@@ -2611,21 +2600,19 @@ def get_screener_markets(browser, screener_yaml):
     wait_and_click(browser, 'tv-screener-table__field-value--total', locator_strategy=By.CLASS_NAME)
     time.sleep(DELAY_BREAK * 4)
 
-    # the list is ordered
-    last_symbol = ""
-    while last_symbol == "":
-        try:
-            first_row = find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[1]', By.XPATH)
-            last_symbol = first_row.get_attribute('data-symbol')
-        except StaleElementReferenceException:
-            pass
-        except Exception as e:
-            log.exception(e)
-            break
-    log.debug("last_symbol = {}".format(last_symbol))
     # sort ascending on the ticker column
     wait_and_click(browser, 'tv-screener-table__field-value--total', locator_strategy=By.CLASS_NAME)
     time.sleep(DELAY_BREAK * 4)
+
+    # get total found
+    el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
+    total_found = 0
+    try:
+        match = re.search(r"(\d+)", el_total_found.text)
+        total_found = int(match.group(1))
+    except StaleElementReferenceException:
+        pass
+    log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
 
     # move to the first row
     run_again = True
@@ -2638,28 +2625,23 @@ def get_screener_markets(browser, screener_yaml):
         except Exception as e:
             log.exception(e)
 
-    # get total found
-    el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
-    total_found = 0
-    try:
-        match = re.search(r"(\d+)", el_total_found.text)
-        total_found = int(match.group(1))
-    except StaleElementReferenceException:
-        pass
-    log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
-
+    previous_symbol = "n/a"
     symbol = ""
     row_height = 50
     scroll_factor = 100
     dots = 0
-    while symbol != last_symbol:
-        dots = print_dot(dots)
+    while symbol != previous_symbol:
+        if config.getint('logging', 'level') >= 20:
+            dots = print_dot(dots)
         try:
             browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
+            time.sleep(DELAY_BREAK * 6)
             last_row = find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[last()]', By.XPATH)
+            previous_symbol = symbol
             symbol = last_row.get_attribute('data-symbol')
             # move to the last row
             ActionChains(browser).move_to_element(last_row).perform()
+            log.debug("last_symbol = {}".format(symbol))
         except StaleElementReferenceException:
             pass
 
@@ -2677,17 +2659,17 @@ def get_screener_markets(browser, screener_yaml):
             market = ""
             try:
                 market = rows[i].get_attribute('data-symbol')
-                # log.info(market)
             except StaleElementReferenceException:
                 pass
             except IndexError as e:
                 log.exception(e)
             i += 1
-            markets.append(market)
+            if market not in markets:
+                markets.append(market)
 
-        markets = list(set(markets))
+    markets = list(set(markets))
     print(' DONE')
-    log.info('extracted {} markets'.format(str(len(markets))))
+    log.debug('extracted {} markets'.format(str(len(markets))))
     return markets
 
 
