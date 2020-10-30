@@ -119,7 +119,8 @@ css_selectors = dict(
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     input_watchlist_add_symbol='div.widgetbar-widget.widgetbar-widget-watchlist input',
     options_watchlist='div[data-name="menu-inner"] div[class^="item"]',
-    input_symbol='#header-toolbar-symbol-search > div > input',
+    input_symbol='#header-toolbar-symbol-search > div',
+    dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
     btn_alert_menu='div[data-name="alerts-settings-button"] > span',
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
@@ -1276,7 +1277,9 @@ def change_symbol(browser, symbol, use_space):
         else:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-            input_symbol = find_element(browser, css_selectors['input_symbol'])
+            # input_symbol = find_element(browser, css_selectors['input_symbol'])
+            wait_and_click(browser, css_selectors['input_symbol'])
+            input_symbol = find_element(browser, css_selectors['dlg_symbol_search_input'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
 
@@ -2685,7 +2688,7 @@ def update_watchlist(browser, name, markets):
         wait_and_click(browser, css_selectors['btn_watchlist'])
         time.sleep(DELAY_BREAK)
         wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-        time.sleep(DELAY_BREAK)
+        time.sleep(DELAY_BREAK*2)
         input_symbol = find_element(browser, css_selectors['input_watchlist_add_symbol'])
 
         wait_and_click_by_text(browser, 'div', 'Create new list')
