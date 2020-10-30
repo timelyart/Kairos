@@ -1220,7 +1220,7 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
     last_indicator_name = ''
     delisted_markets = []
     previous_symbol_values = [None, None]
-    use_space = True
+    use_space = False
     for k, symbol in enumerate(symbols):
         # change symbol
         change_symbol(browser, symbol, use_space)
