@@ -117,7 +117,7 @@ css_selectors = dict(
     btn_login='button[type = "submit"]',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
-    input_watchlist_add_symbol='div.widgetbar-widget.widgetbar-widget-watchlist input',
+    input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
     options_watchlist='div[data-name="menu-inner"] div[class^="item"]',
     input_symbol='#header-toolbar-symbol-search > div',
     dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
@@ -1220,10 +1220,8 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
     last_indicator_name = ''
     delisted_markets = []
     previous_symbol_values = [None, None]
+    use_space = True
     for k, symbol in enumerate(symbols):
-        use_space = False
-        if k > 0:
-            use_space = False
         # change symbol
         change_symbol(browser, symbol, use_space)
         wait_until_chart_is_loaded(browser)
@@ -2689,7 +2687,6 @@ def update_watchlist(browser, name, markets):
         time.sleep(DELAY_BREAK)
         wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
         time.sleep(DELAY_BREAK*2)
-        input_symbol = find_element(browser, css_selectors['input_watchlist_add_symbol'])
 
         wait_and_click_by_text(browser, 'div', 'Create new list')
         time.sleep(DELAY_BREAK)
@@ -2700,7 +2697,7 @@ def update_watchlist(browser, name, markets):
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
 
-        added, missing = add_markets_to_watchlist(browser, input_symbol, markets)
+        added, missing = add_markets_to_watchlist(browser, markets)
         time.sleep(DELAY_BREAK * 4)
 
         # how many were added?
@@ -2723,13 +2720,13 @@ def update_watchlist(browser, name, markets):
     return result
 
 
-def add_markets_to_watchlist(browser, input_symbol, markets):
+def add_markets_to_watchlist(browser, markets):
     added = 0
     dots = 0
     missing = []
     for market in markets:
         dots = print_dot(dots)
-        if add_market_to_watchlist(browser, input_symbol, market):
+        if add_market_to_watchlist(browser, market):
             added += 1
         else:
             missing.append(market)
@@ -2737,10 +2734,12 @@ def add_markets_to_watchlist(browser, input_symbol, markets):
     return added, missing
 
 
-def add_market_to_watchlist(browser, input_symbol, market, tries=0):
+def add_market_to_watchlist(browser, market, tries=0):
     max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
 
     try:
+        wait_and_click(browser, css_selectors['input_watchlist_add_symbol'])
+        input_symbol = find_element(browser, css_selectors['dlg_symbol_search_input'])
         set_value(browser, input_symbol, market)
         input_symbol.send_keys(Keys.ENTER)
     except Exception as e:
@@ -2754,7 +2753,7 @@ def add_market_to_watchlist(browser, input_symbol, market, tries=0):
     if not added:
         tries += 1
         if tries <= max_tries:
-            added = add_market_to_watchlist(browser, input_symbol, market, tries)
+            added = add_market_to_watchlist(browser, market, tries)
             if log.level == DEBUG:
                 print("")
                 log.debug("{} trying again... ({}/{})".format(market, tries, max_tries))
@@ -2813,11 +2812,7 @@ def remove_watchlists(browser, name, from_pagination_page=0):
                     # hover over element and click the removal button [x]
                     hover(browser, btn_delete, True)
                     # handle confirmation dialog
-                    time.sleep(0.5)
-                    try:
-                        wait_and_click(browser, 'div.js-dialog__action-click.js-dialog__no-drag.tv-button.tv-button--success')
-                    except TimeoutException as e:
-                        log.debug(e)
+                    wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]', CHECK_IF_EXISTS_TIMEOUT+0.5)
                     time.sleep(1)
                     # give TV time to remove the watchlist
                     log.debug('watchlist {} removed'.format(name))
