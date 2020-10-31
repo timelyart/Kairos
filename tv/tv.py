@@ -90,6 +90,7 @@ VERIFY_MARKET_LISTING = True
 READ_FROM_DATA_WINDOW = True
 WAIT_UNTIL_CHART_IS_LOADED = True
 READ_ALL_VALUES_AT_ONCE = True
+CHANGE_SYMBOL_WITH_SPACE = False
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
 OS = tools.get_operating_system()
@@ -298,6 +299,9 @@ if config.has_option('performance', 'wait_until_chart_is_loaded'):
     WAIT_UNTIL_CHART_IS_LOADED = config.getboolean('performance', 'wait_until_chart_is_loaded')
 if config.has_option('performance', 'read_all_values_at_once'):
     READ_ALL_VALUES_AT_ONCE = config.getboolean('performance', 'read_all_values_at_once')
+if config.has_option('performance', 'change_symbol_with_space'):
+    CHANGE_SYMBOL_WITH_SPACE = config.getboolean('performance', 'change_symbol_with_space')
+
 if config.has_option('tradingview', 'exact_conditions'):
     EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 if config.has_option('tradingview', 'verify_market_listing'):
@@ -587,6 +591,7 @@ def set_options(chart=None):
     global READ_FROM_DATA_WINDOW
     global WAIT_UNTIL_CHART_IS_LOADED
     global READ_ALL_VALUES_AT_ONCE
+    global CHANGE_SYMBOL_WITH_SPACE
     global VERIFY_MARKET_LISTING
 
     if chart and 'performance' in chart and isinstance(chart['performance'], dict):
@@ -598,6 +603,8 @@ def set_options(chart=None):
             WAIT_UNTIL_CHART_IS_LOADED = options['wait_until_chart_is_loaded']
         if 'read_all_values_at_once' in options and isinstance(options['read_all_values_at_once'], bool):
             READ_ALL_VALUES_AT_ONCE = options['read_all_values_at_once']
+        if 'change_symbol_with_space' in options and isinstance(options['change_symbol_with_space'], bool):
+            CHANGE_SYMBOL_WITH_SPACE = options['change_symbol_with_space']
 
     if chart and 'verify_market_listing' in chart and isinstance(chart['verify_market_listing'], bool):
         VERIFY_MARKET_LISTING = chart['verify_market_listing']
@@ -985,6 +992,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         log.info("READ_FROM_DATA_WINDOW = " + str(READ_FROM_DATA_WINDOW))
         log.info("WAIT_UNTIL_CHART_IS_LOADED = " + str(WAIT_UNTIL_CHART_IS_LOADED))
         log.info("READ_ALL_VALUES_AT_ONCE = " + str(READ_ALL_VALUES_AT_ONCE))
+        log.info("CHANGE_SYMBOL_WITH_SPACE = " + str(CHANGE_SYMBOL_WITH_SPACE))
         log.info("VERIFY_MARKET_LISTING = " + str(VERIFY_MARKET_LISTING))
         print('')
 
@@ -1220,10 +1228,9 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
     last_indicator_name = ''
     delisted_markets = []
     previous_symbol_values = [None, None]
-    use_space = False
     for k, symbol in enumerate(symbols):
         # change symbol
-        change_symbol(browser, symbol, use_space)
+        change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
         wait_until_chart_is_loaded(browser)
         # check if market is listed
         if (not VERIFY_MARKET_LISTING) or is_market_listed(browser):
@@ -2446,6 +2453,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                     log.info("READ_FROM_DATA_WINDOW = " + str(READ_FROM_DATA_WINDOW))
                     log.info("WAIT_UNTIL_CHART_IS_LOADED = " + str(WAIT_UNTIL_CHART_IS_LOADED))
                     log.info("READ_ALL_VALUES_AT_ONCE = " + str(READ_ALL_VALUES_AT_ONCE))
+                    log.info("CHANGE_SYMBOL_WITH_SPACE = " + str(CHANGE_SYMBOL_WITH_SPACE))
                     log.info("VERIFY_MARKET_LISTING = " + str(VERIFY_MARKET_LISTING))
                     print('')
                 try:
