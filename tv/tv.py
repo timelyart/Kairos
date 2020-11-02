@@ -694,6 +694,7 @@ def wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number=
         except StaleElementReferenceException as e:
             element = False
             value = 'n/a'
+            time.sleep(DELAY_BREAK)
             log.debug(e)
         except TimeoutException as e:
             log.debug(e)
@@ -3143,7 +3144,7 @@ def extract_results(browser, indicator, symbols, data, atomic_inputs):
         if len(atomic_inputs) > 0:
             log.info("Back testing {} with {} input sets".format(name, len(atomic_inputs)))
             for i, inputs in enumerate(atomic_inputs):
-                log.info("Strategy variant {}/{}".format(i+1, len(atomic_inputs)))
+                log.info("Test variant {}/{}".format(i+1, len(atomic_inputs)))
                 strategy_summary = dict()
                 strategy_summary['inputs'] = inputs
                 strategy_summary['summary'] = dict()
@@ -3218,6 +3219,10 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
         log.info(symbol)
         # if first_symbol:
+        #     pane_index = 0
+        #     if 'pane_index' in indicator and isinstance(indicator['pane_index'], int):
+        #         pane_index = indicator['pane_index']
+        #     wait_until_indicator_is_loaded(browser, indicator['name'], pane_index)
         #     open_data_window_tab(browser)
         #     move_to_data_window_indicator(browser, indicator)
 
@@ -3231,11 +3236,6 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
             # move to correct chart
             charts = find_elements(browser, "div.chart-container")
             charts[chart_index].click()
-
-            pane_index = 0
-            if 'pane_index' in indicator and isinstance(indicator['pane_index'], int):
-                pane_index = indicator['pane_index']
-            wait_until_indicator_is_loaded(browser, indicator['name'], pane_index)
 
             # first time chart setup
             # - set inputs
@@ -3264,7 +3264,8 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
             interval = intervals[chart_index]
             # snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
             # Wait if necessary until the indicator is loaded
-            # wait_until_data_window_indicator_is_loaded(browser, indicator)
+            wait_until_data_window_indicator_is_loaded(browser, indicator)
+            time.sleep(DELAY_BREAK)
 
             # Extract results
             for key in data:
