@@ -207,6 +207,7 @@ css_selectors = dict(
     performance_summary_avg_trade_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2) > div:nth-child(2) > span',
     performance_summary_avg_bars_in_trade='div.report-content.performance > div > table > tbody > tr:nth-child(22) > td:nth-child(2)',
     # Indicator dialog
+    indicator_dialog_settings='',
     indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
     # indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"] > div',
@@ -684,7 +685,9 @@ def wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number=
     xpath_check_element = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], indicator['verify_indicator_loaded'] + 1)
     element = False
     value = 'n/a'
-    while (not element) or value == 'n/a':
+    i = 0
+    while ((not element) or value == 'n/a') and i < 10:
+        i = i + 1
         try:
             element = find_element(browser, xpath_check_element, By.XPATH)
             value = element.text
@@ -695,7 +698,6 @@ def wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number=
         except TimeoutException as e:
             log.debug(e)
             if retry_number < max_retries:
-                time.sleep(0.05)
                 wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number+1)
             else:
                 log.exception("{} not found. Please, verify that the indicator on the chart starts with '{}'".format(indicator['name'], indicator['name']))
@@ -705,7 +707,6 @@ def wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number=
             log.exception(e)
             element = False
             if retry_number < max_retries:
-                time.sleep(0.05)
                 wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number+1)
 
 
@@ -731,6 +732,35 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
             if retry_number < max_retries * 10:
                 time.sleep(0.05)
                 return get_data_window_indicator_value(browser, indicator, index, retry_number+1)
+    return value
+
+
+def get_data_window_indicator_value_by_text(browser, indicator, text, retry_number=0):
+    max_retries = config.getint('tradingview', 'create_alert_max_retries')
+    if config.has_option('tradingview', 'indicator_values_max_retries'):
+        max_retries = config.getint('tradingview', 'indicator_values_max_retries')
+
+    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div/div[text()="{}"]/following-sibling::div'.format(indicator['name'], text)
+    element = False
+    value = ''
+    first = True
+    while not (element and value):
+        try:
+            element = find_element(browser, xpath_value, By.XPATH)
+            if not first:
+                browser.execute_script("arguments[0].scrollIntoView(true);", element)
+            first = False
+            value = element.text
+        except StaleElementReferenceException as e:
+            log.debug(e)
+            element = False
+            # continue
+        except Exception as e:
+            log.exception(e)
+            element = False
+            if retry_number < max_retries * 10:
+                time.sleep(0.05)
+                return get_data_window_indicator_value_by_text(browser, indicator, text, retry_number+1)
     return value
 
 
@@ -949,7 +979,7 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
     return result, previous_symbol_values
 
 
-def save_strategy_results(data, save_as):
+def save_data_as_json(data, save_as):
     filename = "{}_{}.json".format(save_as, datetime.datetime.today().strftime('%Y%m%d_%H%M'))
     if not os.path.exists('output'):
         os.mkdir('output')
@@ -1085,6 +1115,141 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
+        if 'results' in chart:
+            # open data window tab
+            # check if data window is open
+            date = datetime.datetime.strptime(time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime()), '%Y-%m-%dT%H:%M:%S%z')
+            if not element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
+                wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
+
+            summaries = dict()
+            summaries['chart'] = chart['url']
+            summaries['datetime'] = date.strftime('%Y-%m-%d %H:%M:%S %z')
+
+            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            sort = dict()
+            for indicator in chart['results']:
+                if 'sort' in indicator:
+                    sort = indicator['sort']
+                    log.info(sort)
+                    continue
+
+                data = dict()
+                if 'data' in indicator and indicator['data']:
+                    for key in indicator['data']:
+                        options = indicator['data'][key]
+                        if key in data:
+                            log.exception("tag {} has been defined twice under 'data' within your YAML. Make sure that tags are unique among the combined set of tags under 'data' and 'calculate.'".format(key))
+                            exit(0)
+
+                        try:
+                            data[key] = {'value': '', 'decimals': 0, 'show': True}
+                            if 'decimals' in options and isinstance(options['decimals'], int):
+                                data[key]['decimals'] = options['decimals']
+                            if 'show' in options and isinstance(options['show'], bool):
+                                data[key]['show'] = options['show']
+                        except Exception as e:
+                            log.exception(e)
+                            snapshot(browser, True)
+                else:
+                    log.exception("missing tag 'data' for indicator {} within your YAML. Please define which data you wish to extract.".format(indicator['name']))
+                    exit(0)
+                if 'calculate' in indicator and indicator['calculate']:
+                    for key in indicator['calculate']:
+                        options = indicator['calculate'][key]
+                        if key in data:
+                            log.exception("tag {} has been defined under 'calculate' while already been defined under 'data' within your YAML. Make sure that tags are unique among the combined set of tags under 'data' and 'calculate.'".format(key))
+                            exit(0)
+
+                        try:
+                            data[key] = {'value': '', 'sum': '', 'decimals': 0, 'show': True}
+                            if 'decimals' in options and isinstance(options['decimals'], int):
+                                data[key]['decimals'] = options['decimals']
+                            if 'show' in options and isinstance(options['show'], bool):
+                                data[key]['show'] = options['show']
+                            if 'sum' in options and options['sum']:
+                                data[key]['sum'] = options['sum']
+                            else:
+                                log.exception("missing tag 'sum' under {} or it's value is undefined within your YAML. Make sure that the tag exists and has a value.".format(key))
+                                exit(0)
+                        except Exception as e:
+                            log.exception(e)
+                            snapshot(browser, True)
+
+                indicator['full_name'] = ''
+                if not indicator['name'] in summaries:
+                    summaries[indicator['name']] = dict()
+                    summaries[indicator['name']]['id'] = indicator['name']
+                    default_chart_inputs = dict()
+
+                    xpath = '//div[@data-name="legend-source-item"]/div/div/div[starts-with(text(), "{}")]'.format(indicator['name'])
+                    indicator_element = find_element(browser, xpath, By.XPATH)
+                    try:
+                        indicator['full_name'] = indicator_element.text
+                        log.info("extracting results for {}".format(indicator['full_name']))
+                        # open the indicator settings
+                        open_indicator_settings(browser, indicator['name'])
+                        # get the default indicator inputs
+                        default_chart_inputs = get_indicator_dialog_values(browser)
+                    except StaleElementReferenceException:
+                        pass
+                    except Exception as e:
+                        log.exception(e)
+                        snapshot(browser)
+                    log.info("default_inputs: {}".format(default_chart_inputs))
+                    summaries[indicator['name']]['default_inputs'] = default_chart_inputs
+                else:
+                    # ensure fall back to default inputs and properties
+                    refresh(browser)
+
+                # generate input/property sets
+                atomic_inputs = []
+                if 'inputs' in indicator:
+                    inputs = get_config_values(indicator['inputs'])
+                    generate_atomic_values(inputs, atomic_inputs)
+                log.info("{} tests will be run for each watchlist".format(len(atomic_inputs)))
+
+                sort_by = False
+                if 'sort_by' in indicator:
+                    sort_by = indicator['sort_by']
+                reverse = False
+                if 'sort_asc' in indicator:
+                    reverse = not indicator['sort_asc']
+
+                open_data_window_tab(browser)
+                move_to_data_window_indicator(browser, indicator)
+
+                # test the strategy and sort the results
+                for watchlist in chart['watchlists']:
+                    symbols = dict_watchlist[watchlist]
+                    test_results = extract_results(browser, indicator, symbols, data, atomic_inputs)
+                    # sort if the user defined one for the indicator
+                    if sort_by:
+                        test_results = back_test_sort_watchlist(test_results, sort_by, reverse)
+
+                    if watchlist in summaries[indicator['name']]:
+                        summaries[indicator['name']][watchlist] += test_results
+                    else:
+                        summaries[indicator['name']][watchlist] = test_results
+
+            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            if sort:
+                log.info('sort')
+                if 'sort_by' in sort:
+                    sort_by = sort['sort_by']
+                    reverse = False
+                    if 'sort_asc' in sort:
+                        reverse = not sort['sort_asc']
+                    back_test_sort(summaries, sort_by, reverse)
+
+            # Save the results
+            filename = save_as
+            match = re.search(r"([\w\-_]*)", save_as)
+            if match:
+                filename = match.group(1)
+            elif save_as == "":
+                filename = "run"
+            save_data_as_json(json.dumps(summaries, indent=4), filename)
 
         if 'strategies' in chart:
             date = datetime.datetime.strptime(time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime()), '%Y-%m-%dT%H:%M:%S%z')
@@ -1170,7 +1335,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 filename = match.group(1)
             elif save_as == "":
                 filename = "run"
-            save_strategy_results(json.dumps(summaries, indent=4), filename)
+            save_data_as_json(json.dumps(summaries, indent=4), filename)
 
         if 'alerts' in chart or 'signals' in chart:
             # time.sleep(5)
@@ -1220,9 +1385,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
 
 def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
-    # check if data window is open
-    if not element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
-        wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
+    # open data window when necessary
+    open_data_window_tab(browser)
 
     # open each symbol within the watchlist
     last_indicator_name = ''
@@ -1550,9 +1714,9 @@ def wait_until_chart_is_loaded(browser):
         time.sleep(DELAY_CHANGE_SYMBOL)
 
 
-def snapshot(browser, quit_program=False, chart_only=True, name=''):
+def snapshot(browser, quit_program=False, chart_only=True, name='', debug=False):
     global MAX_SCREENSHOTS_ON_ERROR
-    if config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error') and MAX_SCREENSHOTS_ON_ERROR > 0:
+    if (config.has_option('logging', 'screenshot_on_error') and config.getboolean('logging', 'screenshot_on_error') and MAX_SCREENSHOTS_ON_ERROR > 0) or debug:
         MAX_SCREENSHOTS_ON_ERROR -= 1
         filename = datetime.datetime.now().strftime('%Y%m%d_%H%M%S') + '.png'
         if name:
@@ -2541,7 +2705,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                 for file, items in tv.items():
                     if type(items) is list:
                         for item in items:
-                            if 'alerts' in item or 'signals' in item or 'strategies' in item:
+                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'results' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, save_as, counter_alerts, total_alerts)
 
                 if len(processing_errors) > 0:
@@ -2865,6 +3029,15 @@ def open_performance_summary_tab(browser):
         log.exception(e)
 
 
+def open_data_window_tab(browser):
+    try:
+        if not element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
+            wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser, True)
+
+
 def get_strategy_default_values(browser, retry_number=0):
     try:
         # open dialog
@@ -2951,6 +3124,217 @@ def get_indicator_dialog_values(browser):
     except Exception as e:
         log.exception(e)
     return result
+
+
+def extract_results(browser, indicator, symbols, data, atomic_inputs):
+    try:
+        summaries = list()
+        name = indicator['name']
+        number_of_charts = 1
+        try:
+            css = 'div.chart-container'
+            number_of_charts = find_elements(browser, css)
+            number_of_charts = len(number_of_charts)
+        except TimeoutException:
+            pass
+        log.info("Found {} charts on the layout".format(number_of_charts))
+
+        # inputs have been defined
+        if len(atomic_inputs) > 0:
+            log.info("Back testing {} with {} input sets".format(name, len(atomic_inputs)))
+            for i, inputs in enumerate(atomic_inputs):
+                log.info("Strategy variant {}/{}".format(i+1, len(atomic_inputs)))
+                strategy_summary = dict()
+                strategy_summary['inputs'] = inputs
+                strategy_summary['summary'] = dict()
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
+                    extract_result(browser, inputs, symbols, indicator, data, number_of_charts, i+1, len(atomic_inputs))
+                summaries.append(strategy_summary)
+        # Run just one back test with default inputs
+        else:
+            log.info("Back testing {} with default input set and default property set.".format(name))
+            strategy_summary = dict()
+            strategy_summary['inputs'] = []
+            strategy_summary['summary'] = dict()
+            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
+                extract_result(browser, [], symbols, indicator, data, number_of_charts, 1, 1)
+            summaries.append(strategy_summary)
+
+        return summaries
+
+    except ValueError as e:
+        log.exception(e)
+
+
+def extract_result(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants):
+    global tv_start
+
+    raw = []
+    input_locations = dict()
+    interval_averages = dict()
+    symbol_averages = dict()
+    intervals = []
+    duration = 0
+
+    values = dict()
+    previous_elements = dict()
+    for key in data:
+        values[key] = ""
+        previous_elements[key] = ""
+
+    for i, symbol in enumerate(symbols[0:2]):
+        timer_symbol = time.time()
+        extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        if i == 0:
+            duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
+        else:
+            duration += (time.time() - timer_symbol) * (len(symbols)-2) * (number_of_variants + 1 - strategy_number)
+    log.info("expecting to finish in {}.".format(tools.display_time(duration)))
+    for symbol in symbols[2::]:
+        first_symbol = refresh_session(browser)
+        extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+
+    # calculate averages
+    total_average = dict()
+    for key in data:
+        total_average[key] = 0
+
+        for interval in interval_averages:
+            counter = max(interval_averages[interval]['counter'], 1)
+            interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) / counter)
+            total_average[key] = format_number(float(total_average[key]) + float(interval_averages[interval][key]))
+
+        total_average[key] = format_number(float(total_average[key]) / max(len(interval_averages), 1))
+
+    for interval in interval_averages:
+        del interval_averages[interval]['counter']
+
+    return [total_average, interval_averages, symbol_averages, raw]
+
+
+def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
+
+    try:
+        change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
+        log.info(symbol)
+        # if first_symbol:
+        #     open_data_window_tab(browser)
+        #     move_to_data_window_indicator(browser, indicator)
+
+        # value = get_data_window_indicator_value_by_text(browser, indicator, key)
+        symbol_average = dict()
+        symbol_average['counter'] = 0
+        for key in data:
+            symbol_average[key] = 0
+
+        for chart_index in range(number_of_charts):
+            # move to correct chart
+            charts = find_elements(browser, "div.chart-container")
+            charts[chart_index].click()
+
+            pane_index = 0
+            if 'pane_index' in indicator and isinstance(indicator['pane_index'], int):
+                pane_index = indicator['pane_index']
+            wait_until_indicator_is_loaded(browser, indicator['name'], pane_index)
+
+            # first time chart setup
+            # - set inputs
+            # - get interval of chart
+            # - create a dict() for each interval and add it to averages
+            if first_symbol:
+                # log.debug("selecting and formatting strategy for chart {}".format(chart_index + 1))
+                # set the strategy if there are inputs or properties defined
+                if len(inputs) > 0:
+                    # open the indicator's settings dialog of the active chart
+                    open_indicator_settings(browser, indicator['name'], chart_index)
+                    # set input values
+                    set_indicator_dialog_values(browser, inputs, input_locations)
+                    # click OK
+                    wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
+
+                elem_interval = find_element(browser, css_selectors['active_chart_interval'])
+                interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
+                intervals.append(interval)
+
+                if not (interval in interval_averages):
+                    interval_averages[interval] = dict()
+                    interval_averages[interval]['counter'] = 0
+                    for key in data:
+                        interval_averages[interval][key] = 0
+            interval = intervals[chart_index]
+            # snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
+            # Wait if necessary until the indicator is loaded
+            # wait_until_data_window_indicator_is_loaded(browser, indicator)
+
+            # Extract results
+            for key in data:
+                options = data[key]
+                if 'sum' in options:
+                    values[key] = '0.0'
+                else:
+                    value = get_data_window_indicator_value_by_text(browser, indicator, key)
+                    if value == 'n/a':
+                        value = '0.0'
+                    values[key] = value
+
+            calculated = False
+            i = 0
+            while not calculated and i < 5:
+                i = i + 1
+                calculated = True
+                for key in data:
+                    options = data[key]
+                    if 'sum' in options:
+                        try:
+                            # calculate
+                            expression = str(options['sum'])
+                            expression = expression.replace('%TIMEFRAME%', interval)
+                            for key2 in data:
+                                expression = expression.replace(key2, str(values[key2]))
+                            try:
+                                values[key] = eval(expression)
+                                log.debug("{}: {} = {} = {}".format(key, str(options['sum']), expression, values[key]))
+                            except Exception as e:
+                                log.debug(e)
+                                pass
+                        except NameError as e:
+                            log.warning(e)
+                            calculated = False
+                            continue
+                        except Exception as e:
+                            log.exception(e)
+
+            if not calculated:
+                log.exception("Unable to resolve all data calculations. Please verify that all calculations are valid.")
+                exit(0)
+
+            # log.info("{}: {}".format(interval, values))
+
+            # Save the results
+            result = dict()
+            result['symbol'] = symbol
+            result['interval'] = interval.replace("'", "")
+            for key in data:
+                options = data[key]
+                result[key] = format_number(float(values[key]), options['decimals'])
+                symbol_average[key] = format_number(float(symbol_average[key]) + float(result[key]), options['decimals'])
+                symbol_average['counter'] += 1
+                interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals'])
+                interval_averages[interval]['counter'] += 1
+            results.append(result)
+        # calculate symbol averages
+        counter = max(symbol_average['counter'], 1)
+        for key in data:
+            options = data[key]
+            symbol_average['key'] = format_number(float(symbol_average[key]) / counter, options['decimals'])
+        del symbol_average['counter']
+        # log.info("{}: {}".format(symbol, symbol_average))
+        symbol_averages[symbol] = symbol_average
+    except Exception as e:
+        log.exception(e)
+        max_tries = config.getint('tradingview', 'create_alert_max_retries')
+        if tries < max_tries:
+            extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries)
 
 
 def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
@@ -3449,30 +3833,32 @@ def format_strategy(browser, inputs, properties, input_locations, property_locat
 
 
 def set_indicator_dialog_values(browser, inputs, input_locations):
-    # get input titles
-    cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
-    titles = []
-    for i, cell in enumerate(cells):
-        title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
-        titles.append(title)
+    try:
+        # get input titles
+        cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
+        titles = []
+        for i, cell in enumerate(cells):
+            title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
+            titles.append(title)
 
-    for key in inputs:
-        value = inputs[key]
-        index = -1
-        for i, title in enumerate(titles):
-            if (title == key) or ((not EXACT_CONDITIONS) and title.startswith(key)):
-                index = i
+        for key in inputs:
+            value = inputs[key]
+            index = -1
+            for i, title in enumerate(titles):
+                if (title == key) or ((not EXACT_CONDITIONS) and title.startswith(key)):
+                    index = i
 
-        if index >= 0:
-            # check first if it is a set of values, e.g. 100 USD
-            if isinstance(value, dict):
-                for sub_index, sub_key in enumerate(value):
-                    sub_value = value[sub_key]
-                    set_indicator_dialog_value(browser, input_locations, key, value, index, sub_key, sub_value, sub_index)
-            else:
-                set_indicator_dialog_value(browser, input_locations, key, value, index)
-
-    return True
+            if index >= 0:
+                # check first if it is a set of values, e.g. 100 USD
+                if isinstance(value, dict):
+                    for sub_index, sub_key in enumerate(value):
+                        sub_value = value[sub_key]
+                        set_indicator_dialog_value(browser, input_locations, key, value, index, sub_key, sub_value, sub_index)
+                else:
+                    set_indicator_dialog_value(browser, input_locations, key, value, index)
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser, True)
 
 
 def set_indicator_dialog_value(browser, locations, key, value, index, sub_key='', sub_value='', sub_index=-1, retry_number=0):
@@ -3625,6 +4011,26 @@ def retry_select_strategy(browser, strategy_config, chart_index, retry_number):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
     if retry_number < max_retries:
         return select_strategy(browser, strategy_config, chart_index, retry_number + 1)
+
+
+def open_indicator_settings(browser, indicator_name, chart_index=0):
+    try:
+        # css = 'div.chart-container.active'
+        # active_chart = find_element(browser, css)
+        xpath = '//div[@data-name="legend-source-item"]/div/div/div[starts-with(text(), "{}")]'.format(indicator_name)
+        indicator_elements = find_elements(browser, xpath, By.XPATH)
+        hover(browser, indicator_elements[chart_index])
+        # click the settings button
+        xpath = '//div[@data-name="legend-source-item"]/div/div/div[starts-with(text(), "{}")]/parent::div/parent::div//div[@data-name="legend-settings-action"]'.format(indicator_name)
+        setting_elements = find_elements(browser, xpath, By.XPATH)
+        setting_elements[chart_index].click()
+        # wait_and_click(setting_elements[chart_index], xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
+        # click the settings dialog's input tab
+        xpath = '//div[text()="Inputs"]'
+        wait_and_click(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser, True)
 
 
 def generate_atomic_values(items, strategies, depth=0):
