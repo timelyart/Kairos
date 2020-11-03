@@ -10,6 +10,7 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
+import copy
 import datetime
 import getpass
 import json
@@ -752,6 +753,10 @@ def get_data_window_indicator_value_by_text(browser, indicator, text, retry_numb
                 browser.execute_script("arguments[0].scrollIntoView(true);", element)
             first = False
             value = element.text
+            if value == 'n/a':
+                if retry_number < max_retries * 25:
+                    time.sleep(DELAY_BREAK_MINI)
+                    return get_data_window_indicator_value_by_text(browser, indicator, text, retry_number + 1)
         except StaleElementReferenceException as e:
             log.debug(e)
             element = False
@@ -1116,7 +1121,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
-        if 'results' in chart:
+        if 'tests' in chart:
             # open data window tab
             # check if data window is open
             date = datetime.datetime.strptime(time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime()), '%Y-%m-%dT%H:%M:%S%z')
@@ -1129,7 +1134,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
             # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
             sort = dict()
-            for indicator in chart['results']:
+            for indicator in chart['tests']:
                 if 'sort' in indicator:
                     sort = indicator['sort']
                     log.info(sort)
@@ -1187,7 +1192,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     indicator_element = find_element(browser, xpath, By.XPATH)
                     try:
                         indicator['full_name'] = indicator_element.text
-                        log.info("extracting results for {}".format(indicator['full_name']))
+                        log.info('back testing indicator "{}"'.format(indicator['full_name']))
                         # open the indicator settings
                         open_indicator_settings(browser, indicator['name'])
                         # get the default indicator inputs
@@ -1223,7 +1228,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 # test the strategy and sort the results
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    test_results = extract_results(browser, indicator, symbols, data, atomic_inputs)
+                    test_results = test_indicators(browser, indicator, symbols, data, atomic_inputs)
                     # sort if the user defined one for the indicator
                     if sort_by:
                         test_results = back_test_sort_watchlist(test_results, sort_by, reverse)
@@ -1748,7 +1753,10 @@ def snapshot(browser, quit_program=False, chart_only=True, name='', debug=False)
             if chart_only:
                 im = im.crop((int(x), int(y), int(width), int(height)))
             im.save(filename)
-            log.error(str(filename))
+            if debug:
+                log.info(str(filename))
+            else:
+                log.error(str(filename))
         except Exception as take_screenshot_error:
             log.exception(take_screenshot_error)
         if quit_program:
@@ -2706,7 +2714,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                 for file, items in tv.items():
                     if type(items) is list:
                         for item in items:
-                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'results' in item:
+                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'tests' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, save_as, counter_alerts, total_alerts)
 
                 if len(processing_errors) > 0:
@@ -3127,7 +3135,7 @@ def get_indicator_dialog_values(browser):
     return result
 
 
-def extract_results(browser, indicator, symbols, data, atomic_inputs):
+def test_indicators(browser, indicator, symbols, data, atomic_inputs):
     try:
         summaries = list()
         name = indicator['name']
@@ -3149,7 +3157,7 @@ def extract_results(browser, indicator, symbols, data, atomic_inputs):
                 strategy_summary['inputs'] = inputs
                 strategy_summary['summary'] = dict()
                 strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
-                    extract_result(browser, inputs, symbols, indicator, data, number_of_charts, i+1, len(atomic_inputs))
+                    test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, i + 1, len(atomic_inputs))
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs
         else:
@@ -3158,7 +3166,7 @@ def extract_results(browser, indicator, symbols, data, atomic_inputs):
             strategy_summary['inputs'] = []
             strategy_summary['summary'] = dict()
             strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
-                extract_result(browser, [], symbols, indicator, data, number_of_charts, 1, 1)
+                test_indicator(browser, [], symbols, indicator, data, number_of_charts, 1, 1)
             summaries.append(strategy_summary)
 
         return summaries
@@ -3167,7 +3175,7 @@ def extract_results(browser, indicator, symbols, data, atomic_inputs):
         log.exception(e)
 
 
-def extract_result(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants):
+def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants):
     global tv_start
 
     raw = []
@@ -3185,7 +3193,7 @@ def extract_result(browser, inputs, symbols, indicator, data, number_of_charts, 
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -3193,19 +3201,21 @@ def extract_result(browser, inputs, symbols, indicator, data, number_of_charts, 
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
 
     # calculate averages
     total_average = dict()
     for key in data:
+        options = data[key]
+        decimals = options['decimals']
         total_average[key] = 0
 
         for interval in interval_averages:
             counter = max(interval_averages[interval]['counter'], 1)
-            interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) / counter)
-            total_average[key] = format_number(float(total_average[key]) + float(interval_averages[interval][key]))
+            interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) / counter, decimals)
+            total_average[key] = format_number(float(total_average[key]) + float(interval_averages[interval][key]), decimals)
 
-        total_average[key] = format_number(float(total_average[key]) / max(len(interval_averages), 1))
+        total_average[key] = format_number(float(total_average[key]) / max(len(interval_averages), 1), decimals)
 
     for interval in interval_averages:
         del interval_averages[interval]['counter']
@@ -3213,20 +3223,15 @@ def extract_result(browser, inputs, symbols, indicator, data, number_of_charts, 
     return [total_average, interval_averages, symbol_averages, raw]
 
 
-def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
-
+def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
+    max_tries = 5
     try:
+        max_tries = config.getint('tradingview', 'create_alert_max_retries')
+
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
         log.info(symbol)
-        # if first_symbol:
-        #     pane_index = 0
-        #     if 'pane_index' in indicator and isinstance(indicator['pane_index'], int):
-        #         pane_index = indicator['pane_index']
-        #     wait_until_indicator_is_loaded(browser, indicator['name'], pane_index)
-        #     open_data_window_tab(browser)
-        #     move_to_data_window_indicator(browser, indicator)
-
-        # value = get_data_window_indicator_value_by_text(browser, indicator, key)
+        previous_values = copy.deepcopy(values)
+        values = dict()
         symbol_average = dict()
         symbol_average['counter'] = 0
         for key in data:
@@ -3247,9 +3252,8 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                 if len(inputs) > 0:
                     # open the indicator's settings dialog of the active chart
                     open_indicator_settings(browser, indicator['name'], chart_index)
-                    # set input values
+                    # set input values and click OK
                     set_indicator_dialog_values(browser, inputs, input_locations)
-                    # click OK
                     wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
 
                 elem_interval = find_element(browser, css_selectors['active_chart_interval'])
@@ -3263,21 +3267,28 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                         interval_averages[interval][key] = 0
             interval = intervals[chart_index]
             # snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
-            # Wait if necessary until the indicator is loaded
-            wait_until_data_window_indicator_is_loaded(browser, indicator)
-            time.sleep(DELAY_BREAK)
 
-            # Extract results
+            # Extract data points from TV first
+            valid_data = True
             for key in data:
                 options = data[key]
-                if 'sum' in options:
-                    values[key] = '0.0'
-                else:
+                values[key] = ''
+                if not ('sum' in options):
                     value = get_data_window_indicator_value_by_text(browser, indicator, key)
+                    if value == previous_values[key] and chart_index == 0:
+                        log.warn("'{} = {}' which is the same value as for the previous chart. Verifying value...".format(key, value))
+                        time.sleep(DELAY_BREAK*2)
+                        value = get_data_window_indicator_value_by_text(browser, indicator, key)
                     if value == 'n/a':
-                        value = '0.0'
-                    values[key] = value
+                        valid_data = False
+                        value = 0
+                    values[key] = format_number(value, options['decimals'])
 
+            if not valid_data:
+                log.info("{}: no valid indicator found".format(interval))
+                snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
+
+            # Calculate additional data points from the extracted data
             calculated = False
             i = 0
             while not calculated and i < 5:
@@ -3286,30 +3297,15 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                 for key in data:
                     options = data[key]
                     if 'sum' in options:
-                        try:
-                            # calculate
-                            expression = str(options['sum'])
-                            expression = expression.replace('%TIMEFRAME%', interval)
-                            for key2 in data:
-                                expression = expression.replace(key2, str(values[key2]))
-                            try:
-                                values[key] = eval(expression)
-                                log.debug("{}: {} = {} = {}".format(key, str(options['sum']), expression, values[key]))
-                            except Exception as e:
-                                log.debug(e)
-                                pass
-                        except NameError as e:
-                            log.warning(e)
+                        value = calculate_indicator_data_point(key, options['sum'], values, interval.replace("'", ""))
+                        if isinstance(value, int) or isinstance(value, float):
+                            values[key] = value
+                        else:
                             calculated = False
-                            continue
-                        except Exception as e:
-                            log.exception(e)
 
-            if not calculated:
-                log.exception("Unable to resolve all data calculations. Please verify that all calculations are valid.")
-                exit(0)
-
-            # log.info("{}: {}".format(interval, values))
+            for key in values:
+                if not values[key]:
+                    values[key] = 0
 
             # Save the results
             result = dict()
@@ -3323,6 +3319,9 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                 interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals'])
                 interval_averages[interval]['counter'] += 1
             results.append(result)
+
+            # log.info("{}: {}".format(interval, values))
+
         # calculate symbol averages
         counter = max(symbol_average['counter'], 1)
         for key in data:
@@ -3333,9 +3332,26 @@ def extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_ch
         symbol_averages[symbol] = symbol_average
     except Exception as e:
         log.exception(e)
-        max_tries = config.getint('tradingview', 'create_alert_max_retries')
         if tries < max_tries:
-            extract_result_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries)
+            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries)
+
+
+def calculate_indicator_data_point(data_point, expression, values,  interval):
+    result = ''
+    try:
+        expression = expression.replace('%TIMEFRAME%', interval)
+        for key in values:
+            if key != data_point and values[key]:
+                expression = expression.replace(key, str(values[key]))
+        try:
+            result = eval(expression)
+        except NameError:
+            result = ''
+        except ZeroDivisionError:
+            result = 0.0
+    except Exception as e:
+        log.exception(e)
+    return result
 
 
 def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
