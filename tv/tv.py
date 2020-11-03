@@ -3207,11 +3207,13 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
     total_average = dict()
     for key in data:
         options = data[key]
-        decimals = options['decimals']
+        decimals = max(options['decimals'], 2)
         total_average[key] = 0
 
         for interval in interval_averages:
             counter = max(interval_averages[interval]['counter'], 1)
+            if key == 'plotBERemCounter':
+                log.info("{}: {} / {} = {}".format(interval, interval_averages[interval][key], counter, (format_number(float(interval_averages[interval][key]) / counter, decimals))))
             interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) / counter, decimals)
             total_average[key] = format_number(float(total_average[key]) + float(interval_averages[interval][key]), decimals)
 
@@ -3303,33 +3305,48 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                         else:
                             calculated = False
 
+            expression = '1'
+            if 'condition' in indicator:
+                expression = indicator['condition']
             for key in values:
                 if not values[key]:
                     values[key] = 0
+                expression = expression.replace(key, str(values[key]))
+            condition_met = eval(expression)
+            # log.info("condition_met = eval({}) = {}".format(expression, condition_met))
 
-            # Save the results
-            result = dict()
-            result['symbol'] = symbol
-            result['interval'] = interval.replace("'", "")
-            for key in data:
-                options = data[key]
-                result[key] = format_number(float(values[key]), options['decimals'])
-                symbol_average[key] = format_number(float(symbol_average[key]) + float(result[key]), options['decimals'])
-                symbol_average['counter'] += 1
-                interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals'])
+            # Aggregate all the results if the condition is met
+            if condition_met:
+                result = dict()
+                result['symbol'] = symbol
+                result['interval'] = interval.replace("'", "")
+                for key in data:
+                    options = data[key]
+                    result[key] = format_number(float(values[key]), options['decimals'])
+                    # if key == 'breakeven_percentage':
+                    #     log.info("{} + {} = {}".format(symbol_average[key], result[key], (format_number(float(symbol_average[key]) + float(result[key]), options['decimals']))))
+                    symbol_average[key] = format_number(float(symbol_average[key]) + float(result[key]), options['decimals'])
+                    symbol_average['counter'] += 1
+                    if key == 'plotBERemCounter':
+                        log.info("{}: {} + {} = {}".format(interval, interval_averages[interval][key], result[key], (format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals']))))
+                    interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals'])
                 interval_averages[interval]['counter'] += 1
-            results.append(result)
+                results.append(result)
 
-            # log.info("{}: {}".format(interval, values))
+            # log.info("{}: {}".format(interval, interval_averages[interval]['counter']))
 
-        # calculate symbol averages
+        # # Calculate averages
         counter = max(symbol_average['counter'], 1)
         for key in data:
             options = data[key]
-            symbol_average['key'] = format_number(float(symbol_average[key]) / counter, options['decimals'])
+            decimals = max(options['decimals'], 2)
+            # if key == 'breakeven_percentage':
+            #     log.info("{} / {} = {}".format(symbol_average[key], number_of_charts, (format_number(float(symbol_average[key]) / counter, decimals))))
+            symbol_average[key] = format_number(float(symbol_average[key]) / counter, decimals)
+        symbol_averages[symbol] = symbol_average
         del symbol_average['counter']
         # log.info("{}: {}".format(symbol, symbol_average))
-        symbol_averages[symbol] = symbol_average
+
     except Exception as e:
         log.exception(e)
         if tries < max_tries:
