@@ -3212,8 +3212,8 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
 
         for interval in interval_averages:
             counter = max(interval_averages[interval]['counter'], 1)
-            if key == 'plotBERemCounter':
-                log.info("{}: {} / {} = {}".format(interval, interval_averages[interval][key], counter, (format_number(float(interval_averages[interval][key]) / counter, decimals))))
+            # if key == 'plotBERemCounter':
+            #     log.info("{}: {} / {} = {}".format(interval, interval_averages[interval][key], counter, (format_number(float(interval_averages[interval][key]) / counter, decimals))))
             interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) / counter, decimals)
             total_average[key] = format_number(float(total_average[key]) + float(interval_averages[interval][key]), decimals)
 
@@ -3322,14 +3322,15 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                 result['interval'] = interval.replace("'", "")
                 for key in data:
                     options = data[key]
-                    result[key] = format_number(float(values[key]), options['decimals'])
+                    decimals = max(options['decimals'], 2)
+                    result[key] = format_number(float(values[key]), decimals)
                     # if key == 'breakeven_percentage':
-                    #     log.info("{} + {} = {}".format(symbol_average[key], result[key], (format_number(float(symbol_average[key]) + float(result[key]), options['decimals']))))
-                    symbol_average[key] = format_number(float(symbol_average[key]) + float(result[key]), options['decimals'])
-                    symbol_average['counter'] += 1
-                    if key == 'plotBERemCounter':
-                        log.info("{}: {} + {} = {}".format(interval, interval_averages[interval][key], result[key], (format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals']))))
-                    interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals'])
+                    #     log.info("{} + {} = {}".format(symbol_average[key], result[key], (format_number(float(symbol_average[key]) + float(result[key]), decimals))))
+                    symbol_average[key] = format_number(float(symbol_average[key]) + float(result[key]), decimals)
+                    # if key == 'plotBERemCounter':
+                    #     log.info("{}: {} + {} = {}".format(interval, interval_averages[interval][key], result[key], (format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals']))))
+                    interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), decimals)
+                symbol_average['counter'] += 1
                 interval_averages[interval]['counter'] += 1
                 results.append(result)
 
@@ -3341,7 +3342,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
             options = data[key]
             decimals = max(options['decimals'], 2)
             # if key == 'breakeven_percentage':
-            #     log.info("{} / {} = {}".format(symbol_average[key], number_of_charts, (format_number(float(symbol_average[key]) / counter, decimals))))
+            #     log.info("{} / {} = {}".format(symbol_average[key], counter, (format_number(float(symbol_average[key]) / counter, decimals))))
             symbol_average[key] = format_number(float(symbol_average[key]) / counter, decimals)
         symbol_averages[symbol] = symbol_average
         del symbol_average['counter']
