@@ -1182,7 +1182,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                             log.exception(e)
                             snapshot(browser, True)
 
-                indicator['full_name'] = ''
+                indicator['full_name'] = indicator['name']
                 if not indicator['name'] in summaries:
                     summaries[indicator['name']] = dict()
                     summaries[indicator['name']]['id'] = indicator['name']
@@ -1192,7 +1192,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     indicator_element = find_element(browser, xpath, By.XPATH)
                     try:
                         indicator['full_name'] = indicator_element.text
-                        log.info('back testing indicator "{}"'.format(indicator['full_name']))
                         # open the indicator settings
                         open_indicator_settings(browser, indicator['name'])
                         # get the default indicator inputs
@@ -1213,7 +1212,11 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 if 'inputs' in indicator:
                     inputs = get_config_values(indicator['inputs'])
                     generate_atomic_values(inputs, atomic_inputs)
-                log.info("{} tests will be run for each watchlist".format(len(atomic_inputs)))
+                number_of_tests = max(len(atomic_inputs), 1)
+                if number_of_tests > 1:
+                    log.info("{} tests will be run for each watchlist".format(number_of_tests))
+                else:
+                    log.info("{} test will be run for each watchlist".format(number_of_tests))
 
                 sort_by = False
                 if 'sort_by' in indicator:
@@ -3138,7 +3141,7 @@ def get_indicator_dialog_values(browser):
 def test_indicators(browser, indicator, symbols, data, atomic_inputs):
     try:
         summaries = list()
-        name = indicator['name']
+        name = indicator['full_name']
         number_of_charts = 1
         try:
             css = 'div.chart-container'
@@ -3161,7 +3164,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs):
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs
         else:
-            log.info("Back testing {} with default input set and default property set.".format(name))
+            log.info("Back testing {} with the default input set".format(name))
             strategy_summary = dict()
             strategy_summary['inputs'] = []
             strategy_summary['summary'] = dict()
@@ -3180,8 +3183,8 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
 
     raw = []
     input_locations = dict()
-    interval_averages = dict()
-    symbol_averages = dict()
+    interval_totals = dict()
+    symbol_totals = dict()
     intervals = []
     duration = 0
 
@@ -3193,7 +3196,7 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -3201,31 +3204,32 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements)
 
-    # calculate averages
-    total_average = dict()
+    # Aggregate all the data to get totals
+    totals = dict()
     for key in data:
-        options = data[key]
-        decimals = max(options['decimals'], 2)
-        total_average[key] = 0
+        totals[key] = 0
+        for interval in interval_totals:
+            totals[key] = float(totals[key]) + float(interval_totals[interval][key])
 
-        for interval in interval_averages:
-            counter = max(interval_averages[interval]['counter'], 1)
-            # if key == 'plotBERemCounter':
-            #     log.info("{}: {} / {} = {}".format(interval, interval_averages[interval][key], counter, (format_number(float(interval_averages[interval][key]) / counter, decimals))))
-            interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) / counter, decimals)
-            total_average[key] = format_number(float(total_average[key]) + float(interval_averages[interval][key]), decimals)
+    # Calculate data points and do the rounding of all aggregated data
+    for interval in interval_totals:
+        interval_totals[interval] = calculate_indicator_data_points(data, interval_totals[interval], interval)
+        del interval_totals[interval]['counter']
+        post_process_data_points(data, interval_totals[interval])
+    for symbol_average in symbol_totals:
+        # log.info(symbol_average)
+        symbol_totals[symbol_average] = calculate_indicator_data_points(data, symbol_totals[symbol_average])
+        del symbol_totals[symbol_average]['counter']
+        post_process_data_points(data, symbol_totals[symbol_average])
+    totals = calculate_indicator_data_points(data, totals)
+    post_process_data_points(data, totals)
 
-        total_average[key] = format_number(float(total_average[key]) / max(len(interval_averages), 1), decimals)
-
-    for interval in interval_averages:
-        del interval_averages[interval]['counter']
-
-    return [total_average, interval_averages, symbol_averages, raw]
+    return [totals, interval_totals, symbol_totals, raw]
 
 
-def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
+def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, tries=0):
     max_tries = 5
     try:
         max_tries = config.getint('tradingview', 'create_alert_max_retries')
@@ -3234,10 +3238,10 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
         log.info(symbol)
         previous_values = copy.deepcopy(values)
         values = dict()
-        symbol_average = dict()
-        symbol_average['counter'] = 0
+        symbol_total = dict()
+        symbol_total['counter'] = 0
         for key in data:
-            symbol_average[key] = 0
+            symbol_total[key] = 0
 
         for chart_index in range(number_of_charts):
             # move to correct chart
@@ -3249,7 +3253,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
             # - get interval of chart
             # - create a dict() for each interval and add it to averages
             if first_symbol:
-                # log.debug("selecting and formatting strategy for chart {}".format(chart_index + 1))
+                log.debug("selecting and formatting strategy for chart {}".format(chart_index + 1))
                 # set the strategy if there are inputs or properties defined
                 if len(inputs) > 0:
                     # open the indicator's settings dialog of the active chart
@@ -3262,11 +3266,11 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                 interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
                 intervals.append(interval)
 
-                if not (interval in interval_averages):
-                    interval_averages[interval] = dict()
-                    interval_averages[interval]['counter'] = 0
+                if not (interval in interval_totals):
+                    interval_totals[interval] = dict()
+                    interval_totals[interval]['counter'] = 0
                     for key in data:
-                        interval_averages[interval][key] = 0
+                        interval_totals[interval][key] = 0
             interval = intervals[chart_index]
             # snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
 
@@ -3289,22 +3293,15 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
             if not valid_data:
                 log.info("{}: no valid indicator found".format(interval))
                 snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
+                if tries < max_tries:
+                    test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol,
+                                          results, input_locations, interval_totals, symbol_totals, intervals, values,
+                                          previous_elements, tries)
 
             # Calculate additional data points from the extracted data
-            calculated = False
-            i = 0
-            while not calculated and i < 5:
-                i = i + 1
-                calculated = True
-                for key in data:
-                    options = data[key]
-                    if 'sum' in options:
-                        value = calculate_indicator_data_point(key, options['sum'], values, interval.replace("'", ""))
-                        if isinstance(value, int) or isinstance(value, float):
-                            values[key] = value
-                        else:
-                            calculated = False
+            values = calculate_indicator_data_points(data, values, interval)
 
+            # Optional defined condition of when data should be added
             expression = '1'
             if 'condition' in indicator:
                 expression = indicator['condition']
@@ -3313,51 +3310,50 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                     values[key] = 0
                 expression = expression.replace(key, str(values[key]))
             condition_met = eval(expression)
-            # log.info("condition_met = eval({}) = {}".format(expression, condition_met))
 
             # Aggregate all the results if the condition is met
             if condition_met:
+                interval_totals[interval]['counter'] += 1
                 result = dict()
                 result['symbol'] = symbol
                 result['interval'] = interval.replace("'", "")
                 for key in data:
-                    options = data[key]
-                    decimals = max(options['decimals'], 2)
-                    result[key] = format_number(float(values[key]), decimals)
-                    # if key == 'breakeven_percentage':
-                    #     log.info("{} + {} = {}".format(symbol_average[key], result[key], (format_number(float(symbol_average[key]) + float(result[key]), decimals))))
-                    symbol_average[key] = format_number(float(symbol_average[key]) + float(result[key]), decimals)
-                    # if key == 'plotBERemCounter':
-                    #     log.info("{}: {} + {} = {}".format(interval, interval_averages[interval][key], result[key], (format_number(float(interval_averages[interval][key]) + float(result[key]), options['decimals']))))
-                    interval_averages[interval][key] = format_number(float(interval_averages[interval][key]) + float(result[key]), decimals)
-                symbol_average['counter'] += 1
-                interval_averages[interval]['counter'] += 1
+                    result[key] = float(values[key])
+                    symbol_total[key] = float(symbol_total[key]) + float(result[key])
+                    interval_totals[interval][key] = float(interval_totals[interval][key]) + float(result[key])
+                symbol_total['counter'] += 1
                 results.append(result)
 
-            # log.info("{}: {}".format(interval, interval_averages[interval]['counter']))
-
-        # # Calculate averages
-        counter = max(symbol_average['counter'], 1)
-        for key in data:
-            options = data[key]
-            decimals = max(options['decimals'], 2)
-            # if key == 'breakeven_percentage':
-            #     log.info("{} / {} = {}".format(symbol_average[key], counter, (format_number(float(symbol_average[key]) / counter, decimals))))
-            symbol_average[key] = format_number(float(symbol_average[key]) / counter, decimals)
-        symbol_averages[symbol] = symbol_average
-        del symbol_average['counter']
-        # log.info("{}: {}".format(symbol, symbol_average))
+        symbol_totals[symbol] = symbol_total
 
     except Exception as e:
         log.exception(e)
         if tries < max_tries:
-            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries)
+            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, tries)
 
 
-def calculate_indicator_data_point(data_point, expression, values,  interval):
+def calculate_indicator_data_points(data, values, interval=False):
+    calculated = False
+    i = 0
+    while not calculated and i < 5:
+        i = i + 1
+        calculated = True
+        for key in data:
+            options = data[key]
+            if 'sum' in options:
+                value = calculate_indicator_data_point(key, options['sum'], values, interval)
+                if isinstance(value, int) or isinstance(value, float):
+                    values[key] = value
+                else:
+                    calculated = False
+    return values
+
+
+def calculate_indicator_data_point(data_point, expression, values, interval=False):
     result = ''
     try:
-        expression = expression.replace('%TIMEFRAME%', interval)
+        if interval:
+            expression = expression.replace('%TIMEFRAME%', str(interval).replace("'", ""))
         for key in values:
             if key != data_point and values[key]:
                 expression = expression.replace(key, str(values[key]))
@@ -3370,6 +3366,17 @@ def calculate_indicator_data_point(data_point, expression, values,  interval):
     except Exception as e:
         log.exception(e)
     return result
+
+
+def post_process_data_points(data, values):
+    for key in data:
+        options = data[key]
+        show = options['show']
+        decimals = options['decimals']
+        if show:
+            values[key] = format_number(values[key], decimals)
+        else:
+            del values[key]
 
 
 def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
