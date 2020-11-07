@@ -28,7 +28,7 @@ def print_help():
     print("-s\t\t Flag. Read your mailbox, create summary and send it to your mailbox. See kairos.cfg.")
     print("<minutes>\t Delay creating a summary for <number> of minutes (e.g. to allow alerts to get triggered first).")
     print("-cls\t\t Flag. Clean session data that is exclusively used by Kairos. Your browser's user data folder is left untouched by this action.")
-    print("-sort\t\t Flag. Sort existing back testing results (json). Requires 3 parameters -sort <filename> <sort_by> <reverse>:")
+    print("-sort\t\t Flag. Sort existing back testing results (json). Requires 3 parameters -sort <filename> <sort_by> <reverse>.")
     print("\t\t Example usage: output\\my_back_test_20190527_1048.json \"Net Profit %\" no")
     print("\t\t\t <filename>: the file to sort")
     print("\t\t\t <sort_by>: define on which value to sort (use quites). Accepted values are: \"Net Profit\", \"Net Profit %\", \"Closed Trades\", \"Percent Profitable\", \"Profit Factor\", \"Max Drawdown\", \"Max Drawdown %\", \"Avg Trade\", \"Avg Trade %\"")
