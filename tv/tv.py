@@ -754,7 +754,7 @@ def get_data_window_indicator_value_by_text(browser, indicator, text, retry_numb
             first = False
             value = element.text
             if value == 'n/a':
-                if retry_number < max_retries * 25:
+                if retry_number < max_retries * 10:
                     time.sleep(DELAY_BREAK_MINI)
                     return get_data_window_indicator_value_by_text(browser, indicator, text, retry_number + 1)
         except StaleElementReferenceException as e:
@@ -765,7 +765,7 @@ def get_data_window_indicator_value_by_text(browser, indicator, text, retry_numb
             log.exception(e)
             element = False
             if retry_number < max_retries * 10:
-                time.sleep(0.05)
+                time.sleep(DELAY_BREAK_MINI)
                 return get_data_window_indicator_value_by_text(browser, indicator, text, retry_number+1)
     return value
 
@@ -1231,15 +1231,15 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 # test the strategy and sort the results
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    test_results = test_indicators(browser, indicator, symbols, data, atomic_inputs)
+                    test_data = test_indicators(browser, indicator, symbols, data, atomic_inputs)
                     # sort if the user defined one for the indicator
                     if sort_by:
-                        test_results = back_test_sort_watchlist(test_results, sort_by, reverse)
+                        test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
 
                     if watchlist in summaries[indicator['name']]:
-                        summaries[indicator['name']][watchlist] += test_results
+                        summaries[indicator['name']][watchlist] += test_data
                     else:
-                        summaries[indicator['name']][watchlist] = test_results
+                        summaries[indicator['name']][watchlist] = test_data
 
             # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
             if sort:
@@ -1251,7 +1251,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         reverse = not sort['sort_asc']
                     back_test_sort(summaries, sort_by, reverse)
 
-            # Save the results
+            # Save the data
             filename = save_as
             match = re.search(r"([\w\-_]*)", save_as)
             if match:
@@ -1317,15 +1317,15 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 # test the strategy and sort the results
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    test_results = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                    test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
                     # sort if the user defined one for the strategy
                     if sort_by:
-                        test_results = back_test_sort_watchlist(test_results, sort_by, reverse)
+                        test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
 
                     if watchlist in summaries[strategy['name']]:
-                        summaries[strategy['name']][watchlist] += test_results
+                        summaries[strategy['name']][watchlist] += test_data
                     else:
-                        summaries[strategy['name']][watchlist] = test_results
+                        summaries[strategy['name']][watchlist] = test_data
 
             # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
             if sort:
@@ -1337,7 +1337,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         reverse = not sort['sort_asc']
                     back_test_sort(summaries, sort_by, reverse)
 
-            # Save the results
+            # Save the data
             filename = save_as
             match = re.search(r"([\w\-_]*)", save_as)
             if match:
@@ -3219,12 +3219,14 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
         del interval_totals[interval]['counter']
         post_process_data_points(data, interval_totals[interval])
     for symbol_average in symbol_totals:
-        # log.info(symbol_average)
         symbol_totals[symbol_average] = calculate_indicator_data_points(data, symbol_totals[symbol_average])
         del symbol_totals[symbol_average]['counter']
         post_process_data_points(data, symbol_totals[symbol_average])
     totals = calculate_indicator_data_points(data, totals)
     post_process_data_points(data, totals)
+    for dataset in raw:
+        # data points have already been calculated for the raw data (i.e. per symbol, per timeframe)
+        post_process_data_points(data, dataset)
 
     return [totals, interval_totals, symbol_totals, raw]
 
@@ -3291,12 +3293,8 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                     values[key] = format_number(value, options['decimals'])
 
             if not valid_data:
-                log.info("{}: no valid indicator found".format(interval))
-                snapshot(browser, False, True, "results\\{}_{}".format(symbol.replace(':', '_'), interval), True)
-                if tries < max_tries:
-                    test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol,
-                                          results, input_locations, interval_totals, symbol_totals, intervals, values,
-                                          previous_elements, tries)
+                log.info("{}: no values found. Indicator didn't trigger once.".format(interval))
+                # snapshot(browser, False, True, "{}_{}".format(symbol.replace(':', '_'), interval), True)
 
             # Calculate additional data points from the extracted data
             values = calculate_indicator_data_points(data, values, interval)
