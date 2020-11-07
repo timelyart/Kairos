@@ -2653,6 +2653,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                                 # remove excess pagination watchlists, e.g. 4/5 and 5/5 when there are only 3 chunks with this update
                                 if number_of_chunks == 1:
                                     name = screener_yaml['name'].strip() + " 1/1"
+                                # ActionChains(browser).send_keys(Keys.ESCAPE).perform()
                                 wait_and_click(browser, css_selectors['btn_calendar'])
                                 time.sleep(DELAY_BREAK)
                                 wait_and_click(browser, css_selectors['btn_watchlist'])
@@ -2875,9 +2876,9 @@ def update_watchlist(browser, name, markets):
         wait_and_click_by_text(browser, 'div', 'Create new list')
         time.sleep(DELAY_BREAK)
 
-        css = '#overlap-manager-root > div > div > div.tv-dialog__scroll-wrap.i-with-actions > div > div > div > label > input'
+        css = "div[data-name='rename-dialog'] input"
         input_watchlist_name = find_element(browser, css)
-        set_value(browser, input_watchlist_name, name)
+        set_value(browser, input_watchlist_name, name, True)
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
 
