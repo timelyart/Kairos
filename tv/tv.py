@@ -760,6 +760,8 @@ def get_data_window_indicator_value_by_text(browser, indicator, text, retry_numb
         except StaleElementReferenceException as e:
             log.debug(e)
             element = False
+            if retry_number < max_retries * 20:
+                time.sleep(DELAY_BREAK_MINI)
             # continue
         except Exception as e:
             log.exception(e)
@@ -3156,7 +3158,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs):
         if len(atomic_inputs) > 0:
             log.info("Back testing {} with {} input sets".format(name, len(atomic_inputs)))
             for i, inputs in enumerate(atomic_inputs):
-                log.info("Test variant {}/{}".format(i+1, len(atomic_inputs)))
+                log.info("testing variant {}/{} with the following inputs: {}".format(i+1, len(atomic_inputs), inputs))
                 strategy_summary = dict()
                 strategy_summary['inputs'] = inputs
                 strategy_summary['summary'] = dict()
