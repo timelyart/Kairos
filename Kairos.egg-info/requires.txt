@@ -16,6 +16,7 @@ numpy
 fastnumbers
 psutil
 Cython
+tqdm
 
 [platform_system == "Darwin"]
 pyobjc-core

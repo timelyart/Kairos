@@ -23,6 +23,5 @@ kairos/mongodb.py
 kairos/timing.py
 kairos/tools.py
 tv/__init__.py
-tv/_tv _deb.py
 tv/mail.py
 tv/tv.py
