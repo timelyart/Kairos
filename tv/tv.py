@@ -130,6 +130,7 @@ css_selectors = dict(
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
     btn_create_alert='#header-toolbar-alerts',
+    btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
     dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1)',
     options_dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1) span.tv-control-select__option-wrap',
@@ -149,6 +150,9 @@ css_selectors = dict(
     clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="show-popup"] + span + span.tv-control-checkbox__ripple',
     # Send Email
     clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-email"] + span + span.tv-control-checkbox__ripple',
+    # Webhook
+    clickable_dlg_create_alert_webhook='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="webhook-toggle"] + span + span.tv-control-checkbox__ripple',
+    dlg_create_alert_webhook='input[name="webhook-url"',
     # Toggle more actions
     btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
     # Play Sound
@@ -233,7 +237,6 @@ css_selectors = dict(
 )
 
 class_selectors = dict(
-    form_create_alert='js-alert-form',
     rows_screener_result='tv-screener-table__result-row',
 )
 
@@ -242,8 +245,8 @@ name_selectors = dict(
     checkbox_dlg_create_alert_play_sound='play-sound',
     checkbox_dlg_create_alert_send_email='send-email',
     checkbox_dlg_create_alert_email_to_sms='send-sms',
-    # checkbox_dlg_create_alert_send_sms='send-true-sms',  # option removed by TradingView
-    checkbox_dlg_create_alert_send_push='send-push'
+    checkbox_dlg_create_alert_send_push='send-push',
+    checkbox_dlg_create_alert_webhook='webhook-toggle',
 )
 
 tv_start = timing.time()
@@ -1907,16 +1910,24 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 time.sleep(1)
             i += 1
 
-        alert_dialog = find_element(browser, class_selectors['form_create_alert'], By.CLASS_NAME)
+        if not indicators_present:
+            log.error("Alert Dialog not loaded")
+
+        # open the alert dialog
+        # wait_and_click(browser, css_selectors['btn_create_alert'])
+
+        # get the alert dialog element
+        alert_dialog = find_element(browser, 'form.js-alert-form')
         log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
 
         # 1st row, 1st condition
         current_condition = 0
         css_1st_row_left = css_selectors['dlg_create_alert_first_row_first_item']
         try:
-            wait_and_click(alert_dialog, css_1st_row_left)
+            wait_and_click(alert_dialog, css_1st_row_left, 30)
         except Exception as alert_err:
             log.exception(alert_err)
+            snapshot(browser, True)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_first_item'])
@@ -1989,13 +2000,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         wait_and_click(alert_dialog, css_selectors['btn_toggle_more_actions'])
 
         # Show popup
+        show_popup = 'show_popup' in alert_config and alert_config['show_popup']
         checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_show_popup'], By.NAME)
-        if is_checkbox_checked(checkbox) != alert_config['show_popup']:
+        if is_checkbox_checked(checkbox) != show_popup:
             wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_show_popup'])
 
         # Sound
+        play_sound = 'sound' in alert_config and 'play' in  alert_config['sound'] and alert_config['sound']['play']
         checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_play_sound'], By.NAME)
-        if is_checkbox_checked(checkbox) != alert_config['sound']['play']:
+        if is_checkbox_checked(checkbox) != play_sound:
             wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_play_sound'])
         if is_checkbox_checked(checkbox):
             # set ringtone
@@ -2014,29 +2027,34 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # Communication options
         # Send Email
         try:
+            send_email = 'send' in alert_config and 'email' in alert_config['send'] and alert_config['send']['email']
             checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_email'], By.NAME)
-            if is_checkbox_checked(checkbox) != alert_config['send']['email']:
+            if is_checkbox_checked(checkbox) != send_email:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email'])
             # Send Email-to-SMS (the checkbox is indeed called 'send-sms'!)
+            send_email_to_sms = 'send' in alert_config and 'email-to-sms' in alert_config['send'] and alert_config['send']['email-to-sms']
             checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_email_to_sms'], By.NAME)
-            if is_checkbox_checked(checkbox) != alert_config['send']['email-to-sms']:
+            if is_checkbox_checked(checkbox) != send_email_to_sms:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email_to_sms'])
-            # Send SMS (only for premium members)
-            # checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_sms'], By.NAME)
-            # if is_checkbox_checked(checkbox) != alert_config['send']['sms']:
-            #     wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_sms'])
             # Notify on App
+            notify_on_app = 'send' in alert_config and 'notify-on-app' in alert_config['send'] and alert_config['send']['notify-on-app']
             checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_push'], By.NAME)
-            if is_checkbox_checked(checkbox) != alert_config['send']['notify-on-app']:
+            if is_checkbox_checked(checkbox) != notify_on_app:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_push'])
+
+            # Webhook
+            webhook = 'webhook' in alert_config and alert_config['webhook']
+            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_webhook'], By.NAME)
+            if is_checkbox_checked(checkbox) != webhook:
+                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_webhook'])
+            if webhook:
+                element = find_element(alert_dialog, css_selectors['dlg_create_alert_webhook'])
+                set_value(browser, element, "")
+                set_value(browser, element, alert_config['webhook'], False, True)
 
             # Construct message
             chart = browser.current_url + '?symbol=' + symbol
-            show_multi_chart_layout = False
-            try:
-                show_multi_chart_layout = alert_config['show_multi_chart_layout']
-            except KeyError:
-                log.warn('charts: multichartlayout not set in yaml, defaulting to multichartlayout = no')
+            show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
             if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
                 chart += '&interval=' + str(interval)
             textarea = find_element(alert_dialog, 'description', By.NAME)
@@ -2044,9 +2062,8 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             # This has stopped working. :( The text is visible but not set.           
             generated = textarea.text
             """
-            # fall back to an empty generated text
             generated = ''
-            text = str(alert_config['message']['text'])
+            text = str(alert_config['message']['text']).replace('/r', '')
             text = text.replace('%TIMEFRAME', ' ' + timeframe)
             text = text.replace('%SYMBOL', ' ' + symbol)
             text = text.replace('%NAME', ' ' + alert_config['name'])
@@ -2062,7 +2079,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 log.exception(value_error)
                 snapshot(browser)
             except KeyError:
-                log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+                log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
             set_value(browser, textarea, text, True)
         except Exception as alert_err:
             log.exception(alert_err)
@@ -2075,11 +2092,13 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # ignore warnings if they are there
         if SEARCH_FOR_WARNING:
             try:
-                wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'], 5)
-                log.info('Warning found and closed')
+                element = find_element(browser, css_selectors['btn_create_alert_warning_continue_anyway'])
+                element.click()
+                # wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'K, 5)
+                log.debug('warning found and closed')
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
-                log.info('No warning found when setting the alert.')
+                log.debug('no warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
 
         time.sleep(DELAY_SUBMIT_ALERT)
@@ -2135,7 +2154,8 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
     if use_send_keys:
         send_keys(element, string, interval)
     else:
-        browser.execute_script("arguments[0].value = '{}';".format(string), element)
+        browser.execute_script("arguments[0].value = arguments[1];".format(string), element, string)
+        # browser.execute_script("arguments[0].value = '{}';".format(string), element)
         if use_clipboard:
             if config.getboolean('webdriver', 'clipboard'):
                 element.send_keys(SELECT_ALL)
@@ -2939,7 +2959,6 @@ def update_watchlist(browser, name, markets):
 
 def add_markets_to_watchlist(browser, markets):
     added = 0
-    dots = 0
     missing = []
     for i in tqdm(range(len(markets)), colour='white'):
         market = markets[i]
