@@ -40,6 +40,8 @@ from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from multiprocessing import Pool
 
+from tqdm import tqdm
+
 from kairos import timing
 from kairos import tools
 from kairos.tools import format_number, wait_for_element_is_stale, print_dot, unicode_to_float_int
@@ -220,7 +222,7 @@ css_selectors = dict(
     indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
     indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
     indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
-    btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
+    btn_indicator_dialog_ok='div[data-name="indicator-properties-dialog"] button[name="submit"]',
     active_chart_asset='div.chart-container.active div[class^="titleWrapper"] > div[data-name="legend-source-title"]:nth-child(1)',
     active_chart_interval='div.chart-container.active div[class^="titleWrapper"] > div[data-name="legend-source-title"]:nth-child(2)',
     # Indicator values
@@ -1198,6 +1200,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         open_indicator_settings(browser, indicator['name'])
                         # get the default indicator inputs
                         default_chart_inputs = get_indicator_dialog_values(browser)
+                        # close the indicator settings dialog
+                        close_indicator_settings(browser)
                     except StaleElementReferenceException:
                         pass
                     except Exception as e:
@@ -2636,11 +2640,13 @@ def run(file, export_signals_immediately, multi_threading=False):
                     print('')
                 try:
                     max_symbols_per_watchlist = 1000  # TV limit
+                    if 'tradingview' in config and 'max_symbols_per_watchlist' in config['tradingview']:
+                        max_symbols_per_watchlist = min(max_symbols_per_watchlist, format_number(config.getint('tradingview', 'max_symbols_per_watchlist')))
 
                     screeners_yaml = tv['screeners']
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
-                            log.info("extracting symbols from screener '{}'. Please be patient, this may take a minute or two ...".format(screener_yaml['name']))
+                            log.info("extracting symbols from screener '{}' ...".format(screener_yaml['name']))
                             markets = get_screener_markets(browser, screener_yaml)
                             if markets:
                                 markets.sort()
@@ -2759,6 +2765,7 @@ def get_screener_markets(browser, screener_yaml):
     url = unquote(screener_yaml['url'])
     browser.get(url)
     found = False
+    scroll_delay = DELAY_BREAK * 6
 
     try:
         wait_and_click(browser, css_selectors['select_screener'], 30)
@@ -2781,7 +2788,7 @@ def get_screener_markets(browser, screener_yaml):
     if 'search' in screener_yaml and screener_yaml['search'] != '' and screener_yaml['search'] is not None:
         search_box = find_element(browser, css_selectors['input_screener_search'])
         set_value(browser, search_box, screener_yaml['search'], True)
-        time.sleep(DELAY_SCREENER_SEARCH)
+    time.sleep(DELAY_SCREENER_SEARCH)
 
     # sort first, otherwise scrolling doesn't work
     # sort descending on the ticker column
@@ -2819,11 +2826,11 @@ def get_screener_markets(browser, screener_yaml):
     scroll_factor = 100
     dots = 0
     while symbol != previous_symbol:
-        if config.getint('logging', 'level') >= 20:
+        if config.getint('logging', 'level') == 10:
             dots = print_dot(dots)
         try:
             browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
-            time.sleep(DELAY_BREAK * 6)
+            time.sleep(scroll_delay)
             last_row = find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[last()]', By.XPATH)
             previous_symbol = symbol
             symbol = last_row.get_attribute('data-symbol')
@@ -2832,31 +2839,54 @@ def get_screener_markets(browser, screener_yaml):
             log.debug("last_symbol = {}".format(symbol))
         except StaleElementReferenceException:
             pass
-
-    tries = 0
-    max_tries = 3
-    while len(markets) < total_found and tries < max_tries:
-        tries = tries + 1
-
-        rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 10)
-
-        i = 0
-        while i < len(rows):
-            if i > 0 and i % 40 == 0:
-                dots = print_dot(dots)
+    if config.getint('logging', 'level') == 10:
+        print(' DONE')
+    for i in tqdm(range(total_found), colour='white'):
+        extracted = False
+        j = 0
+        while j < 20 and not extracted:
+            j += 1
             market = ""
+            extracted = False
             try:
-                market = rows[i].get_attribute('data-symbol')
+
+                move = i % 100 == 0 or j > 5
+                xpath = '//tr[contains(@class, "tv-screener-table__result-row")][{}]'.format(i+1)
+                row = find_element(browser, xpath, By.XPATH, True, False, 10)
+                market = row.get_attribute('data-symbol')
+                if move:
+                    browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
+                    time.sleep(scroll_delay)
+                    ActionChains(browser).move_to_element(row).perform()
+                extracted = True
             except StaleElementReferenceException:
                 pass
+            except TimeoutException as e:
+                if j < 20:
+                    try:
+                        xpath = '//tr[contains(@class, "tv-screener-table__result-row")][last()]'
+                        row = find_element(browser, xpath, By.XPATH, True, False, 10)
+                        ActionChains(browser).move_to_element(row).perform()
+                        browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
+                        time.sleep(scroll_delay)
+                        row = find_element(browser, xpath, By.XPATH, True, False, 10)
+                        ActionChains(browser).move_to_element(row).perform()
+                        pass
+                    except Exception as e:
+                        log.debug(e)
+                        pass
+                else:
+                    log.exception(e)
             except IndexError as e:
                 log.exception(e)
-            i += 1
-            if market not in markets:
+            except Exception as e:
+                log.exception(e)
+            if market and market not in markets:
                 markets.append(market)
 
     markets = list(set(markets))
-    print(' DONE')
+    print("")
+    # print(' DONE')
     log.debug('extracted {} markets'.format(str(len(markets))))
     return markets
 
@@ -2866,7 +2896,7 @@ def update_watchlist(browser, name, markets):
     try:
         if isinstance(markets, str):
             markets = markets.split(',')
-        log.info("updating {} with {} markets. Please be patient, this will take a while (100 markets/min or so) ...".format(name, len(markets)))
+        log.info("updating {} with {} markets ...".format(name, len(markets)))
 
         wait_and_click(browser, css_selectors['btn_calendar'])
         time.sleep(DELAY_BREAK)
@@ -2911,13 +2941,12 @@ def add_markets_to_watchlist(browser, markets):
     added = 0
     dots = 0
     missing = []
-    for market in markets:
-        dots = print_dot(dots)
+    for i in tqdm(range(len(markets)), colour='white'):
+        market = markets[i]
         if add_market_to_watchlist(browser, market):
             added += 1
         else:
             missing.append(market)
-    print(" DONE")
     return added, missing
 
 
@@ -3063,8 +3092,8 @@ def get_strategy_default_values(browser, retry_number=0):
         # click and set properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
         properties = get_indicator_dialog_values(browser)
-        # click OK
-        wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
+        # close the indicator settings dialog
+        close_indicator_settings(browser)
     except Exception as e:
         return retry_get_strategy_default_values(browser, e, retry_number)
     return inputs, properties
@@ -4074,6 +4103,16 @@ def open_indicator_settings(browser, indicator_name, chart_index=0):
     except Exception as e:
         log.exception(e)
         snapshot(browser, True)
+
+
+def close_indicator_settings(browser):
+    try:
+        css = 'div[data-name="indicator-properties-dialog"] button[name="cancel"]'
+        wait_and_click(browser, css)
+    except TimeoutException:
+        pass
+    except Exception as e:
+        log.exception(e)
 
 
 def generate_atomic_values(items, strategies, depth=0):
