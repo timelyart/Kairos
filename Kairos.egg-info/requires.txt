@@ -3,7 +3,6 @@ beautifulsoup4
 urllib3
 selenium<4,>=3.141
 configparser
-tools
 pip
 Pillow
 requests
