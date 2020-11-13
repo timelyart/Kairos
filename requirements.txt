@@ -1,0 +1,26 @@
+# This file is here to be crawled by pyup.io so it can scan for known securiy issues with packages
+# IMPORTANT!! use python setup.py install to install Kairos
+pyyaml
+beautifulsoup4
+urllib3
+selenium>=3.141.0,<4
+configparser
+tools
+pip
+Pillow
+requests
+gspread
+google-api-python-client
+oauth2client
+pymongo
+dill
+numpy
+fastnumbers
+psutil
+Cython
+tqdm
+# linux
+python3-Xlib
+# macos
+pyobjc-core
+pyobjc
