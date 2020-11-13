@@ -1,7 +1,6 @@
 ![](https://img.shields.io/github/license/timelyart/kairos?style=for-the-badge)
 ![](https://img.shields.io/github/repo-size/timelyart/kairos?style=for-the-badge)
-![](https://img.shields.io/github/commit-activity/m/timelyart/kairos?style=for-the-badge)
-![](https://img.shields.io/twitter/follow/timelyart?style=for-the-badge)
+![GitHub commit activity](https://img.shields.io/github/commit-activity/m/timelyart/kairos?style=for-the-badge)
 ![](https://img.shields.io/twitter/follow/timelyart?style=for-the-badge)
 
 [![Updates](https://pyup.io/repos/github/timelyart/Kairos/shield.svg)](https://pyup.io/repos/github/timelyart/Kairos/)
