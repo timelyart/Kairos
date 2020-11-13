@@ -2,6 +2,10 @@
 ![](https://img.shields.io/github/repo-size/timelyart/kairos?style=for-the-badge)
 ![](https://img.shields.io/github/commit-activity/y/timelyart/kairos?style=for-the-badge)
 ![](https://img.shields.io/twitter/follow/timelyart?style=for-the-badge)
+![](https://img.shields.io/twitter/follow/timelyart?style=for-the-badge)
+
+[![Updates](https://pyup.io/repos/github/timelyart/Kairos/shield.svg)](https://pyup.io/repos/github/timelyart/Kairos/)
+[![Python 3](https://pyup.io/repos/github/timelyart/Kairos/python-3-shield.svg)](https://pyup.io/repos/github/timelyart/Kairos/)
 
 # Kairos
 Web automation tool using Python, Selenium and Chrome's Web Driver.
