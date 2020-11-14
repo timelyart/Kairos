@@ -43,7 +43,7 @@ Besides this document you can also find instructional videos [here](https://www.
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
 ## Installing ##
-If you run Ubuntu 18.04 there is a list of commands here: [Ubuntu - command line installation](#ubuntu---command-line-installation).
+If you run Ubuntu there is a list of commands here: [Ubuntu - command line installation](#ubuntu---command-line-installation).
 ### From archive (Linux, OS X and Windows)
 _If you are running Linux / OS X then run listed commands with **sudo**_ 
 * [Install Python 3](https://www.python.org/downloads/) - [OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
