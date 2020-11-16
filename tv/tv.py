@@ -1128,7 +1128,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
-        if 'tests' in chart:
+        if 'backtest' in chart:
             # open data window tab
             # check if data window is open
             date = datetime.datetime.strptime(time.strftime('%Y-%m-%dT%H:%M:%S%z', time.localtime()), '%Y-%m-%dT%H:%M:%S%z')
@@ -1141,7 +1141,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
             # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
             sort = dict()
-            for indicator in chart['tests']:
+            for indicator in chart['backtest']:
                 if 'sort' in indicator:
                     sort = indicator['sort']
                     log.info(sort)
@@ -1653,6 +1653,9 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
         if 'alerts' in chart:
             interval = get_interval(timeframe)
             for alert in chart['alerts']:
+                enabled = not ('enabled' in alert) or alert['enabled']
+                if not enabled:
+                    continue
                 if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
                     # try clean inactive alerts first
                     wait_and_click(browser, css_selectors['btn_calendar'])
@@ -1917,8 +1920,14 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # wait_and_click(browser, css_selectors['btn_create_alert'])
 
         # get the alert dialog element
-        alert_dialog = find_element(browser, 'form.js-alert-form')
-        log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
+        try:
+            alert_dialog = find_element(browser, 'form.js-alert-form')
+            log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
+        except TimeoutException:
+            # open the alert dialog
+            wait_and_click(browser, css_selectors['btn_create_alert'])
+            time.sleep(1)
+            alert_dialog = find_element(browser, 'form.js-alert-form')
 
         # 1st row, 1st condition
         current_condition = 0
@@ -1927,7 +1936,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             wait_and_click(alert_dialog, css_1st_row_left, 30)
         except Exception as alert_err:
             log.exception(alert_err)
-            snapshot(browser, True)
+            snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_first_item'])
@@ -2006,7 +2015,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_show_popup'])
 
         # Sound
-        play_sound = 'sound' in alert_config and 'play' in  alert_config['sound'] and alert_config['sound']['play']
+        play_sound = 'sound' in alert_config and 'play' in alert_config['sound'] and alert_config['sound']['play']
         checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_play_sound'], By.NAME)
         if is_checkbox_checked(checkbox) != play_sound:
             wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_play_sound'])
@@ -2746,7 +2755,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                 for file, items in tv.items():
                     if type(items) is list:
                         for item in items:
-                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'tests' in item:
+                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'backtest' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, save_as, counter_alerts, total_alerts)
 
                 if len(processing_errors) > 0:
