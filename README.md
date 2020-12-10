@@ -34,7 +34,10 @@ Besides this document you can also find instructional videos [here](https://www.
 * Send a summary mail.
 * Generate a TradingView watchlist from the summary mail.
 * Import generated TradingView watchlist.
-* Send signals to a webhook/endpoint or a Google Sheet 
+* Send signals to a webhook/endpoint or a Google Sheet.
+* Generate a watchlist from saved TradingView screener.
+* Aggregate results of TV strategies with different inputs / properties  
+* Aggregate results of TV indicators with different inputs
 
 ## Prerequisites
 * [Python 3](https://www.python.org/downloads/)
