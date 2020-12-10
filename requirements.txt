@@ -1,5 +1,6 @@
 # This file is here to be crawled by pyup.io so it can scan for known securiy issues with packages
 # IMPORTANT!! use python setup.py install to install Kairos
+setuptools
 pyyaml
 beautifulsoup4
 urllib3
