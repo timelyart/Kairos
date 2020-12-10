@@ -2445,9 +2445,6 @@ def create_browser(run_in_background):
     if config.has_option('webdriver', 'web_browser_path'):
         web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
         options.binary_location = web_browser_path
-    if OS == 'linux':
-        options.add_argument('--no-sandbox')
-        options.add_argument("--disable-dev-shm-usage")
     if config.has_option('webdriver', 'user_data_directory') and config.get('webdriver', 'user_data_directory').strip() != "":
         kairos_data_directory, initial_setup = assign_user_data_directory()
         match = re.search(r".*(\d+)", kairos_data_directory)
@@ -2466,16 +2463,31 @@ def create_browser(run_in_background):
         if match:
             global WEBDRIVER_INSTANCE
             WEBDRIVER_INSTANCE = int(match.group(1))
-
-    options.add_argument('--disable-extensions')
-    options.add_argument('--disable-notifications')
-    options.add_argument('--noerrdialogs')
-    options.add_argument('--disable-session-crashed-bubble')
-    # options.add_argument('--disable-infobars')
-    # options.add_argument('--disable-restore-session-state')
-    options.add_argument('--window-size=' + RESOLUTION)
-    # suppress the INFO:CONSOLE messages
-    options.add_argument("--log-level=3")
+    if config.has_option('webdriver', 'options'):
+        config_options = config.get('webdriver', 'options').split(',')
+        for option in config_options:
+            log.info(option.strip())
+            options.add_argument(option.strip())
+    else:
+        options.add_argument('--disable-extensions')
+        options.add_argument('--disable-notifications')
+        options.add_argument('--noerrdialogs')
+        options.add_argument('--disable-session-crashed-bubble')
+        # options.add_argument('--disable-infobars')
+        # options.add_argument('--disable-restore-session-state')
+        options.add_argument('--window-size=' + RESOLUTION)
+        # suppress the INFO:CONSOLE messages
+        options.add_argument("--log-level=3")
+        # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
+        # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
+        if OS == 'windows':
+            options.add_argument('--disable-gpu')
+        if OS == 'linux':
+            options.add_argument('--no-sandbox')
+            options.add_argument("--disable-dev-shm-usage")
+        # run chrome in the background
+        if run_in_background:
+            options.add_argument('--headless')
 
     prefs = {
         'profile.default_content_setting_values.notifications': 2
@@ -2486,20 +2498,19 @@ def create_browser(run_in_background):
         'enable-automation',
     ]
     options.add_experimental_option('excludeSwitches', exclude_switches)
-    # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
-    # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
-    if OS == 'windows':
-        options.add_argument('--disable-gpu')
-    # run chrome in the background
-    if run_in_background:
-        options.add_argument('--headless')
-    browser = None
 
+    browser = None
     chromedriver_file = r"" + str(config.get('webdriver', 'path'))
     if not os.path.exists(chromedriver_file):
         log.error("File {} does not exist. Did setup your kairos.cfg correctly?".format(chromedriver_file))
         raise FileNotFoundError
     chromedriver_file.replace('.exe', '')
+
+    if OS == 'linux' and config.has_option('webdriver', 'use_proxy_display'):
+        from pyvirtualdisplay import Display
+        display = Display(visible=0, size=(1920, 1024))
+        display.start()
+        options.add_extension("proxy.zip")
 
     # use open chrome browser
     # options = webdriver.ChromeOptions()
@@ -2514,7 +2525,11 @@ def create_browser(run_in_background):
         if MULTI_THREADING:
             browser = webdriver.Remote(command_executor=EXECUTOR, options=options, desired_capabilities=capabilities)
         else:
-            browser = webdriver.Chrome(executable_path=chromedriver_file, options=options, desired_capabilities=capabilities, service_args=["--verbose", log_path])
+            browser = webdriver.Chrome(
+                executable_path=chromedriver_file,
+                options=options,
+                desired_capabilities=capabilities,
+                service_args=["--verbose", log_path])
 
         check_driver(browser)
 

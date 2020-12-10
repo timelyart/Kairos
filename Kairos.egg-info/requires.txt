@@ -23,5 +23,6 @@ pyobjc
 
 [platform_system == "Linux"]
 python3-Xlib
+pyvirtualdisplay
 
 [platform_system == "Windows"]

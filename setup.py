@@ -11,7 +11,7 @@ setup(
     packages=find_packages(),
     license='End-User License Agreement: https://www.eulatemplate.com/live.php?token=zduUYsiBp0PFzzX0UANHUodYVMifuNRp',
     author='timelyart',
-    version='2.9',
+    version='2.10',
     author_email='timelyart@protonmail.com',
     description='Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing '
                 'alerts and creating new ones.',
@@ -21,7 +21,7 @@ setup(
                       'fastnumbers', 'psutil', 'Cython', 'tqdm'],
     extras_require={
         'platform_system == "Windows"': [],
-        'platform_system == "Linux"': ['python3-Xlib'],
+        'platform_system == "Linux"': ['python3-Xlib', 'pyvirtualdisplay'],
         'platform_system == "Darwin"': ['pyobjc-core', 'pyobjc']
     },
 )
