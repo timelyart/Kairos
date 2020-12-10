@@ -178,8 +178,8 @@ css_selectors = dict(
     checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
     clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
     btn_dlg_screenshot='#header-toolbar-screenshot',
-    dlg_screenshot_url='div[class^="copyForm"] > div > input',
-    dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
+    dlg_screenshot_url='div[class^="copyForm"] > span > input',
+    dlg_screenshot_close='div[data-dialog-type="take-snapshot-modal"] span[class^="close"]',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
     select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
@@ -2506,11 +2506,11 @@ def create_browser(run_in_background):
         raise FileNotFoundError
     chromedriver_file.replace('.exe', '')
 
-    if OS == 'linux' and config.has_option('webdriver', 'use_proxy_display'):
+    if OS == 'linux' and \
+            config.has_option('webdriver', 'use_proxy_display') and config.getboolean('webdriver', 'use_proxy_display'):
         from pyvirtualdisplay import Display
         display = Display(visible=0, size=(1920, 1024))
         display.start()
-        options.add_extension("proxy.zip")
 
     # use open chrome browser
     # options = webdriver.ChromeOptions()
