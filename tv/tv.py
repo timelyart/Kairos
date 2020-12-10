@@ -1921,13 +1921,17 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
 
         # get the alert dialog element
         try:
-            alert_dialog = find_element(browser, 'form.js-alert-form')
+            alert_dialog = find_element(browser, 'form.js-alert-form', By.CSS_SELECTOR, True, True, 2)
             log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
         except TimeoutException:
             # open the alert dialog
-            wait_and_click(browser, css_selectors['btn_create_alert'])
-            time.sleep(1)
-            alert_dialog = find_element(browser, 'form.js-alert-form')
+            wait_and_click(browser, css_selectors['btn_create_alert'], 2)
+            # time.sleep(1)
+            alert_dialog = find_element(browser, 'form.js-alert-form', By.CSS_SELECTOR, True, True, 4)
+        except Exception as e:
+            log.exception(e)
+            snapshot(browser)
+            return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # 1st row, 1st condition
         current_condition = 0
