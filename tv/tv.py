@@ -3074,6 +3074,7 @@ def remove_watchlists(browser, name, from_pagination_page=0):
                 if btn_delete:
                     # hover over element and click the removal button [x]
                     hover(browser, btn_delete, True)
+                    time.sleep(0.5)
                     # handle confirmation dialog
                     wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]', CHECK_IF_EXISTS_TIMEOUT+0.5)
                     time.sleep(1)
