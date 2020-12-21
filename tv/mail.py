@@ -23,7 +23,7 @@ from bs4 import BeautifulSoup
 
 from kairos import tools
 from kairos import mongodb
-from tv import tv
+import tv.tv as tv
 import http.client as http_client
 # -------------------------------------------------
 #
@@ -573,6 +573,8 @@ def export(summary_config, data):
                     batch_size = 0
                     headers = None
                     headers_by_request = None
+                    json_template_entry_path = None
+                    json_template_parent_path = None
                     if 'search_criteria' in config_item:
                         search_criteria = config_item['search_criteria']
                     if 'batch_size' in config_item:
@@ -586,7 +588,11 @@ def export(summary_config, data):
                             headers = {}
                         headers_by_request = config_item['set_headers_by_request']
                         headers = set_headers_by_request(headers, headers_by_request)
-                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request)
+                    if 'json_template' in config_item:
+                        json_template_entry_path = config_item['json_template']['entry']
+                        if 'parent' in config_item['json_template']:
+                            json_template_parent_path = config_item['json_template']['parent']
+                    send_signals_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request, json_template_entry_path, json_template_parent_path)
 
     # send to Google Sheet
     if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
@@ -605,6 +611,69 @@ def export(summary_config, data):
             log.exception(e)
 
 
+def batch_format_json(batch, json_template_entry_path, json_template_path=None):
+    json_template_entry = None
+    json_template = None
+
+    path = os.path.join(os.path.curdir, json_template_entry_path)
+    if os.path.exists(path):
+        try:
+            with open(path, 'r') as stream:
+                json_template_entry = json.load(stream)
+        except Exception as e:
+            log.exception(e)
+    else:
+        log.error("{} doesn't exist".format(path))
+        exit(1)
+    json_template_entry = tools.replace_apostrophe(json_template_entry)
+
+    json_data = []
+    if isinstance(batch, list):
+        for entry in batch:
+            json_string = format_json(json_template_entry, entry).replace("'", "\"")
+            json_string = json_string.replace("%APOS", "'")
+            json_string = json_string.replace(': True', ': true').replace(': False', ': false')
+            json_data.append(json.loads(json_string))
+    else:
+        json_string = format_json(json_template_entry, batch).replace("'", "\"")
+        json_string = json_string.replace("%APOS", "'")
+        json_string = json_string.replace(': True', ': true').replace(': False', ': false')
+        json_data.append(json.loads(json_string))
+
+    # embed the entry JSON into the parent JSON
+    if json_template_path:
+        path = os.path.join(os.path.curdir, json_template_path)
+        if os.path.exists(path):
+            try:
+                with open(path, 'r') as stream:
+                    json_template = json.load(stream)
+            except Exception as e:
+                log.exception(e)
+        else:
+            log.error("{} doesn't exist".format(path))
+            exit(1)
+        json_data = tools.embed_json_in_json("%ENTRIES", json_template_entry, json_template)
+
+    return json_data
+
+
+def format_json(json_template, json_data):
+    json_string = str(json_template)
+    for _key, value in json_data.items():
+        if _key == 'screenshots':
+            json_string = json_string.replace("'%" + _key.upper() + "'", repr(value))
+        elif isinstance(value, dict):
+            json_string = format_json(json_string, value)
+        elif isinstance(value, float) or isinstance(value, int):
+            json_string = json_string.replace("%" + _key.upper(), repr(value))
+        elif isinstance(value, str):
+            json_string = json_string.replace("%" + _key.upper(), value.replace("'", "%APOS%"))
+        else:
+            json_string = json_string.replace("%" + _key.upper(), repr(value))
+
+    return json_string
+
+
 def export_alerts(summary_config, data):
     # send alerts to webhooks
     if summary_config and 'webhooks' in summary_config and len(data) > 0:
@@ -620,6 +689,8 @@ def export_alerts(summary_config, data):
                     batch_size = 0
                     headers = None
                     headers_by_request = None
+                    json_template_entry_path = None
+                    json_template_parent_path = None
                     if 'search_criteria' in config_item:
                         search_criteria = config_item['search_criteria']
                     if 'batch_size' in config_item:
@@ -633,7 +704,13 @@ def export_alerts(summary_config, data):
                             headers = {}
                         headers_by_request = config_item['set_headers_by_request']
                         headers = set_headers_by_request(headers, headers_by_request)
-                    send_alert_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request)
+                    if 'json_template_entry_path' in config_item:
+                        json_template_entry_path = config_item['json_template_entry_path']
+                    if 'json_template' in config_item:
+                        json_template_entry_path = config_item['json_template']['entry']
+                        if 'parent' in config_item['json_template']:
+                            json_template_parent_path = config_item['json_template']['parent']
+                    send_alert_to_webhooks(data, webhooks, search_criteria, batch_size, headers, headers_by_request, json_template_entry_path, json_template_parent_path)
 
     # send alerts to Google Spreadsheet
     if config.has_option('api', 'google') and summary_config and 'google_sheets' in summary_config:
@@ -658,7 +735,8 @@ def export_alerts(summary_config, data):
                     send_alert_to_google_sheet(google_api_creds, data, name, sheet, index, search_criteria)
 
 
-def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None):
+def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None,
+                             json_template_entry_path=None, json_template_path=None):
     result = False
     try:
         batches = []
@@ -683,13 +761,14 @@ def send_signals_to_webhooks(data, webhooks, search_criteria='', batch_size=0, h
             batches.append(batch)
         # send batches to webhooks
         if len(batches) > 0:
-            send_webhooks(webhooks, batches, headers, headers_by_request)
+            send_webhooks(webhooks, batches, headers, headers_by_request, json_template_entry_path, json_template_path)
     except Exception as e:
         log.exception(e)
     return result
 
 
-def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None):
+def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0, headers=None, headers_by_request=None,
+                           json_template_entry_path=None, json_template_path=None):
     result = False
     try:
         batches = []
@@ -723,7 +802,7 @@ def send_alert_to_webhooks(data, webhooks, search_criteria='', batch_size=0, hea
             batches.append(batch)
         # send batches to webhooks
         if len(batches) > 0:
-            send_webhooks(webhooks, batches, headers, headers_by_request)
+            send_webhooks(webhooks, batches, headers, headers_by_request, json_template_entry_path, json_template_path)
     except Exception as e:
         log.exception(e)
     return result
@@ -753,12 +832,7 @@ def send_json_to_mongodb(client, mongodb_config, data):
         batch = []
         for entry in data:
             json_string = entry['json']
-            # json_string = json.dumps()
             json_data = ast.literal_eval(str(entry['json']))
-            # log.info(json_string)
-            # log.info(str(json_string))
-            log.info(json_string)
-            log.info(json_data)
             search_text = entry['search_text']
             if len(batch) >= batch_size > 0:
                 batches.append(batch)
@@ -796,7 +870,7 @@ def send_mongodb(client, collection, batches):
         log.exception(e)
 
 
-def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
+def send_webhooks(webhooks, batches, headers=None, headers_by_request=None, json_template_entry_path=None, json_template_path=None):
     # http_client.HTTPConnection.debuglevel = 1
     try:
         i = 0
@@ -807,7 +881,10 @@ def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
             for webhook in webhooks:
                 if webhook:
                     json_data = {'signals': batches[i]}
+                    if json_template_entry_path:
+                        json_data = batch_format_json(batches[i], json_template_entry_path, json_template_path)
                     data = json.dumps(json_data)
+
                     if TEST:
                         print(data)
                         print(headers)
@@ -836,7 +913,7 @@ def send_webhooks(webhooks, batches, headers=None, headers_by_request=None):
                         log.info('{} {}/{} {} {} {}'.format(str(webhook), str(count_batches), str(total_batches), str(result[0]), str(result[1]), str(result[3])))
                         log.info("authorization failed, updating headers")
                         headers = set_headers_by_request(headers, headers_by_request)
-                        return send_webhooks(webhooks, batches, headers)
+                        return send_webhooks(webhooks, batches, headers, None, json_template_entry_path, json_template_path)
                     else:
                         log.info('{} {}/{} {} {} {} {}'.format(str(webhook), str(count_batches), str(total_batches), str(result[0]), str(result[1]), str(result[2]), str(result[3])))
 
