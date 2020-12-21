@@ -831,7 +831,6 @@ def send_json_to_mongodb(client, mongodb_config, data):
         batches = []
         batch = []
         for entry in data:
-            json_string = entry['json']
             json_data = ast.literal_eval(str(entry['json']))
             search_text = entry['search_text']
             if len(batch) >= batch_size > 0:
