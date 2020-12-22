@@ -133,6 +133,15 @@ summary:
       search_criteria: ["my_keyword"]
       # Define how many signals should be send per batch
       batch: 25
+      # Define how the JSON that is send to the webhook should be formed
+#      json_template:
+        # Mandatory. The 'entry' JSON. Define the JSON format of how the signals/alerts should be send to the webhook.
+        # Example entry.json can be found under json/_entry.json
+#        entry: "json/_entry.json"
+        # Optional. You can hang the 'entry' JSON defined directly above in a larger JSON file.
+        # Use the keyword '%ENTRIES' to define where you would like to place the aforementioned 'entry' JSON
+        # Example parent.json can be found under json/_parent.json
+#        parent: "json/_parent.json"
       # Enabled?
       enabled: no
   # Export data to Google Sheets
@@ -153,4 +162,4 @@ summary:
       enabled: no
 webdriver:
   # Define whether you want to run Kairos in the background. Overrides the value for the same setting in kairos.cfg.
-  run-in-background: yes
+  run-in-background: no

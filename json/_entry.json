@@ -1,0 +1,16 @@
+{
+  "source": "Kairos",
+  "date": "%DATE",
+  "exchange": "%EXCHANGE",
+  "ticker": "%TICKER",
+  "timeframe": "%TIMEFRAME",
+  "asset": "%ASSET",
+  "alert": "%ALERT",
+  "chart_url": "%CHART_URL",
+  "info":
+  {
+    "stop_loss": "%STOP_LOSS",
+    "entry": "%ENTRY",
+    "target": "%TARGET"
+  }
+}
