@@ -87,8 +87,9 @@ echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sud
 sudo apt-get update
 sudo apt-get install google-chrome-stable
 sudo apt-get install unzip
-sudo apt-get install python3.7
-sudo apt-get install python3-setuptools
+sudo apt-get install python3.8
+pip install setuptools
+pip install --upgrade setuptools
 wget https://chromedriver.storage.googleapis.com/2.43/chromedriver_linux64.zip
 unzip chromedriver_linux64.zip
 sudo mv chromedriver /usr/bin/chromedriver
@@ -166,7 +167,8 @@ In case of an error, a **my_file.yaml.err** will be created. Kairos error messag
 
 #### Examples
 The rest of this chapter will elaborate on setting up various use cases with [YAML](https://en.wikipedia.org/wiki/YAML) files.<br>
-Signals are the core of Kairos and strategies are really useful for automatic backtesting. Although Alerts have largely become obsolete with Signals, they are still expanded upon here. They were the core of version 1 after all, and may still be provide to be useful to some. 
+Signals are the core of Kairos and strategies are really useful for automatic backtesting. Although Alerts have largely become obsolete with Signals, they are still expanded upon here. They were the core of version 1 after all, and may still be provide to be useful to some.
+
 ### Alerts
 Please read [Editing YAML files](https://github.com/timelyart/Kairos#editing-yaml-files) if you haven't done so already.
 
