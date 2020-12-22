@@ -3004,7 +3004,7 @@ def add_market_to_watchlist(browser, market, tries=0):
         wait_and_click(browser, css_selectors['input_watchlist_add_symbol'])
         input_symbol = find_element(browser, css_selectors['dlg_symbol_search_input'])
         set_value(browser, input_symbol, market)
-        input_symbol.send_keys(Keys.ENTER)
+        input_symbol.send_keys(Keys.SHIFT + Keys.ENTER)
     except Exception as e:
         if tries <= max_tries:
             log.debug(e)
