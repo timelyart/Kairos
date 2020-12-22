@@ -652,7 +652,7 @@ def batch_format_json(batch, json_template_entry_path, json_template_path=None):
         else:
             log.error("{} doesn't exist".format(path))
             exit(1)
-        json_data = tools.embed_json_in_json("%ENTRIES", json_template_entry, json_template)
+        json_data = tools.embed_json_in_json("%ENTRIES", json_data, json_template)
 
     return json_data
 
@@ -665,7 +665,7 @@ def format_json(json_template, json_data):
         elif isinstance(value, dict):
             json_string = format_json(json_string, value)
         elif isinstance(value, float) or isinstance(value, int):
-            json_string = json_string.replace("%" + _key.upper(), repr(value))
+            json_string = json_string.replace("'%" + _key.upper() + "'", repr(value))
         elif isinstance(value, str):
             json_string = json_string.replace("%" + _key.upper(), value.replace("'", "%APOS%"))
         else:
