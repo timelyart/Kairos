@@ -2782,13 +2782,15 @@ def run(file, export_signals_immediately, multi_threading=False):
                     subject = 'Kairos error report'
                     text = 'Unfortunately, Kairos could not screen the following markets.\n\n' + ', '.join(processing_errors) + '\n\nPlease review your log for additional clues.\n'
                     # Send email
-                    import mail
+                    # noinspection PyUnresolvedReferences
+                    from tv import mail
                     mail.send_admin_message(subject, text)
 
                 log.info(summary(total_alerts))
                 print()
                 if len(triggered_signals) > 0:
-                    import mail
+                    # noinspection PyUnresolvedReferences
+                    from tv import mail
                     mail.post_process_signals(triggered_signals)
                     if export_signals_immediately:
                         if 'summary' in tv:
