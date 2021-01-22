@@ -178,7 +178,7 @@ css_selectors = dict(
     checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
     clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
     btn_dlg_screenshot='#header-toolbar-screenshot',
-    dlg_screenshot_url='div[class^="copyForm"] > span > input',
+    dlg_screenshot_url='div[class^="copyForm"] input',
     dlg_screenshot_close='div[data-dialog-type="take-snapshot-modal"] span[class^="close"]',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
@@ -2380,9 +2380,10 @@ def assign_user_data_directory():
             with os.scandir(user_data_base_dir) as user_data_directories:
                 # number_of_kairos_user_data_directories = 0
                 for entry in user_data_directories:
-                    if entry.name.startswith('kairos_'):
+                    name = entry.name
+                    if name.startswith('kairos_'):
                         # number_of_kairos_user_data_directories += 1
-                        path = os.path.join(user_data_base_dir, entry)
+                        path = os.path.join(user_data_base_dir, name)
                         if not tools.path_in_use(path, log) and not user_data_directory_found:
                             user_data_directory = path
                             user_data_directory_found = True
@@ -2787,7 +2788,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                 log.info(summary(total_alerts))
                 print()
                 if len(triggered_signals) > 0:
-                    from tv import mail
+                    import mail
                     mail.post_process_signals(triggered_signals)
                     if export_signals_immediately:
                         if 'summary' in tv:
