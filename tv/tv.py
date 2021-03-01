@@ -3689,9 +3689,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         if first_symbol:
             open_performance_summary_tab(browser)
 
-        input_symbol = find_element(browser, css_selectors['input_symbol'])
-        set_value(browser, input_symbol, symbol)
-        input_symbol.send_keys(Keys.ENTER)
+        change_symbol(browser, symbol, False)
 
         symbol_average = dict()
         symbol_average['Net Profit'] = 0
