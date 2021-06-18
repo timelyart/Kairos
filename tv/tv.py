@@ -21,7 +21,6 @@ import os
 import re
 import time
 import errno
-from logging import DEBUG
 
 import dill
 import numpy
@@ -30,8 +29,8 @@ from urllib.parse import unquote
 from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
-    TimeoutException, InvalidArgumentException, WebDriverException, InvalidSessionIdException,\
-    SessionNotCreatedException, JavascriptException
+    TimeoutException, InvalidArgumentException, WebDriverException, InvalidSessionIdException, \
+    SessionNotCreatedException, JavascriptException, ElementClickInterceptedException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -39,12 +38,9 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from multiprocessing import Pool
-
-from tqdm import tqdm
-
 from kairos import timing
 from kairos import tools
-from kairos.tools import format_number, wait_for_element_is_stale, print_dot, unicode_to_float_int
+from kairos.tools import format_number, wait_for_element_is_stale, unicode_to_float_int
 from fastnumbers import fast_real
 
 TEST = False
@@ -113,22 +109,33 @@ WEBDRIVER_INSTANCE = 0
 
 css_selectors = dict(
     # ALERTS
-    username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
-    signin='body > div.tv-main > div.tv-header > div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-header__dropdown-text > a',
+    # username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
+    account='button.tv-header__user-menu-button--logged',
+    username='a[data-name="header-user-menu-profile"] span[class^="username"]',
+    anonymous_account='button.tv-header__user-menu-button--anonymous',
+    anonymous_signin='div[data-name="header-user-menu-sign-in"]',
     show_email_and_username='span.js-show-email',
     input_username='input[name="username"]',
     input_password='input[name="password"]',
     btn_login='button[type = "submit"]',
+    btn_login_by_email='span.tv-signin-dialog__toggle-email',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
+    btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
+    btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
+    options_watchlist='div[class^="watchlistMenu"] span[class^="title"]',
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
-    options_watchlist='div[data-name="menu-inner"] div[class^="item"]',
-    input_symbol='#header-toolbar-symbol-search > div',
+    btn_input_symbol='div[id="header-toolbar-symbol-search"]',
     dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
+    input_symbol='div[data-name="symbol-search-items-dialog"] input',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
-    btn_alert_menu='div[data-name="alerts-settings-button"] > span',
+    btn_alert_menu='div[data-name="alerts-settings-button"]',
+    item_clear_alerts='div.charts-popup-list > a.item:last-child',
+    item_clear_inactive_alerts='div[data-name="menu-inner"] > div:nth-child(3) > div:nth-child(1)',
+    item_restart_inactive_alerts='div[data-name="menu-inner"] > div:nth-child(1) > div:nth-child(1)',
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
+    alerts_counter='div.widgetbar-widget-alerts_manage span[title*="active alerts used from"]',
     btn_create_alert='#header-toolbar-alerts',
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
@@ -145,41 +152,46 @@ css_selectors = dict(
     selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
     checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
     # Notify on App
-    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-push"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_push='input[type="checkbox"][name="send-push"] + span + span.tv-control-checkbox__ripple',
     # Show Popup
-    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="show-popup"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_show_popup='input[type="checkbox"][name="show-popup"] + span + span.tv-control-checkbox__ripple',
     # Send Email
-    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-email"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_email='input[type="checkbox"][name="send-email"] + span + span.tv-control-checkbox__ripple',
     # Webhook
-    clickable_dlg_create_alert_webhook='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="webhook-toggle"] + span + span.tv-control-checkbox__ripple',
-    dlg_create_alert_webhook='input[name="webhook-url"',
+    clickable_dlg_create_alert_webhook='input[type="checkbox"][name="webhook-toggle"] + span + span.tv-control-checkbox__ripple',
+    dlg_create_alert_webhook='input[type="url"][name="webhook-url"]',
     # Toggle more actions
     btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
     # Play Sound
-    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="play-sound"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item.js-sound-switch label',
     # Sound options
     dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
     options_dlg_create_alert_ringtone='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
     dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
     options_dlg_create_alert_sound_duration='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
     # Send Email-to-SMS
-    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-sms"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_email_to_sms='input[type="checkbox"][name="send-sms"] + span + span.tv-control-checkbox__ripple',
     # Send SMS
-    clickable_dlg_create_alert_send_sms='div.tv-alert-dialog__fieldset-value-item > label > span.tv-control-checkbox > input[name="send-true-sms"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_sms='input[type="checkbox"][name="send-sms"] + span + span.tv-control-checkbox__ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
-    btn_create_alert_warning_continue_anyway='div[data-name^="warning"] button[name="ok-button"]',
+    # Set Alert name
+    dlg_create_alert_name='input[type="text"][name="alert-name"]',
+    # Acknowledge repainting
+    btn_create_alert_warning_continue_anyway_got_it='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] label[class^="checkbox"]',
+    btn_create_alert_warning_continue_anyway='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] button[name="continue"]',
     btn_alerts='div[data-name="alerts"]',
     btn_calendar='div[data-name="calendar"]',
     btn_watchlist='div[data-name="base"]',
-    btn_watchlist_submenu='.widgetbar-widget-watchlist > div > div > div',
-    div_watchlist_item='div[class^="wrap"] > div[class^="symbol"]',
-    signout='body > div.tv-main.tv-screener__standalone-main-container > div.tv-header K> div.tv-header__inner.tv-layout-width > div.tv-header__area.tv-header__area--right.tv-header__area--desktop > span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user.i-opened > '
-            'span.tv-dropdown-behavior__body.tv-header__dropdown-body.tv-header__dropdown-body--fixwidth.i-opened > span:nth-child(13) > a',
+    btn_watchlist_submenu='div.widgetbar-page.active div[data-name="watchlists-button"',
+    div_watchlist_item='div[data-symbol-full]',
+    div_watchlist_item_by_symbol='div[data-symbol-full="{}"]',
+    signout='div[data-name="header-user-menu-sign-out"]',
     checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
     clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
     btn_dlg_screenshot='#header-toolbar-screenshot',
     dlg_screenshot_url='div[class^="copyForm"] input',
-    dlg_screenshot_close='div[data-dialog-type="take-snapshot-modal"] span[class^="close"]',
+    dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
+    btn_watchlist_sort_symbol='div.widgetbar-widget-watchlist span[data-column-type="short_name"]',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
     select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
@@ -214,7 +226,6 @@ css_selectors = dict(
     performance_summary_avg_trade_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2) > div:nth-child(2) > span',
     performance_summary_avg_bars_in_trade='div.report-content.performance > div > table > tbody > tr:nth-child(22) > td:nth-child(2)',
     # Indicator dialog
-    indicator_dialog_settings='',
     indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
     # indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"] > div',
@@ -226,17 +237,18 @@ css_selectors = dict(
     indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
     indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
     indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
-    btn_indicator_dialog_ok='div[data-name="indicator-properties-dialog"] button[name="submit"]',
-    active_chart_asset='div.chart-container.active div[class^="titleWrapper"] > div[data-name="legend-source-title"]:nth-child(1)',
-    active_chart_interval='div.chart-container.active div[class^="titleWrapper"] > div[data-name="legend-source-title"]:nth-child(2)',
-    # Indicator values
-    span_indicator_loading='div[data-name^="legend-source-item"] > div[class^="valuesWrapper"] > span[class^="loader"]',
+    btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
+    active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
+    active_chart_interval='div[id="header-toolbar-intervals"] div[class*="isActive"] > div > div',
+    chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
     # User Menu
     btn_user_menu="span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user",
     btn_logout="a[href='#signout']",
+    active_widget_bar='div.widgetbar-page.active',
 )
 
 class_selectors = dict(
+    form_create_alert='js-alert-form',
     rows_screener_result='tv-screener-table__result-row',
 )
 
@@ -245,8 +257,9 @@ name_selectors = dict(
     checkbox_dlg_create_alert_play_sound='play-sound',
     checkbox_dlg_create_alert_send_email='send-email',
     checkbox_dlg_create_alert_email_to_sms='send-sms',
-    checkbox_dlg_create_alert_send_push='send-push',
     checkbox_dlg_create_alert_webhook='webhook-toggle',
+    # checkbox_dlg_create_alert_send_sms='send-true-sms',  # option removed by TradingView
+    checkbox_dlg_create_alert_send_push='send-push'
 )
 
 tv_start = timing.time()
@@ -343,7 +356,7 @@ def refresh(browser):
     # Switching to Alert
     close_alerts(browser)
     # Close the watchlist menu if it is open
-    if find_element(browser, css_selectors['btn_watchlist'], By.CSS_SELECTOR, False, False, 0.5):
+    if find_element(browser, css_selectors['btn_watchlist_submenu'], By.CSS_SELECTOR, False, False, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist'])
 
 
@@ -804,10 +817,11 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
     if 'indicator_index' in indicator and str(indicator['indicator_index']).isdigit():
         indicator_index = indicator['indicator_index']
 
-    css = 'div.chart-container.active tr:nth-child({}) div[data-name="legend-source-item"] div[data-name="legend-source-title"]:nth-child(1)'.format((pane_index + 1) * 2 - 1)
-    studies = find_elements(browser, css)
+    studies = []
     if indicator_index < 0:
         try:
+            css = 'div.chart-container.active tr:nth-child({}) div[data-name="legend-source-item"] div[data-name="legend-source-title"]:nth-child(1)'.format((pane_index+1) * 2 - 1)
+            studies = find_elements(browser, css)
             for i, study in enumerate(studies):
                 study_name = str(study.text)
                 log.debug('Found {}'.format(study_name))
@@ -836,7 +850,7 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
         except Exception as e:
             log.exception(e)
             return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
-        # use css
+
     try:
         if 0 <= indicator_index < len(studies):
             css = '#header-toolbar-symbol-search'
@@ -845,20 +859,19 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
             action.move_to_element_with_offset(element, 5, 5)
             action.perform()
 
-            indicator_name = ""
-            if indicator['name']:
-                indicator_name = indicator['name']
-            log.debug("indicator {}loading".format(indicator_name + " "))
-            loaded = False
-            tries = 0
-            while not loaded and tries < 200:
-                tries += 1
-                loaded = is_indicator_loaded(browser, chart_index, pane_index, indicator_index, indicator_name)
-            # time.sleep(0.2)
-            log.debug("indicator {}loaded (tries: {})".format(indicator_name + " ", tries))
-            elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
-            for e in elem_values:
-                result.append(str(e.text).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
+            # make sure that all the values have loaded
+            extracted = False
+            while not extracted:
+                result = []
+                elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
+                for e in elem_values:
+                    # if a value isn't loaded (yet) it will have an empty string
+                    if e.text == '':
+                        time.sleep(DELAY_BREAK_MINI)
+                    else:
+                        result.append(str(e.text).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
+                # check if the amount of elements equals the size of of the result dictionary
+                extracted = len(elem_values) == len(result)
     except StaleElementReferenceException:
         log.debug('StaleElementReferenceException in values')
         return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
@@ -1045,7 +1058,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             browser.switch_to.window(handle)
 
         wait_and_click(browser, css_selectors['btn_calendar'], 30)
-        wait_and_click(browser, css_selectors['btn_watchlist'], 30)
+        wait_and_click(browser, css_selectors['btn_watchlist'])
         time.sleep(DELAY_WATCHLIST)
 
         # get the symbols for each watchlist
@@ -1054,77 +1067,75 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
             log.debug("collecting symbols from watchlist {}".format(watchlist))
+            wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
-            # check if watchlist is already opened
-            try:
-                xpath = '//div[@data-role="button"]/span/span[contains(text(), "{}")][1]'.format(watchlist)
-                watchlist_opened = element_exists(browser, xpath, 0.5, By.XPATH)
-            except TimeoutException:
-                watchlist_opened = False
+            # load watchlist
+            watchlist_exists = False
+            el_options = find_elements(browser, css_selectors['options_watchlist'])
+            for option in el_options:
+                if option.text == watchlist:
+                    option.click()
+                    watchlist_exists = True
+                    log.debug("watchlist '{}' found".format(watchlist))
+                    break
 
-            # open watchlist
-            if not watchlist_opened:
-                wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-                time.sleep(DELAY_BREAK)
-                try:
-                    xpath = '//div[@data-name="menu-inner"]//span[starts-with(text(), "{}")][last()]'.format(watchlist)
-                    WebDriverWait(browser, CHECK_IF_EXISTS_TIMEOUT).until(ec.element_to_be_clickable((By.XPATH, xpath))).click()
-                    # wait_and_click_by_xpath(browser, xpath, 10)
-                    # html = find_element(browser, 'html')
-                    # html.send_keys(Keys.ESCAPE)
-                    watchlist_opened = True
-                except Exception as e:
-                    log.debug(e)
+            if watchlist_exists:
 
-            if watchlist_opened:
-                # wait until the list is loaded
-                # time.sleep(DELAY_EXTRACT_SYMBOLS)
-                # extract symbols from watchlist
+                # move to first element in the watchlist
+                previous_first_element_symbol = "NA"
+                first_element_symbol = ""
+                stop = False
+                while not stop:
+                    element = find_element(browser, "{}:nth-child(1)".format(css_selectors['div_watchlist_item']))
+                    action = ActionChains(browser)
+                    action.move_to_element(element)
+                    action.perform()
+                    time.sleep(DELAY_BREAK*2)
+                    first_element_symbol = element.get_attribute('data-symbol-full')
+                    if first_element_symbol == previous_first_element_symbol:
+                        stop = True
+
+                    previous_first_element_symbol = first_element_symbol
+
+                # click on first symbol
+                selector = css_selectors['div_watchlist_item_by_symbol'].format(first_element_symbol)
+                wait_and_click(browser, selector)
+
+                previous_last_element_symbol = "NA"
+                last_element_symbol = ""
                 symbols = []
-                try:
-                    # scroll up to the first element in the list
-                    first_symbol = "unknown"
-                    previous_first_symbol = ""
-                    while previous_first_symbol != first_symbol:
-                        previous_first_symbol = first_symbol
-                        run_again = True
-                        while run_again:
-                            run_again = False  # run only once by default
-                            try:
-                                dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR)
-                                ActionChains(browser).move_to_element(dict_symbols[0]).perform()
-                                first_element = dict_symbols[0]
-                                first_symbol = first_element.get_attribute('data-symbol-full')
-                                ActionChains(browser).move_to_element(first_element).perform()
-                            except StaleElementReferenceException:
-                                run_again = True  # run again if we find StaleElementReferenceExceptions
+                stop = False
+                while not stop:
+                    # 1. find all elements and extract symbol
+                    # extract symbols from watchlist
+                    try:
+                        dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR,
+                                                     True, False, 30)
+                        for symbol in dict_symbols:
+                            last_element_symbol = symbol.get_attribute('data-symbol-full')
+                            symbols.append(last_element_symbol)
+                            if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
+                                break
 
-                    # scroll down to the last element in the list
-                    last_symbol = "unknown"
-                    previous_last_symbol = ""
-                    while previous_last_symbol != last_symbol:
-                        previous_last_symbol = last_symbol
-                        run_again = True
-                        while run_again:
-                            run_again = False  # run only once by default
-                            try:
-                                dict_symbols = find_elements(browser, css_selectors['div_watchlist_item'], By.CSS_SELECTOR)
-                                last_element = dict_symbols[len(dict_symbols)-1]
-                                last_symbol = last_element.get_attribute('data-symbol-full')
-                                for symbol in dict_symbols:
-                                    symbol_name = symbol.get_attribute('data-symbol-full')
-                                    symbols.append(symbol_name)
-                                ActionChains(browser).move_to_element(last_element).perform()
-                            except StaleElementReferenceException:
-                                run_again = True  # run again if we find StaleElementReferenceExceptions
+                        # 2. move to the last found element
+                        selector = css_selectors['div_watchlist_item_by_symbol'].format(last_element_symbol)
+                        element = find_element(browser, selector)
+                        action = ActionChains(browser)
+                        action.move_to_element(element)
+                        action.perform()
 
-                    symbols = list(dict.fromkeys(symbols))
-                    # remove symbols for which the market no longer exists
-                    log.info("{}: {} markets found ({} - {})".format(watchlist, len(symbols), first_symbol, last_symbol))
-                except Exception as e:
-                    log.exception(e)
-                    snapshot(browser)
+                        if previous_last_element_symbol == last_element_symbol:
+                            stop = True
+                        previous_last_element_symbol = last_element_symbol
+
+                    except Exception as e:
+                        log.exception(e)
+                        snapshot(browser)
+
+                # symbols = list(sorted(set(symbols)))
+                symbols = list(set(symbols))
                 dict_watchlist[chart['watchlists'][i]] = symbols
+                log.info("{}: {} markets found".format(watchlist, len(symbols)))
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
@@ -1346,7 +1357,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         reverse = not sort['sort_asc']
                     back_test_sort(summaries, sort_by, reverse)
 
-            # Save the data
+            # Save the results
             filename = save_as
             match = re.search(r"([\w\-_]*)", save_as)
             if match:
@@ -1402,6 +1413,25 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
+def is_market_listed(browser):
+    """
+    Checks if a market is listed
+    NOTE: requires the chart and the data window tab to be open
+    :param browser:
+    :return: bool, whether the market is listed
+    """
+    listed = False
+    try:
+        xpath = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[contains(text(), ",")][1]'
+        listed = element_exists(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
+    except StaleElementReferenceException:
+        return is_market_listed(browser)
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser)
+    return listed
+
+
 def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
     # open data window when necessary
     open_data_window_tab(browser)
@@ -1434,26 +1464,29 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
     return counter_alerts, total_alerts
 
 
-def is_market_listed(browser):
-    """
-    Checks if a market is listed
-    NOTE: requires the chart and the data window tab to be open
-    :param browser:
-    :return: bool, whether the market is listed
-    """
-    listed = False
+def get_number_of_alerts_on_alerts_tab(browser):
+    # set alerts counter
+    # open alerts tab if unopened
+    alerts_on_alerts_tab = 0
     try:
-        xpath = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[contains(text(), ",")][1]'
-        listed = element_exists(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
-    except StaleElementReferenceException:
-        return is_market_listed(browser)
+        if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
+            wait_and_click(browser, css_selectors['btn_alerts'])
+        element = find_element(browser, css_selectors['alerts_counter'], except_on_timeout=False)
+        if element:
+            element_text = element.get_attribute('textContent').strip()
+            match = re.search("(\\d+)", element_text)
+            if match:
+                alerts_on_alerts_tab = int(match.group(1))
+
+        # close alerts tab if opened
+        if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
+            wait_and_click(browser, css_selectors['btn_alerts'])
     except Exception as e:
         log.exception(e)
-        snapshot(browser)
-    return listed
+    return alerts_on_alerts_tab
 
 
-def change_symbol(browser, symbol, use_space):
+def change_symbol(browser, symbol, use_space=False):
     # change symbol
     try:
         # Try to browse through the watchlist using space instead of setting the symbol value
@@ -1464,9 +1497,8 @@ def change_symbol(browser, symbol, use_space):
         else:
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
-            # input_symbol = find_element(browser, css_selectors['input_symbol'])
-            wait_and_click(browser, css_selectors['input_symbol'])
-            input_symbol = find_element(browser, css_selectors['dlg_symbol_search_input'])
+            wait_and_click(browser, css_selectors['btn_input_symbol'])
+            input_symbol = find_element(browser, css_selectors['input_symbol'])
             set_value(browser, input_symbol, symbol)
             input_symbol.send_keys(Keys.ENTER)
 
@@ -1505,15 +1537,15 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     multi_time_frame_layout = signal['multi_time_frame_layout']
                 except KeyError:
                     if log.level == 10:
-                        log.warn('charts: multi_time_frame_layout not set in yaml, defaulting to multi_time_frame_layout = no')
+                        log.warning('charts: multi_time_frame_layout not set in yaml, defaulting to multi_time_frame_layout = no')
                 if type(interval) is str and len(interval) > 0 and not multi_time_frame_layout:
                     url += '&interval=' + str(interval)
                 data['url'] = url
 
                 signal_triggered = True
-                values = []
                 for m, indicator in enumerate(indicators):
                     indicator = indicators[m]
+                    values = []
 
                     if first_signal or (last_indicator_name != indicator['name']):
                         first_signal = False
@@ -1635,7 +1667,7 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                         snapshot(browser)
                     except KeyError:
                         if log.level == 10:
-                            log.warn('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+                            log.warning('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
                     data['screenshots_url'] = screenshots_url
                     data['screenshots'] = screenshots
                     data['filenames'] = filenames
@@ -1648,36 +1680,24 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     data['signal'] = signal
                     log.info('"{}" triggered'.format(signal['name']))
                     triggered_signals.append(data)
-                total_alerts += 1
 
         if 'alerts' in chart:
             interval = get_interval(timeframe)
             for alert in chart['alerts']:
-                enabled = not ('enabled' in alert) or alert['enabled']
-                if not enabled:
-                    continue
-                if counter_alerts >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
+                alerts_on_alerts_tab = get_number_of_alerts_on_alerts_tab(browser)
+                if alerts_on_alerts_tab >= config.getint('tradingview', 'max_alerts') and config.getboolean('tradingview', 'clear_inactive_alerts'):
                     # try clean inactive alerts first
-                    wait_and_click(browser, css_selectors['btn_calendar'])
-                    wait_and_click(browser, css_selectors['btn_alerts'])
-                    wait_and_click(browser, css_selectors['btn_alert_menu'])
-
-                    try:
-                        wait_and_click_by_text(browser, 'div', 'Delete all inactive')
-                        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                        time.sleep(DELAY_BREAK * 8)
-                    except TimeoutException as e:
-                        log.debug(e)
-
-                    # update counter
-                    alerts = find_elements(browser, css_selectors['item_alerts'])
-                    if type(alerts) is list:
-                        counter_alerts = len(alerts)
-                    # close alerts tab
-                    if find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
+                    # open alerts tab
+                    if not find_element(browser, css_selectors['btn_alert_menu'], By.CSS_SELECTOR, False, True):
                         wait_and_click(browser, css_selectors['btn_alerts'])
+                    time.sleep(DELAY_CLEAR_INACTIVE_ALERTS)
+                    wait_and_click(browser, css_selectors['btn_alert_menu'])
+                    wait_and_click(browser, css_selectors['item_clear_inactive_alerts'])
+                    wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
+                    time.sleep(DELAY_BREAK * 8)
 
-                if counter_alerts >= config.getint('tradingview', 'max_alerts'):
+                alerts_on_alerts_tab = get_number_of_alerts_on_alerts_tab(browser)
+                if alerts_on_alerts_tab >= config.getint('tradingview', 'max_alerts'):
                     log.warning("Maximum alerts reached. You can set this to a higher number in the kairos.cfg. Exiting program.")
                     return [counter_alerts, total_alerts]
                 try:
@@ -1686,11 +1706,12 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                         screenshot_url = take_screenshot(browser, symbol, interval)[0]
                     create_alert(browser, alert, timeframe, interval, symbol, screenshot_url)
                     counter_alerts += 1
-                    total_alerts += 1
                 except Exception as err:
                     log.error("Could not set alert: {} {}".format(symbol, alert['name']))
                     log.exception(err)
                     snapshot(browser)
+        if 'signals' in chart or 'alerts' in chart:
+            total_alerts += 1
     except Exception as e:
         log.exception(e)
         return retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number)
@@ -1874,7 +1895,7 @@ def retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, r
         log.info('trying again ({})'.format(str(retry_number + 1)))
         return take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, retry_number + 1)
     else:
-        log.warn('max retries reached')
+        log.warning('max retries reached')
         snapshot(browser)
 
 
@@ -1897,10 +1918,6 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         indicators_present = False
         i = 0
         while not indicators_present and i < 20:
-            # TODO replace 'element.send_keys" with
-            # action = ActionChains(browser)
-            # action.send_keys(Keys.ALT + "a")
-            # action.perform()
             html = find_element(browser, 'html')
             html.send_keys(Keys.ALT + "a")
             el_options = find_elements(browser, css_selectors['options_dlg_create_alert_first_row_first_item'], By.CSS_SELECTOR, False, False, 0.5)
@@ -2005,7 +2022,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             i += 1
 
         # Options (i.e. frequency)
-        wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(str(alert_config['options']).strip()))
+        button_name = 'N/A'
+        try:
+            button_name = str(alert_config['options']).strip()
+            wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(button_name))
+        except TimeoutException as e:
+            log.exception("Unable to find button called '{}'.\nPlease, check if the value provided in your yaml (still) exists on TV.".format(button_name))
+            log.exception(e)
+            snapshot(browser, True)
+
         # Expiration
         set_expiration(browser, alert_dialog, alert_config)
 
@@ -2028,13 +2053,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_ringtone'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_ringtone'])
             for option in el_options:
-                if str(option.text).strip() == str(alert_config['sound']['ringtone']).strip():
+                option_value = str(option.get_attribute("textContent")).strip()
+                if option_value == str(alert_config['sound']['ringtone']).strip():
                     option.click()
             # set duration
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_sound_duration'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_sound_duration'])
             for option in el_options:
-                if str(option.text).strip() == str(alert_config['sound']['duration']).strip():
+                option_value = str(option.get_attribute("textContent")).strip()
+                if option_value == str(alert_config['sound']['duration']).strip():
                     option.click()
 
         # Communication options
@@ -2064,6 +2091,12 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 element = find_element(alert_dialog, css_selectors['dlg_create_alert_webhook'])
                 set_value(browser, element, "")
                 set_value(browser, element, alert_config['webhook'], False, True)
+
+            # Alert name
+            if 'name' in alert_config:
+                element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
+                set_value(browser, element, "")
+                set_value(browser, element, alert_config['name'], False, True)
 
             # Construct message
             chart = browser.current_url + '?symbol=' + symbol
@@ -2105,18 +2138,15 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # ignore warnings if they are there
         if SEARCH_FOR_WARNING:
             try:
-                element = find_element(browser, css_selectors['btn_create_alert_warning_continue_anyway'])
-                element.click()
-                # wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'K, 5)
+                wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway_got_it'])
+                wait_and_click(browser, css_selectors['btn_create_alert_warning_continue_anyway'])
                 log.debug('warning found and closed')
             except TimeoutException:
                 # we are getting a timeout exception because there likely was no warning
                 log.debug('no warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
-
-        time.sleep(DELAY_SUBMIT_ALERT)
     except TimeoutError:
-        log.warn('time out')
+        log.warning('time out')
         # on except, refresh and try again
         return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
     except Exception as exc:
@@ -2168,7 +2198,6 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
         send_keys(element, string, interval)
     else:
         browser.execute_script("arguments[0].value = arguments[1];".format(string), element, string)
-        # browser.execute_script("arguments[0].value = '{}';".format(string), element)
         if use_clipboard:
             if config.getboolean('webdriver', 'clipboard'):
                 element.send_keys(SELECT_ALL)
@@ -2250,6 +2279,19 @@ def set_expiration(browser, _alert_dialog, alert_config):
     time.sleep(DELAY_BREAK_MINI)
 
 
+def accept_cookies(browser):
+    try:
+        css = 'article h2'
+        element = find_element(browser, css, By.CSS_SELECTOR, False, True, 2)
+        if element and str(element.get_attribute('textContent')).find('cookies'):
+            css = 'article h2 + p + div > button'
+            element = find_element(browser, css, By.CSS_SELECTOR, False, True, 2)
+            if element and str(element.get_attribute('textContent')) == 'Accept':
+                element.click()
+    except Exception as e:
+        log.exception(e)
+
+
 def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
@@ -2271,10 +2313,9 @@ def login(browser, uid='', pwd='', retry_login=False):
             except Exception as e:
                 log.debug(e)
 
-            close_cookies_message(browser)
-
             # if logged in under a different username or not logged in at all log out and then log in again
             try:
+                wait_and_click(browser, css_selectors['account'], 5)
                 elem_username = wait_and_visible(browser, css_selectors['username'], 5)
                 if type(elem_username) is WebElement:
                     if elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
@@ -2283,8 +2324,12 @@ def login(browser, uid='', pwd='', retry_login=False):
                         return True
                     else:
                         log.info("logged in under a different username. Logging out.")
-                        wait_and_click(browser, css_selectors['username'])
+                        wait_and_click(browser, css_selectors['account'])
                         wait_and_click(browser, css_selectors['signout'])
+            except ElementClickInterceptedException as e:
+                log.debug(e)
+                wait_and_click(browser, css_selectors['btn_alerts'], 5)
+                return login(browser, uid, pwd, False)
             except TimeoutException as e:
                 log.debug(e)
             except Exception as e:
@@ -2294,11 +2339,20 @@ def login(browser, uid='', pwd='', retry_login=False):
             log.exception(e)
             snapshot(browser, True)
 
-    try:
-        wait_and_click(browser, css_selectors['signin'])
+    # close cookie banner (if any)
+    accept_cookies(browser)
 
-        if element_exists(browser, css_selectors['show_email_and_username']):
-            wait_and_click(browser, css_selectors['show_email_and_username'])
+    try:
+        wait_and_click(browser, css_selectors['anonymous_account'])
+        wait_and_click(browser, css_selectors['anonymous_signin'])
+
+        # check if we need to click "Login by email/username"
+        try:
+            wait_and_click(browser, css_selectors['btn_login_by_email'], 2)
+        except TimeoutException:
+            pass
+        except Exception as e:
+            log.exception(e)
 
         input_username = find_element(browser, css_selectors['input_username'])
         if input_username.get_attribute('value') == '' or retry_login:
@@ -2323,12 +2377,24 @@ def login(browser, uid='', pwd='', retry_login=False):
             exit(0)
 
         wait_and_click(browser, css_selectors['btn_login'])
-
     except Exception as e:
         log.error(e)
         snapshot(browser, True)
 
+    # close the widget pane if it is open
     try:
+        if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
+            # close the menu/widget pane
+            wait_and_click(browser, css_selectors['btn_alerts'])
+            # check if we closed one pane but opened the alerts pane instead
+            if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
+                # close the alerts pane
+                wait_and_click(browser, css_selectors['btn_alerts'])
+    except Exception as e:
+        log.exception(e)
+
+    try:
+        wait_and_click(browser, css_selectors['account'], 5)
         elem_username = wait_and_get(browser, css_selectors['username'])
         if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
             TV_UID = uid
@@ -2336,9 +2402,9 @@ def login(browser, uid='', pwd='', retry_login=False):
             log.info("logged in successfully at tradingview.com as {}".format(elem_username.get_attribute('textContent')))
         else:
             if elem_username.get_attribute('textContent') == '' or elem_username.get_attribute('textContent') == 'Guest':
-                log.warn("not logged in at tradingview.com")
+                log.warning("not logged in at tradingview.com")
             elif elem_username.get_attribute('textContent') != uid:
-                log.warn("logged in under a different username at tradingview.com")
+                log.warning("logged in under a different username at tradingview.com")
             error = find_element(browser, 'body > div.tv-dialog__modal-wrap > div > div > div > div.tv-dialog__error.tv-dialog__error--dark')
             if error:
                 print(error.get_attribute('innerText'))
@@ -2373,6 +2439,7 @@ def assign_user_data_directory():
     if config.has_option('webdriver', 'share_user_data') and config.getboolean('webdriver', 'share_user_data'):
         log.debug("{} in use? {}".format(user_data_directory, os.path.exists(os.path.join(user_data_directory, lockfile))))
         user_data_directory_found = False
+        browser = config.get('webdriver', 'webbrowser', fallback='chrome').lower()
 
         # find an unused kairos user data directory
         user_data_base_dir, tail = os.path.split(user_data_directory)
@@ -2380,11 +2447,10 @@ def assign_user_data_directory():
             with os.scandir(user_data_base_dir) as user_data_directories:
                 # number_of_kairos_user_data_directories = 0
                 for entry in user_data_directories:
-                    name = entry.name
-                    if name.startswith('kairos_'):
+                    if entry.name.startswith('kairos_'):
                         # number_of_kairos_user_data_directories += 1
-                        path = os.path.join(user_data_base_dir, name)
-                        if not tools.path_in_use(path, log) and not user_data_directory_found:
+                        path = os.path.join(user_data_base_dir, entry.name)
+                        if not tools.path_in_use(path, log, browser) and not user_data_directory_found:
                             user_data_directory = path
                             user_data_directory_found = True
                             break
@@ -2422,18 +2488,9 @@ def check_driver(driver):
                     driver_version = match.group(1).rstrip()
                 break
     else:
-        log.warn("browser name '{}' not found in driver".format(driver.name))
+        log.warning("browser name '{}' not found in driver".format(driver.name))
     log.info("browser version: {}".format(browser_version))
     log.info("driver version: {}".format(driver_version))
-
-    # driver_version_major = driver_version.split('.')[0]
-    # browser_version_major = browser_version.split('.')[0]
-    # if driver_version_major != browser_version_major:
-    #     subject = "Outdated web driver"
-    #     text = "Please update your web driver.\n\nWeb driver version: {}\nBrowser version: {}".format(driver_version, browser_version)
-    #     # Send email
-    #     import mail
-    #     mail.send_admin_message(subject, text)
 
 
 def create_browser(run_in_background):
@@ -2510,7 +2567,7 @@ def create_browser(run_in_background):
     if OS == 'linux' and \
             config.has_option('webdriver', 'use_proxy_display') and config.getboolean('webdriver', 'use_proxy_display'):
         from pyvirtualdisplay import Display
-        display = Display(visible=0, size=(1920, 1024))
+        display = Display(visible=False, size=(1920, 1024))
         display.start()
 
     # use open chrome browser
@@ -2539,10 +2596,10 @@ def create_browser(run_in_background):
         if initial_setup:
             log.info("creating shared session for kairos user data directory")
             login(browser)
+            log.info("restarting kairos ... ")
             global ALREADY_LOGGED_IN
             ALREADY_LOGGED_IN = True
             destroy_browser(browser, False)
-            log.info("restarting kairos ... ")
             return create_browser(run_in_background)
     except InvalidArgumentException as e:
         if e.msg.index("user data directory is already in use") >= 0:
@@ -2688,34 +2745,14 @@ def run(file, export_signals_immediately, multi_threading=False):
                     log.info("VERIFY_MARKET_LISTING = " + str(VERIFY_MARKET_LISTING))
                     print('')
                 try:
-                    max_symbols_per_watchlist = 1000  # TV limit
-                    if 'tradingview' in config and 'max_symbols_per_watchlist' in config['tradingview']:
-                        max_symbols_per_watchlist = min(max_symbols_per_watchlist, format_number(config.getint('tradingview', 'max_symbols_per_watchlist')))
-
                     screeners_yaml = tv['screeners']
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
-                            log.info("extracting symbols from screener '{}' ...".format(screener_yaml['name']))
+                            log.info("create/update watchlist '{}' from screener. Please be patient, this may take several minutes ...".format(screener_yaml['name']))
                             markets = get_screener_markets(browser, screener_yaml)
                             if markets:
-                                markets.sort()
-                                chunks = tools.chunks(markets, max_symbols_per_watchlist)
-                                number_of_chunks = len(markets) // max_symbols_per_watchlist + 1
-                                name = screener_yaml['name'].strip()
-                                for i, chunk in enumerate(chunks):
-                                    if i > 0:
-                                        name = "{} {}/{}".format(screener_yaml['name'], str(i+1), str(number_of_chunks))
-                                    if update_watchlist(browser, name, chunk):
-                                        log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(chunk))))
-                                # remove excess pagination watchlists, e.g. 4/5 and 5/5 when there are only 3 chunks with this update
-                                if number_of_chunks == 1:
-                                    name = screener_yaml['name'].strip() + " 1/1"
-                                # ActionChains(browser).send_keys(Keys.ESCAPE).perform()
-                                wait_and_click(browser, css_selectors['btn_calendar'])
-                                time.sleep(DELAY_BREAK)
-                                wait_and_click(browser, css_selectors['btn_watchlist'])
-                                time.sleep(DELAY_BREAK)
-                                remove_watchlists(browser, name, number_of_chunks+1)
+                                if update_watchlist(browser, screener_yaml['name'], markets):
+                                    log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(markets))))
                             else:
                                 log.info('no markets to update')
                 except Exception as e:
@@ -2726,48 +2763,14 @@ def run(file, export_signals_immediately, multi_threading=False):
                 # do some maintenance on the alert list (removing or restarting)
                 try:
                     if config.getboolean('tradingview', 'clear_alerts'):
-                        wait_and_click(browser, css_selectors['btn_calendar'])
-                        wait_and_click(browser, css_selectors['btn_alerts'])
-                        wait_and_click(browser, css_selectors['btn_alert_menu'])
+                        clean_alerts(browser, css_selectors['item_clear_alerts'])
+                    elif config.getboolean('tradingview', 'restart_inactive_alerts'):
+                        clean_alerts(browser, css_selectors['item_restart_inactive_alerts'])
+                    elif config.getboolean('tradingview', 'clear_inactive_alerts'):
+                        clean_alerts(browser, css_selectors['item_clear_inactive_alerts'])
 
-                        try:
-                            wait_and_click_by_text(browser, 'div', 'Delete all', '', CHECK_IF_EXISTS_TIMEOUT, 1)
-                            wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                            time.sleep(DELAY_BREAK * 2)
-                        except TimeoutException as e:
-                            log.debug(e)
-
-                    else:
-                        if config.getboolean('tradingview', 'restart_inactive_alerts'):
-                            wait_and_click(browser, css_selectors['btn_calendar'])
-                            wait_and_click(browser, css_selectors['btn_alerts'])
-                            wait_and_click(browser, css_selectors['btn_alert_menu'])
-                            # apparently, TV decided in all their wisdom to use a completely different structure for when you are on a chart vs e.g. the front page
-                            # note the camel case when we are on the chart, and lack thereof on the startpage *facepalm*
-                            try:
-                                # check if we are on the front page
-                                wait_and_click_by_text(browser, 'div', 'Restart all inactive')
-                                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                                time.sleep(DELAY_BREAK * 2)
-                            except TimeoutException as e:
-                                log.debug(e)
-
-                        elif config.getboolean('tradingview', 'clear_inactive_alerts'):
-                            wait_and_click(browser, css_selectors['btn_calendar'])
-                            wait_and_click(browser, css_selectors['btn_alerts'])
-                            wait_and_click(browser, css_selectors['btn_alert_menu'])
-
-                            try:
-                                wait_and_click_by_text(browser, 'div', 'Delete all inactive')
-                                wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'])
-                                time.sleep(DELAY_BREAK * 2)
-                            except TimeoutException as e:
-                                log.debug(e)
-
-                        # count the number of existing alerts
-                        alerts = find_elements(browser, css_selectors['item_alerts'], By.CSS_SELECTOR, False)
-                        if isinstance(alerts, list):
-                            counter_alerts = len(alerts)
+                    # close the alert menu
+                    wait_and_click(browser, css_selectors['btn_alerts'])
                 except Exception as e:
                     log.exception(e)
 
@@ -2786,7 +2789,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                     from tv import mail
                     mail.send_admin_message(subject, text)
 
-                log.info(summary(total_alerts))
+                log.info(summary(total_alerts, counter_alerts))
                 print()
                 if len(triggered_signals) > 0:
                     # noinspection PyUnresolvedReferences
@@ -2798,15 +2801,41 @@ def run(file, export_signals_immediately, multi_threading=False):
                             # we've send the signals, let's make sure they aren't send a 2nd time
                             triggered_signals.clear()
                         else:
-                            log.warn('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
+                            log.warning('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
                 elif export_signals_immediately:
                     log.info('No signals triggered. Nothing to send')
                 destroy_browser(browser)
     except Exception as exc:
         log.exception(exc)
-        summary(total_alerts)
+        summary(total_alerts, counter_alerts)
         destroy_browser(browser)
     return triggered_signals
+
+
+def clean_alerts(browser, selector=css_selectors['item_clear_alerts']):
+    # make sure we are opening the alert menu by closing/opening the calendar menu first
+    try:
+        wait_and_click(browser, css_selectors['btn_calendar'])
+        wait_and_click(browser, css_selectors['btn_alerts'])
+        wait_and_click(browser, css_selectors['btn_alert_menu'])
+    except Exception as e:
+        log.exception(e)
+
+    # try to press the clean/reset all/inactive alerts &  confirm
+    try:
+        wait_and_click(browser, selector, 2)
+        wait_and_click(browser, css_selectors['btn_dlg_clear_alerts_confirm'], 2)
+        time.sleep(DELAY_BREAK * 2)
+    except TimeoutException as e:
+        log.debug(e)
+    except Exception as e:
+        log.exception(e)
+
+    # close alert menu
+    try:
+        wait_and_click(browser, css_selectors['btn_alerts'])
+    except Exception as e:
+        log.exception(e)
 
 
 def get_screener_markets(browser, screener_yaml):
@@ -2815,42 +2844,42 @@ def get_screener_markets(browser, screener_yaml):
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
+    time.sleep(DELAY_BREAK)
+    loaded = False
+    max_runs = 1000
+    counter = 0
+    while not loaded and counter < max_runs:
+        try:
+            wait_and_click(browser, css_selectors['select_screener'], 30)
+            loaded = True
+        except ElementClickInterceptedException:
+            time.sleep(0.1)
+            pass
+        counter += 1
+
+    el_options = find_elements(browser, css_selectors['options_screeners'])
     found = False
-    scroll_delay = DELAY_BREAK * 6
+    for i in range(len(el_options)):
+        option = el_options[i]
+        try:
+            log.debug(option.text)
+            if str(option.text) == screener_yaml['name']:
+                option.click()
+                found = True
+                break
+        except StaleElementReferenceException:
+            el_options = find_elements(browser, css_selectors['options_screeners'])
+        i += 1
 
-    try:
-        wait_and_click(browser, css_selectors['select_screener'], 30)
-    except Exception as e:
-        log.exception(e)
-        snapshot(browser)
-
-    try:
-        wait_and_click_by_text(browser, 'span', screener_yaml['name'], 'js-filter-set-name')
-        found = True
-    except TimeoutException:
-        pass
-    except Exception as e:
-        log.exception(e)
-        snapshot(browser)
     if not found:
-        log.warn("screener '{}' doesn't exist. Kairos is unable to update {} but will otherwise continue.".format(screener_yaml['name'], screener_yaml['name']))
+        log.warning("screener '{}' doesn't exist.".format(screener_yaml['name']))
         return False
 
-    if 'search' in screener_yaml and screener_yaml['search'] != '' and screener_yaml['search'] is not None:
+    if 'search' in screener_yaml and screener_yaml['search'] != '':
         search_box = find_element(browser, css_selectors['input_screener_search'])
         set_value(browser, search_box, screener_yaml['search'], True)
-    time.sleep(DELAY_SCREENER_SEARCH)
+        time.sleep(DELAY_SCREENER_SEARCH)
 
-    # sort first, otherwise scrolling doesn't work
-    # sort descending on the ticker column
-    wait_and_click(browser, 'tv-screener-table__field-value--total', locator_strategy=By.CLASS_NAME)
-    time.sleep(DELAY_BREAK * 4)
-
-    # sort ascending on the ticker column
-    wait_and_click(browser, 'tv-screener-table__field-value--total', locator_strategy=By.CLASS_NAME)
-    time.sleep(DELAY_BREAK * 4)
-
-    # get total found
     el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
     total_found = 0
     try:
@@ -2860,240 +2889,137 @@ def get_screener_markets(browser, screener_yaml):
         pass
     log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
 
-    # move to the first row
-    run_again = True
-    while run_again:
-        run_again = False
-        try:
-            ActionChains(browser).move_to_element(find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[1]', By.XPATH, False, True)).perform()
-        except StaleElementReferenceException:
-            run_again = True
-        except Exception as e:
-            log.exception(e)
-
-    previous_symbol = "n/a"
-    symbol = ""
-    row_height = 50
-    scroll_factor = 100
-    dots = 0
-    while symbol != previous_symbol:
-        if config.getint('logging', 'level') == 10:
-            dots = print_dot(dots)
-        try:
-            browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
-            time.sleep(scroll_delay)
-            last_row = find_element(browser, '//*[@id="js-screener-container"]/div[4]/table/tbody/tr[last()]', By.XPATH)
-            previous_symbol = symbol
-            symbol = last_row.get_attribute('data-symbol')
-            # move to the last row
-            ActionChains(browser).move_to_element(last_row).perform()
-            log.debug("last_symbol = {}".format(symbol))
-        except StaleElementReferenceException:
-            pass
-    if config.getint('logging', 'level') == 10:
-        print(' DONE')
-    for i in tqdm(range(total_found), colour='white'):
-        extracted = False
-        j = 0
-        while j < 20 and not extracted:
-            j += 1
-            market = ""
-            extracted = False
+    while len(markets) < total_found:
+        rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 30)
+        for i, row in enumerate(rows):
             try:
-
-                move = i % 100 == 0 or j > 5
-                xpath = '//tr[contains(@class, "tv-screener-table__result-row")][{}]'.format(i+1)
-                row = find_element(browser, xpath, By.XPATH, True, False, 10)
-                market = row.get_attribute('data-symbol')
-                if move:
-                    browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
-                    time.sleep(scroll_delay)
-                    ActionChains(browser).move_to_element(row).perform()
-                extracted = True
+                market = rows[i].get_attribute('data-symbol')
+                action = ActionChains(browser)
+                action.move_to_element_with_offset(rows[i], 5, 5)
+                action.perform()
             except StaleElementReferenceException:
-                pass
-            except TimeoutException as e:
-                if j < 20:
-                    try:
-                        xpath = '//tr[contains(@class, "tv-screener-table__result-row")][last()]'
-                        row = find_element(browser, xpath, By.XPATH, True, False, 10)
-                        ActionChains(browser).move_to_element(row).perform()
-                        browser.execute_script("window.scrollBy(0, {});".format(row_height * scroll_factor))
-                        time.sleep(scroll_delay)
-                        row = find_element(browser, xpath, By.XPATH, True, False, 10)
-                        ActionChains(browser).move_to_element(row).perform()
-                        pass
-                    except Exception as e:
-                        log.debug(e)
-                        pass
-                else:
-                    log.exception(e)
-            except IndexError as e:
-                log.exception(e)
-            except Exception as e:
-                log.exception(e)
-            if market and market not in markets:
-                markets.append(market)
+                WebDriverWait(browser, 5).until(
+                    ec.presence_of_element_located((By.CLASS_NAME, class_selectors['rows_screener_result'])))
+                # try again
+                browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
+                market = rows[i].get_attribute('data-symbol')
+            markets.append(market)
+        markets = list(sorted(set(markets)))
 
-    markets = list(set(markets))
-    print("")
-    # print(' DONE')
     log.debug('extracted {} markets'.format(str(len(markets))))
     return markets
 
 
 def update_watchlist(browser, name, markets):
-    result = False
     try:
-        if isinstance(markets, str):
-            markets = markets.split(',')
-        log.info("updating {} with {} markets ...".format(name, len(markets)))
-
-        wait_and_click(browser, css_selectors['btn_calendar'])
-        time.sleep(DELAY_BREAK)
-        wait_and_click(browser, css_selectors['btn_watchlist'])
-        time.sleep(DELAY_BREAK)
+        if not find_element(browser, css_selectors['btn_watchlist_submenu'], except_on_timeout=False):
+            wait_and_click(browser, css_selectors['btn_watchlist'])
+            time.sleep(DELAY_BREAK)
         wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-        time.sleep(DELAY_BREAK*2)
-
-        wait_and_click_by_text(browser, 'div', 'Create new list')
         time.sleep(DELAY_BREAK)
 
-        css = "div[data-name='rename-dialog'] input"
-        input_watchlist_name = find_element(browser, css)
-        set_value(browser, input_watchlist_name, name, True)
+        # create new watchlist
+        wait_and_click_by_text(browser, 'div', 'Create new list')
+
+        # set watchlist name
+        input_watchlist_name = find_element(browser, 'div[data-name="rename-dialog"] input')
+        set_value(browser, input_watchlist_name, name, False, True)
         input_watchlist_name.send_keys(Keys.ENTER)
         time.sleep(DELAY_BREAK)
 
-        added, missing = add_markets_to_watchlist(browser, markets)
-        time.sleep(DELAY_BREAK * 4)
+        # open 'Add symbol' dialogue
+        wait_and_click(browser, 'div[data-name="add-symbol-button"]')
+        # make sure we are searching all markets
+        wait_and_click_by_xpath(browser, '//*[normalize-space(text()) = "All"]/parent::span')
 
-        # how many were added?
-        if len(missing) > 0:
-            log.warn("unable to add the following markets: {}".format(", ".join(markets)))
+        # add the markets to the watchlist
+        for market in markets:
+            # set value of search box with symbol
+            # apparently setting exchange:symbol and hitting enter still works (for now)
+            input_symbol = find_element(browser,
+                                        'div[data-name="watchlist-symbol-search-dialog"] input[data-role="search"]')
+            set_value(browser, input_symbol, market)
+            time.sleep(DELAY_BREAK)
+            input_symbol.send_keys(Keys.ENTER)
 
-        # sort the watchlist
-        try:
-            wait_and_click_by_text(browser, 'span', 'Symbol')
-            time.sleep(DELAY_BREAK * 2)
-        except Exception as e:
-            log.exception(e)
+            # when setting exchange:symbol and hitting enter no longer works, try the solution below
+            """
+            # find the right symbol and exchange
+            exchange, symbol = market.split(':')
+            css_row = 'div[data-role="list-item"][data-active="false"]'
+            css_symbol = 'div[data-name="list-item-title"] > span'
+            css_exchange = 'div[class^="exchangeName"]'
+            css_add = 'span[class^="button"]'
+
+            resolved = False
+            errors = 0
+            while not resolved:
+                try:
+                    rows = find_elements(browser, css_row)
+                    for row in rows:
+                        row_symbol = find_element(row, css_symbol).get_attribute('textContent').strip()
+                        row_exchange = find_element(row, css_exchange).get_attribute('textContent').strip()
+                        if row_symbol == symbol and row_exchange == exchange:
+                            wait_and_click(row, css_add)
+                except StaleElementReferenceException:
+                    errors += 1
+                    continue
+                except Exception as e:
+                    errors += 1
+                    log.exception(e)
+                resolved = True
+                if errors > 10:
+                    snapshot(browser, True)
+            """
+
+        # close the 'Add symbol' dialogue
+        wait_and_click(browser, 'div[data-name="watchlist-symbol-search-dialog"] span[data-name="close"][data-role="button"]')
 
         # remove double watchlist
         remove_watchlists(browser, name)
-        result = True
+        return True
     except Exception as e:
         log.exception(e)
         snapshot(browser)
-    return result
 
 
-def add_markets_to_watchlist(browser, markets):
-    added = 0
-    missing = []
-    for i in tqdm(range(len(markets)), colour='white'):
-        market = markets[i]
-        if add_market_to_watchlist(browser, market):
-            added += 1
-        else:
-            missing.append(market)
-    return added, missing
-
-
-def add_market_to_watchlist(browser, market, tries=0):
-    max_tries = max(config.getint('tradingview', 'create_alert_max_retries'), 10)
-
-    try:
-        wait_and_click(browser, css_selectors['input_watchlist_add_symbol'])
-        input_symbol = find_element(browser, css_selectors['dlg_symbol_search_input'])
-        set_value(browser, input_symbol, market)
-        input_symbol.send_keys(Keys.SHIFT + Keys.ENTER)
-    except Exception as e:
-        if tries <= max_tries:
-            log.debug(e)
-        else:
-            log.exception(e)
-            snapshot(browser)
-
-    added = element_exists(browser, 'div[data-symbol-full="{}"]'.format(market))
-    if not added:
-        tries += 1
-        if tries <= max_tries:
-            added = add_market_to_watchlist(browser, market, tries)
-            if log.level == DEBUG:
-                print("")
-                log.debug("{} trying again... ({}/{})".format(market, tries, max_tries))
-    return added
-
-
-def remove_watchlists(browser, name, from_pagination_page=0):
-    """
-    Removes old watchlists.
-    @param browser
-    @param name, the name of the watchlist including pagination (if any). For example, BTC markets, BTC markets 2/3
-    @param from_pagination_page, when higher than 0, this method will remove all watchlists with a pagination page higher or equal. For example, with a from_pagination_page of 3, BTC markets 3/4 and 4/4 will be removed but BTC markets 2/4 will not be removed.
-    """
+def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
-    el_options = []
-    try:
-        # make sure we hover over the element to hide any tooltips of other elements
-        hover(browser, find_element(browser, css_selectors['btn_watchlist_submenu']))
-        time.sleep(DELAY_BREAK)
-        wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-        time.sleep(DELAY_BREAK*4)
-        el_options = find_elements(browser, css_selectors['options_watchlist'])
-    except Exception as e:
-        log.exception(e)
-        snapshot(browser)
-
-    page = 0
-    basename = name.strip()
-    match = re.search(rf"^(.+)\s(\d+)/(\d+)$", name)
-    if match:
-        if match[1]:
-            basename = match[1].strip()
-        if match[2]:
-            page = int(match[2])
-
-    regex = rf"^{basename}$"
-    if from_pagination_page:
-        regex = rf"^{basename}\s+(\d+)/(\d+)$"
-    elif page:
-        regex = rf"^{basename}\s+({page})/(\d+)$"
-
-    # remove all watch lists with the name, and with the name followed by pagination
-    # e.g. BTC markets, BTC markets 2/3 and BTC markets 3/3
-    j = 0
-    while j < len(el_options):
+    wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+    time.sleep(DELAY_BREAK)
+    css_options = 'div[class^="watchlistMenu"] div[class^="item"]:not(div[class*="active"])'
+    el_options = find_elements(browser, css_options)
+    time.sleep(DELAY_BREAK)
+    i = 0
+    while i < len(el_options):
         try:
-            option_title = str(el_options[j].text)
-            match = re.search(regex, option_title)
-
-            if (match and from_pagination_page == 0) or (match and match.lastindex and int(match.group(1)) >= from_pagination_page > 0):
-                log.debug("found match for {} with regex {} -> {}".format(name, regex, option_title))
-                # get the removal button
-                # the active watchlist doesn't have a remove button, so we need to check if it is actually there
-                btn_delete = find_element(el_options[j], 'span[class^="removeButton"]', By.CSS_SELECTOR, False, False, 1)
-                if btn_delete:
-                    # hover over element and click the removal button [x]
-                    hover(browser, btn_delete, True)
-                    time.sleep(0.5)
-                    # handle confirmation dialog
-                    wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]', CHECK_IF_EXISTS_TIMEOUT+0.5)
-                    time.sleep(1)
-                    # give TV time to remove the watchlist
-                    log.debug('watchlist {} removed'.format(name))
+            element_name = None
+            element = find_element(el_options[i], 'span[class^="title"]', except_on_timeout=False)
+            if element:
+                element_name = element.get_attribute('textContent').strip()
+            if element_name == name:
+                action = ActionChains(browser)
+                action.move_to_element(el_options[i])
+                action.perform()
+                time.sleep(DELAY_BREAK)
+                wait_and_click(el_options[i], 'span[class^="removeButton"]')
+                # handle confirmation dialog
+                wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]')
+                # give TV time to remove the watchlist
+                time.sleep(DELAY_BREAK * 2)
+                log.debug('watchlist {} removed'.format(name))
         except StaleElementReferenceException:
             # open the watchlists menu again and update the options to prevent 'element is stale' error
             wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
             time.sleep(DELAY_BREAK)
-            el_options = find_elements(browser, css_selectors['options_watchlist'])
+            el_options = find_elements(browser, css_options)
             time.sleep(DELAY_BREAK)
-            j = 0
+            i = 0
         except Exception as e:
             log.exception(e)
             snapshot(browser)
-        j = j + 1
+        i = i + 1
 
 
 def open_performance_summary_tab(browser):
@@ -3143,8 +3069,8 @@ def get_strategy_default_values(browser, retry_number=0):
         # click and set properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
         properties = get_indicator_dialog_values(browser)
-        # close the indicator settings dialog
-        close_indicator_settings(browser)
+        # click OK
+        wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
     except Exception as e:
         return retry_get_strategy_default_values(browser, e, retry_number)
     return inputs, properties
@@ -3689,6 +3615,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         if first_symbol:
             open_performance_summary_tab(browser)
 
+        wait_and_click(browser, css_selectors['btn_input_symbol'])
         input_symbol = find_element(browser, css_selectors['input_symbol'])
         set_value(browser, input_symbol, symbol)
         input_symbol.send_keys(Keys.ENTER)
@@ -3708,8 +3635,20 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
         for chart_index in range(number_of_charts):
             # move to correct chart
-            charts = find_elements(browser, "div.chart-container")
-            charts[chart_index].click()
+            # charts = find_elements(browser, "div.chart-container")
+            charts = find_elements(browser, css_selectors["chart_container"])
+            next_chart_clicked = False
+            while not next_chart_clicked:
+                try:
+                    charts[chart_index].click()
+                    next_chart_clicked = True
+                except ElementClickInterceptedException:
+                    time.sleep(DELAY_BREAK)
+                except StaleElementReferenceException:
+                    charts = find_elements(browser, css_selectors["chart_container"])
+                except Exception as e:
+                    log.exception(e)
+
             # first time chart setup
             # - set inputs and properties of charts
             # - get interval of chart
@@ -3724,6 +3663,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     format_strategy(browser, inputs, properties, input_locations, property_locations)
                 elem_interval = find_element(browser, css_selectors['active_chart_interval'])
                 interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
+                log.info(interval)
                 intervals.append(interval)
 
                 if not (interval in interval_averages):
@@ -3849,8 +3789,8 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
                 # Switching to Alert
                 close_alerts(browser)
                 # Close the watchlist menu if it is open
-                if find_element(browser, css_selectors['btn_watchlist'], By.CSS_SELECTOR, False, False, 0.5):
-                    wait_and_click(browser, css_selectors['btn_watchlist'])
+                if find_element(browser, css_selectors['btn_watchlist_submenu'], By.CSS_SELECTOR, False, False, 0.5):
+                    wait_and_click(browser, css_selectors['btn_watchlist_menu'])
                 first_symbol = True
             else:
                 log.exception(e)
@@ -4326,13 +4266,15 @@ def wait_until_indicator_is_loaded(browser, indicator_name, pane_index):
     return result
 
 
-def summary(total_alerts):
+def summary(total_alerts, counter_alerts):
     result = "No alerts or signals set"
-    if total_alerts > 0:
-        # counted twice for alerts as well as signals
-        total_alerts = total_alerts / 2
-        elapsed = timing.time() - timing.start
-        avg = '%s' % float('%.5g' % (elapsed / total_alerts))
-        result = "{} markets screened and {} signals triggered with an average process time of {} seconds per market".format(str(int(math.ceil(total_alerts))), len(triggered_signals), avg)
-        # print("{} markets screened and {} signals triggered with an average process time of {} seconds per market.".format(str(int(math.ceil(total_alerts))), len(triggered_signals), avg))
+    elapsed = timing.time() - timing.start
+
+    avg = '%s' % float('%.5g' % (elapsed / total_alerts))
+    if counter_alerts > 0 and len(triggered_signals) > 0:
+        result = "{} markets screened, {} alerts set and {} signals triggered with an average process time of {} seconds per market".format(str(total_alerts), str(counter_alerts), str(len(triggered_signals)), avg)
+    elif counter_alerts > 0:
+        result = "{} markets screened and {} alerts set with an average process time of {} seconds per market".format(str(total_alerts), str(counter_alerts), avg)
+    elif len(triggered_signals) > 0:
+        result = "{} markets screened and {} signals triggered with an average process time of {} seconds per market".format(str(total_alerts), len(triggered_signals), avg)
     return result
