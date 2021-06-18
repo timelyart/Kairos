@@ -111,7 +111,8 @@ def process_body(msg, browser):
             url = tv_generated_url
 
         # search_screenshots =
-        match = re.search("screenshots_to_include: \\[(.*)]", body)
+        # noinspection RegExpRedundantEscape
+        match = re.search("screenshots_to_include: \\[(.*)\\]", body)
         if match:
             screenshot_charts = match.group(1).split(',')
             log.debug('charts to include:' + str(screenshot_charts))
@@ -388,8 +389,6 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
             [filepath, filename] = save_watchlist_to_file(csv, filename)
             filepath = os.path.join(os.getcwd(), filepath)
             log.info('watchlist ' + filepath + ' created')
-            # if 'delay_after_update' in watchlist_config:
-            #     delay_after_update = watchlist_config['delay_after_update']
             if watchlist_config['import']:
                 watchlist_name = filename.replace('.txt', '')
                 if update_watchlist(browser, watchlist_name, csv):
@@ -1057,19 +1056,19 @@ def set_headers_by_request(headers, configs):
         mandatory = ['request']
         for header in mandatory:
             if not (header in a_config):
-                log.warn("'" + str(header) + "' not declared in YAML")
+                log.warning("'" + str(header) + "' not declared in YAML")
                 yaml_ok = False
 
         request_config = a_config['request']
         mandatory = ['url', 'type', 'headers', 'body', 'response_values']
         for header in mandatory:
             if not (header in request_config):
-                log.warn("'" + str(header) + "' not declared in YAML")
+                log.warning("'" + str(header) + "' not declared in YAML")
                 yaml_ok = False
 
         if not yaml_ok:
             log.info(str(a_config))
-            log.warn("Incomplete YAML")
+            log.warning("Incomplete YAML")
             return headers
 
         request_url = request_config['url']
@@ -1094,7 +1093,7 @@ def set_headers_by_request(headers, configs):
             if 200 <= status[0] <= 226:
                 log.info('{} {} {}'.format(str(request_url), str(status[0]), str(status[1])))
             else:
-                log.warn('{} {} {}'.format(str(request_url), str(status[0]), str(status[1])))
+                log.warning('{} {} {}'.format(str(request_url), str(status[0]), str(status[1])))
         except Exception as e:
             log.exception(e)
     return headers
@@ -1129,7 +1128,7 @@ def run(delay, file, triggered_signals):
             send_mail(browser, summary_config, triggered_signals, len(charts) > 0, len(triggered_signals) > 0)
         destroy_browser(browser)
     else:
-        log.warn('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
+        log.warning('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
 
 
 def send_admin_message(subject, text, to='', html=''):
