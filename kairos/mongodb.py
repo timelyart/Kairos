@@ -21,6 +21,7 @@ def get_collection(client, name, log):
 
 def post(collection, json, log, many=True):
     """
+    :param log:
     :param collection:
     :param json:
     :param many:
@@ -50,4 +51,3 @@ def test(str_connection, collection, log):
         log.exception(e)
 
     return result
-
