@@ -132,17 +132,24 @@ def clean_browser_data():
     config = tools.get_config()
     log.setLevel(config.getint('logging', 'level'))
 
-    driver_type = 'chromedriver'
-    driver_count = sum(1 for process in psutil.process_iter() if process.name().startswith(driver_type))
-
+    driver_type = config.get('webdriver', 'name', fallback='chrome').lower()
+    driver_count = 0
+    try:
+        driver_count = sum(1 for process in psutil.process_iter() if process.name().startswith(driver_type))
+    except psutil.AccessDenied:
+        pass
+    except Exception as e:
+        log.exception(e)
+    # log.info("webdriver processes {}".format(driver_count))
     if config.has_option('webdriver', 'user_data_directory'):
+        browser = config.get('webdriver', 'webbrowser', fallback='chrome').lower()
         user_data_directory = config.get('webdriver', 'user_data_directory')
         user_data_base_dir, tail = os.path.split(user_data_directory)
         with os.scandir(user_data_base_dir) as user_data_directories:
             for entry in user_data_directories:
                 # remove all directories that start with 'kairos_' followed by a number
-                path = os.path.join(user_data_base_dir, entry)
-                if (entry.name.startswith('kairos_') and not tools.path_in_use(path, log)) or (entry.name.startswith('kairos') and driver_count == 0):
+                path = os.path.join(user_data_base_dir, entry.name)
+                if (entry.name.startswith('kairos_') and not tools.path_in_use(path, log, browser)) or (entry.name.startswith('kairos') and driver_count == 0):
                     if entry.name != user_data_directory:
                         try:
                             shutil.rmtree(path)
