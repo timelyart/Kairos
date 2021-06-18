@@ -15,6 +15,7 @@ if not os.path.exists(log_path):
 
 def create_log(mode='a'):
     file = os.path.join(r"" + log_path, file_name)
+    # noinspection PyArgumentList
     logging.basicConfig(
         level=logging.DEBUG,
         format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
