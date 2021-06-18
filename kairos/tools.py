@@ -6,6 +6,7 @@ import sys
 from datetime import datetime, timedelta
 import time
 import math
+import platform
 import psutil
 import yaml
 from selenium.common.exceptions import StaleElementReferenceException
@@ -144,15 +145,15 @@ def get_yaml_config(file, log, root=False):
             try:
                 temp_yaml = yaml.safe_load(stream)
                 string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
-                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'.:>-]+)(}?)$", string_yaml, re.MULTILINE)
+                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'_.:>-]+)(}?)$", string_yaml, re.MULTILINE)
                 if root:
                     log.debug(snippets)
                 for i in range(len(snippets)):
                     indentation = str(snippets[i][0]).replace("-", " ")
                     search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
-                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
+                    filename = Path(file).parent.resolve() / snippets[i][3]
                     if not os.path.exists(filename):
-                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
+                        log.error("File '{}' does not exist. Please update the value in '{}'".format(filename, str(os.path.basename(file))))
                         exit(1)
                     # recursively find and replace snippets
                     snippet_yaml = get_yaml_config(filename, log)
@@ -172,9 +173,24 @@ def get_yaml_config(file, log, root=False):
                     # replace the search value with the snippet
                     string_yaml = string_yaml.replace(search, string_snippet_yaml, 1)
 
+                # generate absolute paths to json_template files
+                if root:
+                    json_files = re.findall(
+                        r"^\s*-?\s*{?json_template:\s*[{-]?\s*?[\w/\\\"'_.:>-]+\s+([\w/\\\"'_.:>-]+)[,\n]?\s*[\w/\\\"'_.:>-]*\s*([\w/\\\"_'.:>-]*)}*$",
+                        string_yaml, re.MULTILINE)
+                    for i in range(len(json_files)):
+                        for json_file in json_files[i]:
+                            if json_file:
+                                filename = Path(file).parent.resolve() / json_file
+                                if os.path.exists(filename):
+                                    to_be_replaced = json_file + ""
+                                    string_yaml = string_yaml.replace(to_be_replaced, str(filename))
+                                else:
+                                    log.error("File '{}' does not exist. Please update the value in '{}'".
+                                              format(filename, str(os.path.basename(file))))
+                                    exit(1)
                 # clear any empty lines
                 string_yaml = remove_empty_lines(string_yaml)
-                log.debug(string_yaml)
                 result = yaml.safe_load(string_yaml)
             except yaml.YAMLError as err_yaml:
                 log.exception(err_yaml)
@@ -236,6 +252,7 @@ def chmod_r(path, permission):
 
 
 def format_number(value, precision=8):
+    # noinspection PyGlobalUndefined
     global float_precision
     float_precision = precision
     result = value
@@ -251,6 +268,20 @@ def format_number(value, precision=8):
             result = round_up(result, precision)
 
     return result
+
+
+def unicode_to_float_int(unicode_str):
+    if unicode_str:
+        string = str(unicode_str).translate({0x2c: '.', 0xa0: None, 0x2212: '-'})
+        if string.isdigit():
+            return int(string)
+        else:
+            try:
+                return float(string)
+            except ValueError:
+                return string
+    else:
+        return unicode_str
 
 
 def wait_for(condition_function, timeout=5):
@@ -336,9 +367,46 @@ def path_in_use(path, log=None, browser='chrome'):
 
 
 def get_operating_system():
-    result = 'windows'
-    if sys.platform == 'os2':
+    result = platform.system().lower()
+    if result == 'Darwin':
         result = 'macos'
-    elif os.name == 'posix':
-        result = 'linux'
     return result
+
+
+def print_dot(dots=0):
+    if dots == 100:
+        print('.')
+        dots = 0
+    else:
+        print('.', end='')
+        dots = dots + 1
+    return dots
+
+
+def embed_json_in_json(keyword, child_json, parent_json):
+    if isinstance(parent_json, list):
+        for i, entry in enumerate(parent_json):
+            parent_json[i] = embed_json_in_json(keyword, child_json, parent_json)
+    else:
+        for _key, value in parent_json.items():
+            if isinstance(value, list) or isinstance(value, dict):
+                parent_json[_key] = embed_json_in_json(keyword, child_json, parent_json)
+            elif str(value).upper() == str(keyword).upper():
+                parent_json[_key] = child_json
+    return parent_json
+
+
+def replace_apostrophe(json_data):
+    if isinstance(json_data, list):
+        for i, entry in enumerate(json_data):
+            json_data[i] = replace_apostrophe(entry)
+    else:
+        for _key, value in json_data.items():
+            _key = _key.replace("'", "%APOS")
+            if isinstance(value, int) or isinstance(value, float):
+                continue
+            if isinstance(value, list) or isinstance(value, dict):
+                json_data[_key] = replace_apostrophe(value)
+            else:
+                json_data[_key] = value.replace("'", "%APOS")
+    return json_data
