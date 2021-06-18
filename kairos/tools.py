@@ -6,8 +6,6 @@ import sys
 from datetime import datetime, timedelta
 import time
 import math
-import platform
-
 import psutil
 import yaml
 from selenium.common.exceptions import StaleElementReferenceException
@@ -18,6 +16,8 @@ from kairos import debug
 from collections import OrderedDict
 from configparser import RawConfigParser
 from pathlib import Path
+
+float_precision = 8
 
 
 # noinspection PyShadowingNames
@@ -144,15 +144,15 @@ def get_yaml_config(file, log, root=False):
             try:
                 temp_yaml = yaml.safe_load(stream)
                 string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
-                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'_.:>-]+)(}?)$", string_yaml, re.MULTILINE)
+                snippets = re.findall(r"^(\s*-?\s*)({?)(file:\s*)([\w/\\\"'.:>-]+)(}?)$", string_yaml, re.MULTILINE)
                 if root:
                     log.debug(snippets)
                 for i in range(len(snippets)):
                     indentation = str(snippets[i][0]).replace("-", " ")
                     search = snippets[i][1] + snippets[i][2] + snippets[i][3] + snippets[i][4] + ""
-                    filename = Path(file).parent.resolve() / snippets[i][3]
+                    filename = os.path.join(os.path.dirname(file), snippets[i][3])
                     if not os.path.exists(filename):
-                        log.error("File '{}' does not exist. Please update the value in '{}'".format(filename, str(os.path.basename(file))))
+                        log.error("File '" + str(snippets[i][3]) + "' does not exist. Please update the value in '" + str(os.path.basename(file)) + "'")
                         exit(1)
                     # recursively find and replace snippets
                     snippet_yaml = get_yaml_config(filename, log)
@@ -172,24 +172,9 @@ def get_yaml_config(file, log, root=False):
                     # replace the search value with the snippet
                     string_yaml = string_yaml.replace(search, string_snippet_yaml, 1)
 
-                # generate absolute paths to json_template files
-                if root:
-                    json_files = re.findall(
-                        r"^\s*-?\s*{?json_template:\s*[{-]?\s*?[\w/\\\"'_.:>-]+\s+([\w/\\\"'_.:>-]+)[,\n]?\s*[\w/\\\"'_.:>-]*\s*([\w/\\\"_'.:>-]*)}*$",
-                        string_yaml, re.MULTILINE)
-                    for i in range(len(json_files)):
-                        for json_file in json_files[i]:
-                            if json_file:
-                                filename = Path(file).parent.resolve() / json_file
-                                if os.path.exists(filename):
-                                    to_be_replaced = json_file + ""
-                                    string_yaml = string_yaml.replace(to_be_replaced, str(filename))
-                                else:
-                                    log.error("File '{}' does not exist. Please update the value in '{}'".
-                                              format(filename, str(os.path.basename(file))))
-                                    exit(1)
                 # clear any empty lines
                 string_yaml = remove_empty_lines(string_yaml)
+                log.debug(string_yaml)
                 result = yaml.safe_load(string_yaml)
             except yaml.YAMLError as err_yaml:
                 log.exception(err_yaml)
@@ -251,7 +236,6 @@ def chmod_r(path, permission):
 
 
 def format_number(value, precision=8):
-    # noinspection PyGlobalUndefined
     global float_precision
     float_precision = precision
     result = value
@@ -267,20 +251,6 @@ def format_number(value, precision=8):
             result = round_up(result, precision)
 
     return result
-
-
-def unicode_to_float_int(unicode_str):
-    if unicode_str:
-        string = str(unicode_str).translate({0x2c: '.', 0xa0: None, 0x2212: '-'})
-        if string.isdigit():
-            return int(string)
-        else:
-            try:
-                return float(string)
-            except ValueError:
-                return string
-    else:
-        return unicode_str
 
 
 def wait_for(condition_function, timeout=5):
@@ -333,76 +303,42 @@ def wait_for_page_load(self, timeout=10):
     WebDriverWait(self, timeout).until(staleness_of(old_page))
 
 
-def path_in_use(path, log=None):
-    for process in psutil.process_iter(['name']):
-        try:
-            if process.name().lower().find('chrome') >= 0:
-                try:
+def path_in_use(path, log=None, browser='chrome'):
+    try:
+        for process in psutil.process_iter():
+            try:
+                if process.name().find(browser) >= 0:
                     files = process.open_files()
                     if files:
                         for f in files:
                             # log.info("{}\t{}".format(message, f.path))
                             if f.path.find(path) >= 0:
                                 return True
-                except psutil.AccessDenied:
-                    log.exception("unable to close {}. Access Denied. Please run Kairos as Administrator (Windows), or with sudo (Linux).")
-                    exit(0)
-                except Exception as e:
-                    log.exception(e)
-        # This catches access denied errors of processes we don't have access to
-        except psutil.AccessDenied:
-            continue
-        # This catches a race condition where a process ends before we can examine its files
-        except Exception as e:
-            if log:
-                log.exception(e)
-            else:
-                debug.log("ERROR", "path_in_use", e)
-            exit(0)
+                # This catches a race condition where a process ends
+                # before we can examine its files
+            except psutil.AccessDenied as e:
+                if log:
+                    log.debug("{} {}".format(e, path))
+                else:
+                    debug.log("DEBUG", path_in_use, "{} {}".format(e, path))
+                continue
+            except Exception as e:
+                if log:
+                    log.exception("{} {}".format(path, e))
+                else:
+                    debug.log("ERROR", path_in_use, "{} {}".format(path, e))
+    except Exception as e:
+        if log:
+            log.exception(e)
+        else:
+            debug.log("ERROR", "path_in_use", e)
     return False
 
 
 def get_operating_system():
-    result = platform.system().lower()
-    if result == 'Darwin':
+    result = 'windows'
+    if sys.platform == 'os2':
         result = 'macos'
+    elif os.name == 'posix':
+        result = 'linux'
     return result
-
-
-def print_dot(dots=0):
-    if dots == 100:
-        print('.')
-        dots = 0
-    else:
-        print('.', end='')
-        dots = dots + 1
-    return dots
-
-
-def embed_json_in_json(keyword, child_json, parent_json):
-    if isinstance(parent_json, list):
-        for i, entry in enumerate(parent_json):
-            parent_json[i] = embed_json_in_json(keyword, child_json, parent_json)
-    else:
-        for _key, value in parent_json.items():
-            if isinstance(value, list) or isinstance(value, dict):
-                parent_json[_key] = embed_json_in_json(keyword, child_json, parent_json)
-            elif str(value).upper() == str(keyword).upper():
-                parent_json[_key] = child_json
-    return parent_json
-
-
-def replace_apostrophe(json_data):
-    if isinstance(json_data, list):
-        for i, entry in enumerate(json_data):
-            json_data[i] = replace_apostrophe(entry)
-    else:
-        for _key, value in json_data.items():
-            _key = _key.replace("'", "%APOS")
-            if isinstance(value, int) or isinstance(value, float):
-                continue
-            if isinstance(value, list) or isinstance(value, dict):
-                json_data[_key] = replace_apostrophe(value)
-            else:
-                json_data[_key] = value.replace("'", "%APOS")
-    return json_data
