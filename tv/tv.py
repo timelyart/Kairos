@@ -2213,7 +2213,7 @@ def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, re
         refresh(browser)
         try:
             # change symbol
-            change_symbol(browser, symbol, False)
+            change_symbol(browser, symbol)
         except Exception as err:
             log.debug("Can't find {} in list of symbols" + str(symbol))
             log.exception(err)
@@ -3615,10 +3615,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         if first_symbol:
             open_performance_summary_tab(browser)
 
-        wait_and_click(browser, css_selectors['btn_input_symbol'])
-        input_symbol = find_element(browser, css_selectors['input_symbol'])
-        set_value(browser, input_symbol, symbol)
-        input_symbol.send_keys(Keys.ENTER)
+        change_symbol(browser, symbol)
 
         symbol_average = dict()
         symbol_average['Net Profit'] = 0
