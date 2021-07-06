@@ -2022,17 +2022,19 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             i += 1
 
         # Options (i.e. frequency)
-        button_name = 'N/A'
-        try:
-            button_name = str(alert_config['options']).strip()
-            wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(button_name))
-        except TimeoutException as e:
-            log.exception("Unable to find button called '{}'.\nPlease, check if the value provided in your yaml (still) exists on TV.".format(button_name))
-            log.exception(e)
-            snapshot(browser, True)
+        if 'options' in alert_config and alert_config['options']:
+            button_name = 'N/A'
+            try:
+                button_name = str(alert_config['options']).strip()
+                wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(button_name))
+            except TimeoutException as e:
+                log.exception("Unable to find button called '{}'.\nPlease, check if the value provided in your yaml (still) exists on TV.".format(button_name))
+                log.exception(e)
+                snapshot(browser, True)
 
         # Expiration
-        set_expiration(browser, alert_dialog, alert_config)
+        if 'expiration' in alert_config and alert_config['expiration']:
+            set_expiration(browser, alert_dialog, alert_config)
 
         # Toggle 'more actions'
         wait_and_click(alert_dialog, css_selectors['btn_toggle_more_actions'])
