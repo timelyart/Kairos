@@ -2094,40 +2094,41 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 set_value(browser, element, alert_config['webhook'], False, True)
 
             # Alert name
-            if 'name' in alert_config:
+            if 'name' in alert_config and alert_config['name']:
                 element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
                 set_value(browser, element, "")
                 set_value(browser, element, alert_config['name'], False, True)
 
             # Construct message
-            chart = browser.current_url + '?symbol=' + symbol
-            show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
-            if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
-                chart += '&interval=' + str(interval)
-            textarea = find_element(alert_dialog, 'description', By.NAME)
-            """
-            # This has stopped working. :( The text is visible but not set.           
-            generated = textarea.text
-            """
-            generated = ''
-            text = str(alert_config['message']['text']).replace('/r', '')
-            text = text.replace('%TIMEFRAME', ' ' + timeframe)
-            text = text.replace('%SYMBOL', ' ' + symbol)
-            text = text.replace('%NAME', ' ' + alert_config['name'])
-            text = text.replace('%CHART', ' ' + chart)
-            text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
-            text = text.replace('%GENERATED', generated)
-            try:
-                screenshot_urls = []
-                for screenshot_chart in alert_config['include_screenshots_of_charts']:
-                    screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
-                text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
-            except ValueError as value_error:
-                log.exception(value_error)
-                snapshot(browser)
-            except KeyError:
-                log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-            set_value(browser, textarea, text, True)
+            if 'message' in alert_config and alert_config['message']:
+                chart = browser.current_url + '?symbol=' + symbol
+                show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
+                if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
+                    chart += '&interval=' + str(interval)
+                textarea = find_element(alert_dialog, 'description', By.NAME)
+                """
+                # This has stopped working. :( The text is visible but not set.           
+                generated = textarea.text
+                """
+                generated = ''
+                text = str(alert_config['message']['text']).replace('/r', '')
+                text = text.replace('%TIMEFRAME', ' ' + timeframe)
+                text = text.replace('%SYMBOL', ' ' + symbol)
+                text = text.replace('%NAME', ' ' + alert_config['name'])
+                text = text.replace('%CHART', ' ' + chart)
+                text = text.replace('%SCREENSHOT', ' ' + screenshot_url)
+                text = text.replace('%GENERATED', generated)
+                try:
+                    screenshot_urls = []
+                    for screenshot_chart in alert_config['include_screenshots_of_charts']:
+                        screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
+                    text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
+                except ValueError as value_error:
+                    log.exception(value_error)
+                    snapshot(browser)
+                except KeyError:
+                    log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+                set_value(browser, textarea, text, True)
         except Exception as alert_err:
             log.exception(alert_err)
             snapshot(browser)
