@@ -117,7 +117,6 @@ css_selectors = dict(
     show_email_and_username='span.js-show-email',
     input_username='input[name="username"]',
     input_password='input[name="password"]',
-    btn_login='button[type = "submit"]',
     btn_login_by_email='span.tv-signin-dialog__toggle-email',
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
@@ -2378,7 +2377,7 @@ def login(browser, uid='', pwd='', retry_login=False):
             write_console_log(browser)
             exit(0)
 
-        wait_and_click(browser, css_selectors['btn_login'])
+        send_keys(input_password, Keys.ENTER)
     except Exception as e:
         log.error(e)
         snapshot(browser, True)
