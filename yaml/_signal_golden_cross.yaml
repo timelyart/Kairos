@@ -37,6 +37,16 @@ charts:
         # If you have multiple indicators with the same name, e.g. EMA, then you'll need to define the index as well as the name.
         # NOTE: if you remove and then add an indicator the order and indices of indicators might have changed.
         indicator_index: 0
+        # Optional. Speed up Kairos by pointing it to the index of a value of the indicator.
+        # If you don't want or can't use this option, set the value to '' or False or remove the option altogether.
+        # NOTE: the indicator's value at index <<verify_indicator_loaded>> should ALWAYS have a value, i.e. the value may never be
+        # 'n/a' at  any given moment or it will slow down Kairos.
+        verify_indicator_loaded:
+        # Search for a trigger up until n bars back; If not set or set to 1 it will check the current bar only.
+        # Note that this may significantly slow Kairos down depending on how far it needs to look back, i.e. it becomes an
+        # algorithm in linear time O(n) instead of constant time O(1).
+        # Because of this negative change in time complexity, optimize by having the first indicator only trigger on the current bar.
+        max_bars: 1
         # Optional. Define how this indicator will (partly) trigger the signal. If no trigger is defined, it will always return true.
         # A trigger is defined by equating a left-hand side with a right-hand side.
         # Although optional, at least one of the indicators should have a trigger defined.

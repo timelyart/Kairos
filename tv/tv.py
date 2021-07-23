@@ -126,7 +126,7 @@ css_selectors = dict(
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
     btn_input_symbol='div[id="header-toolbar-symbol-search"]',
     dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
-    input_symbol='div[data-name="symbol-search-items-dialog"] input',
+    input_symbol='div[id="header-toolbar-symbol-search"] div',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
     btn_alert_menu='div[data-name="alerts-settings-button"]',
     item_clear_alerts='div.charts-popup-list > a.item:last-child',
@@ -734,13 +734,13 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
-    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], index + 1)
+    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]/span'.format(indicator['name'], index + 1)
     element = False
     value = ''
     while not (element and value):
         try:
             element = find_element(browser, xpath_value, By.XPATH)
-            value = element.text
+            value = element.get_attribute('innerHTML')
         except StaleElementReferenceException as e:
             element = False
             log.debug(e)
@@ -861,16 +861,20 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
             # make sure that all the values have loaded
             extracted = False
             while not extracted:
+                visible_values = 0
                 result = []
                 elem_values = find_elements(find_elements(find_elements(find_elements(browser, 'chart-container', By.CLASS_NAME)[chart_index], 'pane', By.CLASS_NAME)[pane_index], 'div[data-name="legend-source-item"]', By.CSS_SELECTOR)[indicator_index], 'div[class^="valuesAdditionalWrapper"] > div > div', By.CSS_SELECTOR)
                 for e in elem_values:
-                    # if a value isn't loaded (yet) it will have an empty string
-                    if e.text == '':
-                        time.sleep(DELAY_BREAK_MINI)
-                    else:
-                        result.append(str(e.text).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
+                    if e.is_displayed():
+                        visible_values += 1
+                        # if a value isn't loaded (yet) it will have an empty string
+                        if e.text == '':
+                            time.sleep(DELAY_BREAK_MINI)
+                        else:
+                            result.append(str(e.text).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
                 # check if the amount of elements equals the size of of the result dictionary
-                extracted = len(elem_values) == len(result)
+                extracted = len(result) == visible_values
+
     except StaleElementReferenceException:
         log.debug('StaleElementReferenceException in values')
         return retry_get_indicator_values(browser, indicator, symbol, previous_result, retry_number)
@@ -972,7 +976,7 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
                     return is_indicator_triggered(browser, indicator, values, previous_symbol_values)
 
                 if previous_symbol_values[0] == lhs and previous_symbol_values[1] == rhs:
-                    log.warning("detected the exact same values ({}, {}) as previous market. Verifying ...".format(repr(previous_symbol_values[0]), repr(previous_symbol_values[1])))
+                    log.warning("{}: detected the exact same values ({}, {}) as previous market. Verifying ...".format(repr(indicator['name']), repr(previous_symbol_values[0]), repr(previous_symbol_values[1])))
                     time.sleep(DELAY_BREAK_MINI)
                     if values:
                         values = get_data_window_indicator_values(browser, indicator)
@@ -1434,6 +1438,7 @@ def is_market_listed(browser):
 def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
     # open data window when necessary
     open_data_window_tab(browser)
+    symbols = list(sorted(set(symbols)))
 
     # open each symbol within the watchlist
     last_indicator_name = ''
@@ -1497,14 +1502,38 @@ def change_symbol(browser, symbol, use_space=False):
             # might be useful for multi threading set the symbol by going to different url like this:
             # https://www.tradingview.com/chart/?symbol=BINANCE%3AAGIBTC
             wait_and_click(browser, css_selectors['btn_input_symbol'])
-            input_symbol = find_element(browser, css_selectors['input_symbol'])
-            set_value(browser, input_symbol, symbol)
-            input_symbol.send_keys(Keys.ENTER)
+            dlg_symbol_search_input = find_element(browser, css_selectors['dlg_symbol_search_input'])
+            set_value(browser, dlg_symbol_search_input, symbol)
+            dlg_symbol_search_input.send_keys(Keys.ENTER)
 
     except Exception as err:
         log.debug('unable to change to symbol')
         log.exception(err)
         snapshot(browser)
+
+
+def read_price(browser, tries=0):
+    # open, high, close, low, change = 'undefined', 'undefined', 'undefined', 'undefined', 'undefined'
+    result = []
+    max_tries = 100
+    try:
+        current_price_values = find_elements(browser, 'div[data-name="legend-series-item"] div[class^="valueValue"]')
+        for i, element in enumerate(current_price_values):
+            value = str(element.text)
+            if value:
+                result.append(str(value).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
+        if len(result) != 5:
+            result = read_price(browser, tries+1)
+    except StaleElementReferenceException as e:
+        pass
+        if tries >= max_tries:
+            log.exception(e)
+        else:
+            return read_price(browser, tries+1)
+    except Exception as e:
+        log.exception(e)
+    assert(len(result) == 5)
+    return result
 
 
 def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number=0):
@@ -1545,6 +1574,7 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                 for m, indicator in enumerate(indicators):
                     indicator = indicators[m]
                     values = []
+                    max_bars = 1
 
                     if first_signal or (last_indicator_name != indicator['name']):
                         first_signal = False
@@ -1553,34 +1583,89 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                             wait_until_indicator_values_are_loaded(browser, indicator)
                         else:
                             time.sleep(DELAY_READ_INDICATOR_VALUE)
+                        if 'max_bars' in indicator and indicator['max_bars']:
+                            max_bars = max(max_bars, int(indicator['max_bars']))
 
-                    if READ_ALL_VALUES_AT_ONCE or not READ_FROM_DATA_WINDOW:
-                        # read all the indicator values
-                        if previous_values:
-                            values = previous_values
-                        elif READ_FROM_DATA_WINDOW:
-                            # read from the data window tab
-                            values = get_data_window_indicator_values(browser, indicator)
-                        else:
-                            # read from the chart
-                            values = get_indicator_values(browser, indicator, symbol, previous_symbol_values)
+                    bar = 0
+                    indicator_triggered = False
+                    while bar < max_bars and not indicator_triggered:
+                        # move the cursor to the current bar
+                        if bar == 1:
+                            try:
+                                wait_and_click(browser, 'div.control-bar__btn--back-present', 0.5)
+                            except TimeoutException:
+                                pass
+                            except Exception as e:
+                                log.exception(e)
+                                snapshot(browser)
 
-                        if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
-                            return retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number)
-                        previous_values = values
+                            css = 'div.js-btn-reset'
+                            reset_chart_button = find_element(browser, css)
+                            hover(browser, reset_chart_button, True)
+                            ActionChains(browser).move_to_element_with_offset(find_element(browser, 'div[id="header-toolbar-screenshot"]'), 14, 80).click().perform()
+                            ActionChains(browser).send_keys(Keys.ESCAPE).perform()
+                            prices = read_price(browser)
+                            current_open = prices[0]
 
-                    indicator_triggered, previous_symbol_values = is_indicator_triggered(browser, indicator, values, previous_symbol_values)
-                    last_indicator_name = indicator['name']
+                            # press left until the first change
+                            max_tries = 100
+                            for i in range(max_tries):
+                                prices = read_price(browser)
+                                bar_open = prices[0]
+                                if bar_open == current_open:
+                                    action = ActionChains(browser)
+                                    action.send_keys(Keys.ARROW_LEFT)
+                                    action.perform()
+                                else:
+                                    # log.info("Previous bar (-1) found after {} left arrow presses (open = {})".format(i+1, bar_open))
+                                    break
+                            previous_values = []
+                        elif bar > 1:
+                            # press left
+                            action = ActionChains(browser)
+                            action.send_keys(Keys.ARROW_LEFT)
+                            action.perform()
+                            previous_values = []
+
+                        if READ_ALL_VALUES_AT_ONCE or not READ_FROM_DATA_WINDOW:
+                            # read all the indicator values
+                            if previous_values:
+                                values = previous_values
+                            elif READ_FROM_DATA_WINDOW:
+                                # read from the data window tab
+                                # log.info('reading from data window')
+                                values = get_data_window_indicator_values(browser, indicator)
+                            else:
+                                # read from the chart
+                                # log.info('reading from chart')
+                                values = get_indicator_values(browser, indicator, symbol, previous_symbol_values)
+                            # log.info(values)
+                            if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
+                                return retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number)
+                            previous_values = values
+
+                        # log.info(values)
+                        indicator_triggered, previous_symbol_values = is_indicator_triggered(browser, indicator, values, previous_symbol_values)
+                        bar += 1
+
                     # after the first run, clear the previous_symbol_values
                     previous_symbol_values = ['', '']
+                    last_indicator_name = indicator['name']
 
                     # if the indicator didn't get triggered we might just as well stop here
                     if not indicator_triggered:
                         signal_triggered = False
                         break
+                    else:
+                        bar -= 1
+                        if bar == 0:
+                            log.info("{} triggered at the current bar".format(indicator['name']))
+                        else:
+                            log.info("{} triggered at -{} bars".format(indicator['name'], bar))
 
                     signal['indicators'][m]['values'] = values
                     signal['indicators'][m]['triggered'] = indicator_triggered
+                    signal['indicators'][m]['bar'] = bar
                     triggered.append(indicator_triggered)
                     if 'data' in indicator:
                         for item in indicator['data']:
