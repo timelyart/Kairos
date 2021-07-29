@@ -241,8 +241,8 @@ css_selectors = dict(
     active_chart_interval='div[id="header-toolbar-intervals"] div[class*="isActive"] > div > div',
     chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
     # User Menu
-    btn_user_menu="span.tv-dropdown-behavior.tv-header__dropdown.tv-header__dropdown--user",
-    btn_logout="a[href='#signout']",
+    btn_user_menu='button.tv-header__user-menu-button--logged',
+    btn_logout='div[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
 )
 
@@ -3101,10 +3101,7 @@ def remove_watchlists(browser, name):
             if element:
                 element_name = element.get_attribute('textContent').strip()
             if element_name == name:
-                action = ActionChains(browser)
-                action.move_to_element(el_options[i])
-                action.perform()
-                time.sleep(DELAY_BREAK)
+                hover(browser, el_options[i])
                 wait_and_click(el_options[i], 'span[class^="removeButton"]')
                 # handle confirmation dialog
                 wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]')
