@@ -19,6 +19,7 @@ fastnumbers
 psutil
 Cython
 tqdm
+soupsieve
 # linux
 python3-Xlib # pyup: ignore
 pyvirtualdisplay # pyup: ignore

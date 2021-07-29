@@ -16,6 +16,7 @@ fastnumbers
 psutil
 Cython
 tqdm
+soupsieve
 
 [platform_system == "Darwin"]
 pyobjc-core
