@@ -347,6 +347,8 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
         elif send_signals:
             export(summary_config, triggered_signals)
             merged = {**signals}
+
+        markets = []
         for url in merged:
             symbol = merged[url][0]
             alert = merged[url][1]
@@ -367,6 +369,7 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
                 csv += symbol
             else:
                 csv += ',' + symbol
+            markets.append(symbol)
             count += 1
 
         if config.has_option('mail', 'format') and config.get('mail', 'format') == 'table':
@@ -391,7 +394,7 @@ def send_mail(browser, summary_config, triggered_signals, send_alerts=True, send
             log.info('watchlist ' + filepath + ' created')
             if watchlist_config['import']:
                 watchlist_name = filename.replace('.txt', '')
-                if update_watchlist(browser, watchlist_name, csv):
+                if update_watchlist(browser, watchlist_name, markets):
                     log.info("watchlist imported into TradingView as '" + watchlist_name + "'")
             if watchlist_config['attach-to-email']:
                 watchlist_att = MIMEBase('application', "octet-stream")

@@ -70,7 +70,7 @@ DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
 DELAY_CHANGE_SYMBOL_DEF = 0.2
 DELAY_SCREENSHOT_DIALOG = 3
 DELAY_SCREENSHOT = 1
-DELAY_KEYSTROKE = 0.01
+DELAY_KEYSTROKE = 0.05
 DELAY_WATCHLIST = 0.5
 DELAY_TIMEFRAME = 0.5
 DELAY_SCREENER_SEARCH = 2
@@ -740,7 +740,7 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
     while not (element and value):
         try:
             element = find_element(browser, xpath_value, By.XPATH)
-            value = element.get_attribute('innerHTML')
+            value = element.text
         except StaleElementReferenceException as e:
             element = False
             log.debug(e)
@@ -751,6 +751,9 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
             if retry_number < max_retries * 10:
                 time.sleep(0.05)
                 return get_data_window_indicator_value(browser, indicator, index, retry_number+1)
+            else:
+                value = 'NAN'
+                log.info(value)
     return value
 
 
@@ -1659,9 +1662,9 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     else:
                         bar -= 1
                         if bar == 0:
-                            log.info("{} triggered at the current bar".format(indicator['name']))
+                            log.debug("{} triggered at the current bar".format(indicator['name']))
                         else:
-                            log.info("{} triggered at -{} bars".format(indicator['name'], bar))
+                            log.debug("{} triggered at -{} bars".format(indicator['name'], bar))
 
                     signal['indicators'][m]['values'] = values
                     signal['indicators'][m]['triggered'] = indicator_triggered
@@ -1699,12 +1702,12 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                                         if values:
                                             try:
                                                 data[_key] = values[index]
-                                            except IndexError as e:
+                                            except IndexError:
                                                 text = ""
                                                 if not READ_FROM_DATA_WINDOW:
                                                     text = "and is visible"
                                                 log.exception("Cannot read index {} as defined at {} in your YAML (index out of bounds). Make sure your indicator has a value at {} {}.".format(index, _key, index, text))
-                                                log.exception(e)
+                                                log.exception("data[{}] = {}".format(_key, values))
                                                 snapshot(browser)
                                                 exit(0)
                                             except Exception as e:
@@ -2049,61 +2052,62 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
         # 1st row, 2nd condition (if applicable)
-        css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
-        if element_exists(alert_dialog, css_1st_row_right, 0.5):
+        if len(alert_config['conditions']) > 1:
+            css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
+            if element_exists(alert_dialog, css_1st_row_right, 0.5):
+                current_condition += 1
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
+                el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
+                if not select(browser, alert_config, current_condition, el_options, symbol):
+                    return False
+
+            # 2nd row, 1st condition
             current_condition += 1
-            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
-            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
+            css_2nd_row = css_selectors['dlg_create_alert_second_row']
+            wait_and_click(alert_dialog, css_2nd_row)
+            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_second_row'])
             if not select(browser, alert_config, current_condition, el_options, symbol):
                 return False
 
-        # 2nd row, 1st condition
-        current_condition += 1
-        css_2nd_row = css_selectors['dlg_create_alert_second_row']
-        wait_and_click(alert_dialog, css_2nd_row)
-        el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_second_row'])
-        if not select(browser, alert_config, current_condition, el_options, symbol):
-            return False
-
-        # 3rd+ rows, remaining conditions
-        current_condition += 1
-        i = 0
-        while current_condition < len(alert_config['conditions']):
-            time.sleep(DELAY_BREAK_MINI)
-            log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
-            # we need to get the inputs again for every iteration as the number may change
-            inputs = find_elements(alert_dialog, css_selectors['inputs_and_selects_create_alert_3rd_row_and_above'])
-            while True:
-                if inputs[i].get_attribute('type') == 'hidden':
-                    i += 1
-                else:
-                    break
-
-            if inputs[i].tag_name == 'select':
-                elements = find_elements(alert_dialog, css_selectors['dlg_create_alert_3rd_row_group_item'])
-                if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
-                    elements[i].click()
-                    time.sleep(DELAY_BREAK_MINI)
-
-                    el_options = find_elements(elements[i], css_selectors['options_dlg_create_alert_3rd_row_group_item'])
-                    condition_yaml = str(alert_config['conditions'][current_condition])
-                    found = False
-                    for j, option in enumerate(el_options):
-                        option = el_options[j]
-                        option_tv = str(option.get_attribute("innerHTML")).strip()
-                        if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
-                            wait_and_click(alert_dialog, css_selectors['selected_dlg_create_alert_3rd_row_group_item'].format(j + 1))
-                            found = True
-                            break
-                    if not found:
-                        log.error("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change?".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
-                        return False
-            elif inputs[i].tag_name == 'input':
-                set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
-
-            # give some time
+            # 3rd+ rows, remaining conditions
             current_condition += 1
-            i += 1
+            i = 0
+            while current_condition < len(alert_config['conditions']):
+                time.sleep(DELAY_BREAK_MINI)
+                log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
+                # we need to get the inputs again for every iteration as the number may change
+                inputs = find_elements(alert_dialog, css_selectors['inputs_and_selects_create_alert_3rd_row_and_above'])
+                while True:
+                    if inputs[i].get_attribute('type') == 'hidden':
+                        i += 1
+                    else:
+                        break
+
+                if inputs[i].tag_name == 'select':
+                    elements = find_elements(alert_dialog, css_selectors['dlg_create_alert_3rd_row_group_item'])
+                    if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
+                        elements[i].click()
+                        time.sleep(DELAY_BREAK_MINI)
+
+                        el_options = find_elements(elements[i], css_selectors['options_dlg_create_alert_3rd_row_group_item'])
+                        condition_yaml = str(alert_config['conditions'][current_condition])
+                        found = False
+                        for j, option in enumerate(el_options):
+                            option = el_options[j]
+                            option_tv = str(option.get_attribute("innerHTML")).strip()
+                            if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
+                                wait_and_click(alert_dialog, css_selectors['selected_dlg_create_alert_3rd_row_group_item'].format(j + 1))
+                                found = True
+                                break
+                        if not found:
+                            log.error("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change?".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
+                            return False
+                elif inputs[i].tag_name == 'input':
+                    set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
+
+                # give some time
+                current_condition += 1
+                i += 1
 
         # Options (i.e. frequency)
         if 'options' in alert_config and alert_config['options']:
@@ -2836,7 +2840,17 @@ def run(file, export_signals_immediately, multi_threading=False):
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
                             log.info("create/update watchlist '{}' from screener. Please be patient, this may take several minutes ...".format(screener_yaml['name']))
-                            markets = get_screener_markets(browser, screener_yaml)
+                            max_runs = 3
+                            counter = 0
+                            markets = []
+                            while counter < max_runs:
+                                try:
+                                    counter += 1
+                                    markets = get_screener_markets(browser, screener_yaml)
+                                except Exception as e:
+                                    if counter == max_runs:
+                                        log.exception(e)
+                                    pass
                             if markets:
                                 if update_watchlist(browser, screener_yaml['name'], markets):
                                     log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(markets))))
@@ -2931,17 +2945,15 @@ def get_screener_markets(browser, screener_yaml):
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
-    time.sleep(DELAY_BREAK)
+    time.sleep(DELAY_BREAK*2)
     loaded = False
-    max_runs = 1000
+    max_runs = 100
     counter = 0
     while not loaded and counter < max_runs:
-        try:
-            wait_and_click(browser, css_selectors['select_screener'], 30)
-            loaded = True
-        except ElementClickInterceptedException:
-            time.sleep(0.1)
-            pass
+        time.sleep(0.1)
+        el_select = find_element(browser, css_selectors['select_screener'])
+        hover(browser, el_select, True)
+        loaded = element_exists(browser, css_selectors['options_screeners'])
         counter += 1
 
     el_options = find_elements(browser, css_selectors['options_screeners'])
@@ -2978,7 +2990,8 @@ def get_screener_markets(browser, screener_yaml):
 
     while len(markets) < total_found:
         rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 30)
-        for i, row in enumerate(rows):
+        i = 0
+        while i < len(rows):
             try:
                 market = rows[i].get_attribute('data-symbol')
                 action = ActionChains(browser)
@@ -2992,6 +3005,7 @@ def get_screener_markets(browser, screener_yaml):
                 rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
                 market = rows[i].get_attribute('data-symbol')
             markets.append(market)
+            i += 1
         markets = list(sorted(set(markets)))
 
     log.debug('extracted {} markets'.format(str(len(markets))))
@@ -3024,11 +3038,12 @@ def update_watchlist(browser, name, markets):
         for market in markets:
             # set value of search box with symbol
             # apparently setting exchange:symbol and hitting enter still works (for now)
-            input_symbol = find_element(browser,
-                                        'div[data-name="watchlist-symbol-search-dialog"] input[data-role="search"]')
+            css = 'div[data-name="watchlist-symbol-search-dialog"] input[data-role="search"]'
+            input_symbol = find_element(browser, css)
             set_value(browser, input_symbol, market)
             time.sleep(DELAY_BREAK)
             input_symbol.send_keys(Keys.ENTER)
+            time.sleep(DELAY_BREAK_MINI)
 
             # when setting exchange:symbol and hitting enter no longer works, try the solution below
             """
@@ -4354,7 +4369,9 @@ def summary(total_alerts, counter_alerts):
     result = "No alerts or signals set"
     elapsed = timing.time() - timing.start
 
-    avg = '%s' % float('%.5g' % (elapsed / total_alerts))
+    avg = elapsed
+    if total_alerts > 0:
+        avg = '%s' % float('%.5g' % (elapsed / total_alerts))
     if counter_alerts > 0 and len(triggered_signals) > 0:
         result = "{} markets screened, {} alerts set and {} signals triggered with an average process time of {} seconds per market".format(str(total_alerts), str(counter_alerts), str(len(triggered_signals)), avg)
     elif counter_alerts > 0:
