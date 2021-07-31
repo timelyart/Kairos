@@ -3102,7 +3102,7 @@ def remove_watchlists(browser, name):
                 element_name = element.get_attribute('textContent').strip()
             if element_name == name:
                 hover(browser, el_options[i])
-                wait_and_click(el_options[i], 'span[class^="removeButton"]')
+                wait_and_click(el_options[i], 'span[data-name="remove-button"]')
                 # handle confirmation dialog
                 wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]')
                 # give TV time to remove the watchlist
