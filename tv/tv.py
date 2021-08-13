@@ -2173,7 +2173,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_push'])
 
             # Webhook
-            webhook = 'webhook' in alert_config and alert_config['webhook']
+            webhook = 'webhook' in alert_config and alert_config['webhook'] != ''
             checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_webhook'], By.NAME)
             if is_checkbox_checked(checkbox) != webhook:
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_webhook'])
@@ -2183,13 +2183,13 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 set_value(browser, element, alert_config['webhook'], False, True)
 
             # Alert name
-            if 'name' in alert_config and alert_config['name']:
+            if 'name' in alert_config and alert_config['name'] != '':
                 element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
                 set_value(browser, element, "")
                 set_value(browser, element, alert_config['name'], False, True)
 
             # Construct message
-            if 'message' in alert_config and alert_config['message']:
+            if 'message' in alert_config and alert_config['message'] != '':
                 chart = browser.current_url + '?symbol=' + symbol
                 show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
                 if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
