@@ -187,9 +187,8 @@ css_selectors = dict(
     signout='div[data-name="header-user-menu-sign-out"]',
     checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
     clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
-    btn_dlg_screenshot='#header-toolbar-screenshot',
-    dlg_screenshot_url='div[class^="copyForm"] input',
-    dlg_screenshot_close='div[class^="dialog"] > div > span[class^="close"]',
+    btn_screenshot='#header-toolbar-screenshot',
+    btn_twitter_url='div[data-name="tweet-chart-image"]',
     btn_watchlist_sort_symbol='div.widgetbar-widget-watchlist span[data-column-type="short_name"]',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
@@ -1902,22 +1901,36 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
     filename = ''
 
     try:
-
         if config.has_option('tradingview', 'tradingview_screenshot') and config.getboolean('tradingview', 'tradingview_screenshot'):
-            #  This alternative implementation for 'element.send_keys' does not work on Linux
-            #  action = ActionChains(browser)
-            #  action.send_keys(Keys.TAB)
-            #  action.perform()
-            html = find_element(browser, 'html')
-            html.send_keys(Keys.ALT + "s")
-            time.sleep(DELAY_SCREENSHOT_DIALOG)
-            input_screenshot_url = find_element(html, css_selectors['dlg_screenshot_url'])
-            screenshot_url = input_screenshot_url.get_attribute('value')
-            #  This alternative implementation for 'element.send_keys' does not work on Linux
-            #  action = ActionChains(browser)
-            #  action.send_keys(Keys.TAB)
-            #  action.perform()
-            html.send_keys(Keys.ESCAPE)
+            # get current windows
+            previous_window = browser.current_window_handle
+            windows = browser.window_handles
+            # open Twitter link
+            wait_and_click(browser, css_selectors['btn_screenshot'])
+            wait_and_click(browser, css_selectors['btn_twitter_url'])
+
+            # wait in increments of 0.1 seconds until Twitter window has opened
+            i = 0
+            while windows == browser.window_handles and i < 100:
+                time.sleep(0.1)
+                i += 1
+            if i == 100:
+                raise Exception("Twitter did not open in new window")
+
+            # find the newly opened browser window and extract the url
+            url = ""
+            for window in browser.window_handles:
+                if window not in windows:
+                    browser.switch_to.window(window)
+                    from urllib import parse
+                    url = unquote(browser.current_url)
+            # extract the link to the screenshot
+            match = re.search("(https://www\\.tradingview\\.com/x/\\S+)", url)
+            if match:
+                screenshot_url = match.group(1)
+            # close Twitter window
+            browser.close()
+            browser.switch_to_window(previous_window)
             log.debug(screenshot_url)
 
         elif screenshot_dir != '':
@@ -2285,6 +2298,16 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
 
 
 def set_value(browser, element, string, use_clipboard=False, use_send_keys=False, interval=DELAY_KEYSTROKE):
+    """
+    element.parent.execute_script("
+        var elm = arguments[0], text = arguments[1];
+        if (!('value' in elm))
+          throw new Error('Expected an <input> or <textarea>');
+        elm.focus();
+        elm.value = text;
+        elm.dispatchEvent(new Event('change'));
+        ", element, string)
+    """
     if use_send_keys:
         send_keys(element, string, interval)
     else:
