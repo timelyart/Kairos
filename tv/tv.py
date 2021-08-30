@@ -2224,7 +2224,8 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                     screenshot_urls = []
                     for screenshot_chart in alert_config['include_screenshots_of_charts']:
                         screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
-                    text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
+                    if len(screenshot_urls) > 0:
+                        text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
                 except ValueError as value_error:
                     log.exception(value_error)
                     snapshot(browser)
