@@ -189,6 +189,8 @@ css_selectors = dict(
     clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
     btn_screenshot='#header-toolbar-screenshot',
     btn_twitter_url='div[data-name="tweet-chart-image"]',
+    btn_image_url='div[data-name="open-image-in-new-tab"]',
+    img_chart='img[class="tv-snapshot-image"]',
     btn_watchlist_sort_symbol='div.widgetbar-widget-watchlist span[data-column-type="short_name"]',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
@@ -1902,33 +1904,29 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
 
     try:
         if config.has_option('tradingview', 'tradingview_screenshot') and config.getboolean('tradingview', 'tradingview_screenshot'):
-            # get current windows
+            # get current window/tab
             previous_window = browser.current_window_handle
             windows = browser.window_handles
-            # open Twitter link
+            # open image in new tab
             wait_and_click(browser, css_selectors['btn_screenshot'])
-            wait_and_click(browser, css_selectors['btn_twitter_url'])
+            wait_and_click(browser, css_selectors['btn_image_url'])
 
-            # wait in increments of 0.1 seconds until Twitter window has opened
+            # wait in increments of 0.1 seconds until tab has opened
             i = 0
-            while windows == browser.window_handles and i < 100:
+            while windows == browser.window_handles and i < 300:
                 time.sleep(0.1)
                 i += 1
-            if i == 100:
+            if i == 300:
                 raise Exception("Twitter did not open in new window")
 
-            # find the newly opened browser window and extract the url
-            url = ""
+            # switch to the newly opened browser tab
             for window in browser.window_handles:
                 if window not in windows:
                     browser.switch_to.window(window)
-                    from urllib import parse
-                    url = unquote(browser.current_url)
-            # extract the link to the screenshot
-            match = re.search("(https://www\\.tradingview\\.com/x/\\S+)", url)
-            if match:
-                screenshot_url = match.group(1)
-            # close Twitter window
+            # extract the url
+            elem_image = find_element(browser, css_selectors['img_chart'])
+            screenshot_url = elem_image.get_attribute('src')
+            # close the newly opened tab
             browser.close()
             browser.switch_to_window(previous_window)
             log.debug(screenshot_url)
@@ -1948,7 +1946,8 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
             filename = os.path.join(chart_dir, filename)
             elem_chart = find_element(browser, 'layout__area--center', By.CLASS_NAME)
             time.sleep(DELAY_SCREENSHOT)
-            browser.save_screenshot(filename)
+            result = browser.save_screenshot(filename)
+            log.info(result)
 
             if chart_only:
                 location = elem_chart.location
