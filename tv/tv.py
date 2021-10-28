@@ -674,6 +674,7 @@ def move_to_data_window_indicator(browser, indicator, retry_number=0):
     if element_exists(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH):
         try:
             ActionChains(browser).move_to_element(find_element(browser, '{}/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]'.format(xpath), By.XPATH)).perform()
+            return True
         except StaleElementReferenceException:
             if retry_number < max_retries:
                 time.sleep(DELAY_BREAK_MINI)
@@ -682,6 +683,8 @@ def move_to_data_window_indicator(browser, indicator, retry_number=0):
             if retry_number < max_retries:
                 time.sleep(DELAY_BREAK_MINI)
                 return move_to_data_window_indicator(browser, indicator, retry_number+1)
+        except TimeoutException:
+            return False
         except Exception as e:
             log.exception(e)
             snapshot(browser)
@@ -1583,7 +1586,12 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     if first_signal or (last_indicator_name != indicator['name']):
                         first_signal = False
                         if READ_FROM_DATA_WINDOW:
-                            move_to_data_window_indicator(browser, indicator)
+                            # Stop processing the symbol if we cannot move to the indicator on the data window.
+                            # For example, when there is not enough data because it is a new market.
+                            if not move_to_data_window_indicator(browser, indicator):
+                                signal_triggered = False
+                                continue
+
                             wait_until_indicator_values_are_loaded(browser, indicator)
                         else:
                             time.sleep(DELAY_READ_INDICATOR_VALUE)
