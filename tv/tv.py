@@ -1871,28 +1871,19 @@ def export_chart_data(browser, export_data_config, symbol):
         # open dialog
         css = 'div.layout__area--topleft div[data-role="button"]'
         wait_and_click(browser, css)
+        time.sleep(DELAY_BREAK_MINI)
         css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
         wait_and_click(browser, css)
-        # time.sleep(DELAY_BREAK*4)
+        time.sleep(DELAY_BREAK*4)
 
         # make sure the correct symbol is loaded
-        correct = False
-        i = 0
-        selected = ''
-        while not correct and i < 20:
-            i += 1
-            css = 'span[id="chart-select"] > span:nth-child(1) > span > span'
-            el_selected_chart = find_element(browser, css)
-            selected = str(el_selected_chart.get_attribute("innerHTML")).strip()
-            if selected.startswith(symbol):
-                correct = True
-            else:
-                time.sleep(DELAY_BREAK_MINI)
-        # if the correct symbol isn't loaded
-        if not correct:
-            msg = "Export chart data dialog: selected ticker '{}' differs from expected ticker '{}'".format(selected, symbol)
-            raise Exception(msg)
-        log.info("selected = {}".format(selected))
+        css = 'span[id="chart-select"] > span:nth-child(1) > span > span'
+        el_selected_chart = find_element(browser, css)
+        selected = str(el_selected_chart.get_attribute("innerHTML")).strip()
+        # throw warning when data is from a different ticker then expected
+        if not selected.startswith(symbol):
+            log.warning("Export chart data dialog: selected ticker '{}' differs from expected ticker '{}'".format(selected, symbol))
+
         # set correct chart
         if 'chart_index' in export_data_config and export_data_config['chart_index']:
             chart_number = int(export_data_config['chart_index'])+1
@@ -1921,9 +1912,10 @@ def export_chart_data(browser, export_data_config, symbol):
                 log.warning("Option {} not found in 'Export chart data ...' dialog. Defaulting to UNIX timestamp.".format(timeformat))
 
         # click on export
-        # time.sleep(DELAY_BREAK*4)
+        time.sleep(DELAY_BREAK * 2)
         css = 'div[data-name="chart-export-dialog"] button[name="submit"]'
         wait_and_click(browser, css)
+        time.sleep(DELAY_BREAK * 4)
 
     except Exception as e:
         log.exception(e)
