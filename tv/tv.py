@@ -281,6 +281,17 @@ else:
     log.exception(FileNotFoundError)
     exit(0)
 
+download_path = ''
+if config.has_option('webdriver', 'download_path'):
+    download_path = r"" + str(config.get('webdriver', 'download_path'))
+    if not os.path.exists(download_path):
+        # noinspection PyBroadException
+        try:
+            os.mkdir(download_path)
+        except Exception as screenshot_error:
+            log.warning('No download_path specified or unable to create it.')
+            download_path = ''
+
 screenshot_dir = ''
 if config.has_option('logging', 'screenshot_path'):
     screenshot_dir = config.get('logging', 'screenshot_path')
@@ -291,7 +302,7 @@ if config.has_option('logging', 'screenshot_path'):
         try:
             os.mkdir(screenshot_dir)
         except Exception as screenshot_error:
-            log.info('No screenshot directory specified or unable to create it.')
+            log.warning('No screenshot directory specified or unable to create it.')
             screenshot_dir = ''
 
 if config.has_option('logging', 'max_screenshots_on_error'):
@@ -1376,7 +1387,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 filename = "run"
             save_data_as_json(json.dumps(summaries, indent=4), filename)
 
-        if 'alerts' in chart or 'signals' in chart:
+        export_data = 'export_data' in chart and 'enabled' in chart['export_data'] and chart['export_data']['enabled']
+        if 'alerts' in chart or 'signals' in chart or export_data:
             # time.sleep(5)
             # set the time frame
             for timeframe in chart['timeframes']:
@@ -1548,6 +1560,15 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
 
     previous_values = []
     first_signal = True
+    is_a_signal_triggered = False
+    export_data_config = []
+    export_data_always = False
+    export_data_on_signal = False
+    if 'export_data' in chart and 'enabled' in chart['export_data'] and chart['export_data']['enabled']:
+        export_data_config = chart['export_data']
+        export_data_on_signal = 'on_signal_only' in export_data_config and export_data_config['on_signal_only']
+        export_data_always = not export_data_on_signal
+
     try:
         if 'signals' in chart:
             for signal in chart['signals']:
@@ -1725,6 +1746,7 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                                                 exit(0)
                                         else:
                                             data[_key] = get_data_window_indicator_value(browser, indicator, index)
+
                     # use tab to put focus on the next layout
                     # TODO replace 'element.send_keys" with
                     #  action = ActionChains(browser)
@@ -1734,6 +1756,7 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     html.send_keys(Keys.TAB)
 
                 if signal_triggered:
+                    is_a_signal_triggered = True
                     signal['triggered'] = signal_triggered
                     screenshots = dict()
                     filenames = dict()
@@ -1806,9 +1829,15 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     log.error("Could not set alert: {} {}".format(symbol, alert['name']))
                     log.exception(err)
                     snapshot(browser)
+
+        # export data
+        if export_data_config and (export_data_always or is_a_signal_triggered and export_data_on_signal):
+            export_chart_data(browser, export_data_config, symbol)
+
         if 'signals' in chart or 'alerts' in chart:
             total_alerts += 1
     except Exception as e:
+
         log.exception(e)
         return retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number)
     return [counter_alerts, total_alerts, last_indicator_name, previous_symbol_values]
@@ -1835,6 +1864,69 @@ def retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name,
             processing_errors.append(symbol)
         snapshot(browser)
         return False
+
+
+def export_chart_data(browser, export_data_config, symbol):
+    try:
+        # open dialog
+        css = 'div.layout__area--topleft div[data-role="button"]'
+        wait_and_click(browser, css)
+        css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
+        wait_and_click(browser, css)
+        # time.sleep(DELAY_BREAK*4)
+
+        # make sure the correct symbol is loaded
+        correct = False
+        i = 0
+        selected = ''
+        while not correct and i < 20:
+            i += 1
+            css = 'span[id="chart-select"] > span:nth-child(1) > span > span'
+            el_selected_chart = find_element(browser, css)
+            selected = str(el_selected_chart.get_attribute("innerHTML")).strip()
+            if selected.startswith(symbol):
+                correct = True
+            else:
+                time.sleep(DELAY_BREAK_MINI)
+        # if the correct symbol isn't loaded
+        if not correct:
+            msg = "Export chart data dialog: selected ticker '{}' differs from expected ticker '{}'".format(selected, symbol)
+            raise Exception(msg)
+        log.info("selected = {}".format(selected))
+        # set correct chart
+        if 'chart_index' in export_data_config and export_data_config['chart_index']:
+            chart_number = int(export_data_config['chart_index'])+1
+            css = 'span[id="chart-select"]'
+            wait_and_click(browser, css)
+            css = 'div[data-name="menu-inner"] div[role="option"]:nth-child({})'.format(chart_number)
+            el_correct_option = find_element(browser, css)
+            hover(browser, el_correct_option, True)
+            time.sleep(DELAY_BREAK_MINI)
+
+        # set correct time format
+        if 'timeformat' in export_data_config and export_data_config['timeformat']:
+            timeformat = export_data_config['timeformat']
+            css = 'span[id="time-format-select"]'
+            wait_and_click(browser, css)
+            css = 'div[data-name="menu-inner"] div[role="option"] > div > div'
+            el_options = find_elements(browser, css)
+            found = False
+            for option in el_options:
+                option_tv = str(option.get_attribute("innerHTML")).strip()
+                if (option_tv == timeformat) or ((not EXACT_CONDITIONS) and option_tv.startswith(timeformat)):
+                    hover(browser, option, True)
+                    found = True
+                    break
+            if not found:
+                log.warning("Option {} not found in 'Export chart data ...' dialog. Defaulting to UNIX timestamp.".format(timeformat))
+
+        # click on export
+        # time.sleep(DELAY_BREAK*4)
+        css = 'div[data-name="chart-export-dialog"] button[name="submit"]'
+        wait_and_click(browser, css)
+
+    except Exception as e:
+        log.exception(e)
 
 
 def wait_until_chart_is_loaded(browser):
@@ -2669,11 +2761,19 @@ def create_browser(run_in_background):
         if run_in_background:
             options.add_argument('--headless')
 
-    prefs = {
-        'profile.default_content_setting_values.notifications': 2
-        # , 'disk-cache-size': 52428800
-    }
+    if download_path:
+        prefs = {
+            "profile.default_content_setting_values.notifications": 2,
+            "download.default_directory": download_path,
+            "safebrowsing.enabled": "false"
+        }
+    else:
+        prefs = {
+            "profile.default_content_setting_values.notifications": 2,
+            "safebrowsing.enabled": "false"
+        }
     options.add_experimental_option('prefs', prefs)
+
     exclude_switches = [
         'enable-automation',
     ]
@@ -2910,7 +3010,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                 for file, items in tv.items():
                     if type(items) is list:
                         for item in items:
-                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'backtest' in item:
+                            if 'alerts' in item or 'signals' in item or 'strategies' in item or 'backtest' in item or 'export_data' in item:
                                 [counter_alerts, total_alerts] = open_chart(browser, item, save_as, counter_alerts, total_alerts)
 
                 if len(processing_errors) > 0:
