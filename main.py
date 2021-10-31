@@ -131,7 +131,6 @@ def clean_browser_data():
     from kairos import tools
     config = tools.get_config()
     log.setLevel(config.getint('logging', 'level'))
-
     driver_type = config.get('webdriver', 'name', fallback='chrome').lower()
     driver_count = 0
     try:
@@ -141,26 +140,29 @@ def clean_browser_data():
     except Exception as e:
         log.exception(e)
     # log.info("webdriver processes {}".format(driver_count))
-    if config.has_option('webdriver', 'user_data_directory'):
-        browser = config.get('webdriver', 'webbrowser', fallback='chrome').lower()
-        user_data_directory = config.get('webdriver', 'user_data_directory')
-        user_data_base_dir, tail = os.path.split(user_data_directory)
-        with os.scandir(user_data_base_dir) as user_data_directories:
-            for entry in user_data_directories:
-                # remove all directories that start with 'kairos_' followed by a number
-                path = os.path.join(user_data_base_dir, entry.name)
-                if (entry.name.startswith('kairos_') and not tools.path_in_use(path, log, browser)) or (entry.name.startswith('kairos') and driver_count == 0):
-                    if entry.name != user_data_directory:
-                        try:
-                            shutil.rmtree(path)
-                            log.info("{} removed".format(entry.name))
-                        except Exception as e:
-                            log.exception(e)
-                elif entry.name.startswith('kairos_'):
-                    log.info("{} is in use and cannot be removed (close all instances of {} and try again)".format(entry.name, driver_type))
-        log.info("cleaning complete")
-    else:
-        log.info("skipping. User data directory is not set in kairos.cfg")
+    try:
+        if config.has_option('webdriver', 'user_data_directory') and config.get('webdriver', 'user_data_directory'):
+            browser = config.get('webdriver', 'webbrowser', fallback='chrome').lower()
+            user_data_directory = config.get('webdriver', 'user_data_directory')
+            user_data_base_dir, tail = os.path.split(user_data_directory)
+            with os.scandir(user_data_base_dir) as user_data_directories:
+                for entry in user_data_directories:
+                    # remove all directories that start with 'kairos_' followed by a number
+                    path = os.path.join(user_data_base_dir, entry.name)
+                    if (entry.name.startswith('kairos_') and not tools.path_in_use(path, log, browser)) or (entry.name.startswith('kairos') and driver_count == 0):
+                        if entry.name != user_data_directory:
+                            try:
+                                shutil.rmtree(path)
+                                log.info("{} removed".format(entry.name))
+                            except Exception as e:
+                                log.exception(e)
+                    elif entry.name.startswith('kairos_'):
+                        log.info("{} is in use and cannot be removed (close all instances of {} and try again)".format(entry.name, driver_type))
+            log.info("cleaning complete")
+        else:
+            log.info("skipping. User data directory is not set in kairos.cfg")
+    except Exception as e:
+        log.exception(e)
 
 
 def sort_back_test_data(filename, sort_by, reverse=True):
