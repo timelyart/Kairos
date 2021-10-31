@@ -5,7 +5,7 @@ charts:
   # Define for which time frames you want to generate signals
   timeframes: [1 day]
   # Define one or more watchlists
-  watchlists: ["<my_watchlist>"]
+  watchlists: ['<my_watchlist>']
   # Export data to .cvs
   # Note!!! TV has a bug where it will export data from the first exchange in alphabetical order if the symbol is listed
   # on multiple exchanges.
@@ -25,6 +25,8 @@ charts:
 webdriver:
   # Define whether you want to run Kairos in the background. Overrides the value for the same setting in kairos.cfg.
   run-in-background: yes
-  # optional; run Kairos in a different resolution, e.g. to make it wider so more data can fit on the screen
+  # Optional; run Kairos in a different resolution, e.g. to make it wider so more data can fit on the screen.
   # example values are '1920,1080' or '3840,1080'
   resolution: '3840,1080'
+  # Optional; set a destination folder for the downloaded files. Overrides the value for the same setting in kairos.cfg.
+  download_path: 'C:\Users\Sanne\Documents\Kairos Downloads\test'

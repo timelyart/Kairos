@@ -281,16 +281,9 @@ else:
     log.exception(FileNotFoundError)
     exit(0)
 
-download_path = ''
+DOWNLOAD_PATH = ''
 if config.has_option('webdriver', 'download_path'):
-    download_path = r"" + str(config.get('webdriver', 'download_path'))
-    if not os.path.exists(download_path):
-        # noinspection PyBroadException
-        try:
-            os.mkdir(download_path)
-        except Exception as screenshot_error:
-            log.warning('No download_path specified or unable to create it.')
-            download_path = ''
+    DOWNLOAD_PATH = r"" + str(config.get('webdriver', 'download_path'))
 
 screenshot_dir = ''
 if config.has_option('logging', 'screenshot_path'):
@@ -2732,7 +2725,7 @@ def check_driver(driver):
     log.info("driver version: {}".format(driver_version))
 
 
-def create_browser(run_in_background, resolution):
+def create_browser(run_in_background, resolution, download_path):
     global log
     capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
@@ -2787,6 +2780,13 @@ def create_browser(run_in_background, resolution):
             options.add_argument('--headless')
 
     if download_path:
+        if not os.path.exists(download_path):
+            # noinspection PyBroadException
+            try:
+                os.mkdir(download_path)
+            except Exception:
+                log.warning('No download_path specified or unable to create it.')
+                download_path = ''
         prefs = {
             "profile.default_content_setting_values.notifications": 2,
             "download.default_directory": download_path,
@@ -2847,7 +2847,7 @@ def create_browser(run_in_background, resolution):
             global ALREADY_LOGGED_IN
             ALREADY_LOGGED_IN = True
             destroy_browser(browser, False)
-            return create_browser(run_in_background, resolution)
+            return create_browser(run_in_background, resolution, download_path)
     except InvalidArgumentException as e:
         if e.msg.index("user data directory is already in use") >= 0:
             log.critical("your web browser's user data directory is in use. Please, close your web browser and restart Kairos.")
@@ -2943,6 +2943,7 @@ def run(file, export_signals_immediately, multi_threading=False):
 
     global RUN_IN_BACKGROUND
     global RESOLUTION
+    global DOWNLOAD_PATH
     global MULTI_THREADING
     global WEBDRIVER_INSTANCE
     MULTI_THREADING = multi_threading
@@ -2970,9 +2971,11 @@ def run(file, export_signals_immediately, multi_threading=False):
                 RUN_IN_BACKGROUND = tv['webdriver']['run-in-background']
             if 'resolution' in tv['webdriver']:
                 RESOLUTION = tv['webdriver']['resolution']
+            if 'download_path' in tv['webdriver']:
+                DOWNLOAD_PATH = str(tv['webdriver']['download_path'])
 
         if has_screeners or has_charts:
-            browser = create_browser(RUN_IN_BACKGROUND, RESOLUTION)
+            browser = create_browser(RUN_IN_BACKGROUND, RESOLUTION, DOWNLOAD_PATH)
             login(browser, TV_UID, TV_PWD)
             if has_screeners:
 
@@ -4040,7 +4043,7 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
                 log.critical("invalid session id - RESTARTING")
                 url = browser.current_url
                 browser.quit()
-                browser = create_browser(RUN_IN_BACKGROUND, RESOLUTION)
+                browser = create_browser(RUN_IN_BACKGROUND, RESOLUTION, DOWNLOAD_PATH)
                 browser.get(url)
                 # Switching to Alert
                 close_alerts(browser)
