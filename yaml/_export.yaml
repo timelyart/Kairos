@@ -1,0 +1,30 @@
+# use an url + other settings per type of alert you want to set
+# note that all values are case-sensitive
+charts:
+- url: https://www.tradingview.com/chart/<my_chart>/
+  # Define for which time frames you want to generate signals
+  timeframes: [1 day]
+  # Define one or more watchlists
+  watchlists: ["<my_watchlist>"]
+  # Export data to .cvs
+  # Note!!! TV has a bug where it will export data from the first exchange in alphabetical order if the symbol is listed
+  # on multiple exchanges.
+  export_data:
+    enabled: yes
+    # optional; only export data of charts that had a signal triggered; defaults to no
+    on_signal_only: no
+    # optional; choose which chart to export data for in case of a multi chart layout; defaults to 0
+    chart_index: 0
+    # optional; desired time format; defaults to UNIX; possible values are UNIX and ISO
+    timeformat: ISO
+    # optional; define a period
+    period:
+      starting_date: 1980-01-01  # yyyy-MM-dd
+      # optional; leave empty to end the period on today
+      ending_date: 2020-01-01    # yyyy-MM-dd
+webdriver:
+  # Define whether you want to run Kairos in the background. Overrides the value for the same setting in kairos.cfg.
+  run-in-background: yes
+  # optional; run Kairos in a different resolution, e.g. to make it wider so more data can fit on the screen
+  # example values are '1920,1080' or '3840,1080'
+  resolution: '3840,1080'

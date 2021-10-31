@@ -1868,6 +1868,39 @@ def retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name,
 
 def export_chart_data(browser, export_data_config, symbol):
     try:
+        if 'enabled' in export_data_config and not export_data_config['enabled']:
+            return
+
+        # set period (if any)
+        if 'period' in export_data_config:
+            starting_date = ''
+            ending_date = ''
+            if 'starting_date' in export_data_config['period'] and export_data_config['period']['starting_date']:
+                starting_date = str(export_data_config['period']['starting_date'])
+            if 'ending_date' in export_data_config['period'] and export_data_config['period']['ending_date']:
+                ending_date = str(export_data_config['period']['ending_date'])
+
+            if starting_date or ending_date:
+                # oped period dialog
+                css = 'div[data-name="go-to-date"]'
+                wait_and_click(browser, css)
+                # make sure that we are on the 'Custom Range' tab within the dialog
+                css = 'div[data-name="go-to-date-dialog"] div[data-value="CustomRange"]'
+                wait_and_click(browser, css)
+                # set period
+                css = 'div[data-name="go-to-date-dialog"] div[class^="pickerInput"] input'
+                el_inputs = find_elements(browser, css)
+                if len(el_inputs) == 2:
+                    if starting_date:
+                        el_inputs[0].send_keys(SELECT_ALL)
+                        el_inputs[0].send_keys(starting_date)
+                    if ending_date:
+                        el_inputs[1].send_keys(SELECT_ALL)
+                        el_inputs[1].send_keys(ending_date)
+                # save the go-to date / period
+                css = 'div[data-name="go-to-date-dialog"] button[name="submit"]'
+                wait_and_click(browser, css)
+
         # open dialog
         css = 'div.layout__area--topleft div[data-role="button"]'
         wait_and_click(browser, css)
@@ -2699,7 +2732,7 @@ def check_driver(driver):
     log.info("driver version: {}".format(driver_version))
 
 
-def create_browser(run_in_background):
+def create_browser(run_in_background, resolution):
     global log
     capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
@@ -2739,7 +2772,7 @@ def create_browser(run_in_background):
         options.add_argument('--disable-session-crashed-bubble')
         # options.add_argument('--disable-infobars')
         # options.add_argument('--disable-restore-session-state')
-        options.add_argument('--window-size=' + RESOLUTION)
+        options.add_argument('--window-size=' + resolution)
         # suppress the INFO:CONSOLE messages
         options.add_argument("--log-level=3")
         # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
@@ -2814,7 +2847,7 @@ def create_browser(run_in_background):
             global ALREADY_LOGGED_IN
             ALREADY_LOGGED_IN = True
             destroy_browser(browser, False)
-            return create_browser(run_in_background)
+            return create_browser(run_in_background, resolution)
     except InvalidArgumentException as e:
         if e.msg.index("user data directory is already in use") >= 0:
             log.critical("your web browser's user data directory is in use. Please, close your web browser and restart Kairos.")
@@ -2909,6 +2942,7 @@ def run(file, export_signals_immediately, multi_threading=False):
     browser = None
 
     global RUN_IN_BACKGROUND
+    global RESOLUTION
     global MULTI_THREADING
     global WEBDRIVER_INSTANCE
     MULTI_THREADING = multi_threading
@@ -2931,11 +2965,14 @@ def run(file, export_signals_immediately, multi_threading=False):
         has_screeners = 'screeners' in tv
 
         RUN_IN_BACKGROUND = config.getboolean('webdriver', 'run_in_background')
-        if 'webdriver' in tv and 'run-in-background' in tv['webdriver']:
-            RUN_IN_BACKGROUND = tv['webdriver']['run-in-background']
+        if 'webdriver' in tv:
+            if 'run-in-background' in tv['webdriver']:
+                RUN_IN_BACKGROUND = tv['webdriver']['run-in-background']
+            if 'resolution' in tv['webdriver']:
+                RESOLUTION = tv['webdriver']['resolution']
 
         if has_screeners or has_charts:
-            browser = create_browser(RUN_IN_BACKGROUND)
+            browser = create_browser(RUN_IN_BACKGROUND, RESOLUTION)
             login(browser, TV_UID, TV_PWD)
             if has_screeners:
 
@@ -4003,7 +4040,7 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
                 log.critical("invalid session id - RESTARTING")
                 url = browser.current_url
                 browser.quit()
-                browser = create_browser(RUN_IN_BACKGROUND)
+                browser = create_browser(RUN_IN_BACKGROUND, RESOLUTION)
                 browser.get(url)
                 # Switching to Alert
                 close_alerts(browser)
