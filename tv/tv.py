@@ -354,11 +354,23 @@ def close_alerts(browser):
         log.exception(e)
 
 
+def close_oops_dialog(browser):
+    try:
+        css = 'div[data-name="reconnect"]'
+        wait_and_click(browser, css)
+        time.sleep(DELAY_BREAK*2)
+        return True
+    except Exception as e:
+        log.debug(e)
+        return False
+
+
 def refresh(browser):
     log.debug('refreshing browser')
     browser.refresh()
     # Switching to Alert
     close_alerts(browser)
+    close_oops_dialog(browser)
     # Close the watchlist menu if it is open
     if find_element(browser, css_selectors['btn_watchlist_submenu'], By.CSS_SELECTOR, False, False, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist'])
@@ -1517,10 +1529,18 @@ def change_symbol(browser, symbol, use_space=False):
             dlg_symbol_search_input = find_element(browser, css_selectors['dlg_symbol_search_input'])
             set_value(browser, dlg_symbol_search_input, symbol)
             dlg_symbol_search_input.send_keys(Keys.ENTER)
+    except ElementClickInterceptedException as e:
+        try:
+            log.debug(e)
+            close_alerts(browser)
+            close_oops_dialog(browser)
+        except Exception as e:
+            log.debug(e)
+            pass
 
-    except Exception as err:
+    except Exception as e:
         log.debug('unable to change to symbol')
-        log.exception(err)
+        log.exception(e)
         snapshot(browser)
 
 
@@ -1544,7 +1564,8 @@ def read_price(browser, tries=0):
             return read_price(browser, tries+1)
     except Exception as e:
         log.exception(e)
-    assert(len(result) == 5)
+        snapshot(browser)
+    assert (len(result) == 5)
     return result
 
 
@@ -1859,7 +1880,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name,
         return False
 
 
-def export_chart_data(browser, export_data_config, symbol):
+def export_chart_data(browser, export_data_config, symbol, tries=0):
     try:
         if 'enabled' in export_data_config and not export_data_config['enabled']:
             return
@@ -1943,6 +1964,11 @@ def export_chart_data(browser, export_data_config, symbol):
         wait_and_click(browser, css)
         time.sleep(DELAY_BREAK * 4)
 
+    except ElementClickInterceptedException:
+        if not close_oops_dialog(browser):
+            close_alerts(browser)
+        if int(tries) == 0:
+            export_chart_data(browser, export_data_config, symbol, tries + 1)
     except Exception as e:
         log.exception(e)
 
@@ -1953,7 +1979,6 @@ def wait_until_chart_is_loaded(browser):
         # Wait until the chart is loaded.
         # NOTE: indicators are also checked if they are loaded before reading their values
         #########################################################################################################
-        # xpath_loading = "//*[matches(text(),'(loading|compiling|error)','i')]"
         xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
         elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, True, DELAY_BREAK_MINI)
         while elem_loading and len(elem_loading) > 0:
