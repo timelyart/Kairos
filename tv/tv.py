@@ -1929,7 +1929,7 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
         selected = str(el_selected_chart.get_attribute("innerHTML")).strip()
         # throw warning when data is from a different ticker then expected
         if not selected.startswith(symbol):
-            log.warning("Export chart data dialog: selected ticker '{}' differs from expected ticker '{}'".format(selected, symbol))
+            log.warning("selected ticker '{}' differs from expected ticker '{}'".format(selected, symbol))
 
         # set correct chart
         if 'chart_index' in export_data_config and export_data_config['chart_index']:
