@@ -60,14 +60,14 @@ SELECTBOX = 'selectbox'
 DATE = 'date'
 TIME = 'time'
 MAX_SCREENSHOTS_ON_ERROR = 0
-WAIT_TIME_IMPLICIT_DEF = 30
-PAGE_LOAD_TIMEOUT_DEF = 15
-CHECK_IF_EXISTS_TIMEOUT_DEF = 15
-DELAY_BREAK_MINI_DEF = 0.2
-DELAY_BREAK_DEF = 0.5
-DELAY_SUBMIT_ALERT_DEF = 3.5
-DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
-DELAY_CHANGE_SYMBOL_DEF = 0.2
+# WAIT_TIME_IMPLICIT_DEF = 30
+# PAGE_LOAD_TIMEOUT_DEF = 15
+# CHECK_IF_EXISTS_TIMEOUT_DEF = 15
+# DELAY_BREAK_MINI_DEF = 0.2
+# DELAY_BREAK_DEF = 0.5
+# DELAY_SUBMIT_ALERT_DEF = 3.5
+# DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
+# DELAY_CHANGE_SYMBOL_DEF = 0.2
 DELAY_SCREENSHOT_DIALOG = 3
 DELAY_SCREENSHOT = 1
 DELAY_KEYSTROKE = 0.05
@@ -309,6 +309,9 @@ DELAY_BREAK = config.getfloat('delays', 'break')
 DELAY_SUBMIT_ALERT = config.getfloat('delays', 'submit_alert')
 DELAY_CHANGE_SYMBOL = config.getfloat('delays', 'change_symbol')
 DELAY_CLEAR_INACTIVE_ALERTS = config.getfloat('delays', 'clear_inactive_alerts')
+DELAY_DOWNLOAD_FILE = 0
+if config.has_option('delays', 'download_file'):
+    DELAY_DOWNLOAD_FILE = config.getfloat('delays', 'download_file')
 if config.has_option('delays', 'screenshot_dialog'):
     DELAY_SCREENSHOT_DIALOG = config.getfloat('delays', 'screenshot_dialog')
 if config.has_option('delays', 'screenshot'):
@@ -574,6 +577,7 @@ def set_delays(chart=None):
     global DELAY_CHANGE_SYMBOL
     global DELAY_KEYSTROKE
     global DELAY_READ_INDICATOR_VALUE
+    global DELAY_DOWNLOAD_FILE
 
     # set delays as defined within the chart with a fallback to the config file
     if chart and 'wait_time_implicit' in chart and isinstance(chart['wait_time_implicit'], numbers.Real):
@@ -621,6 +625,10 @@ def set_delays(chart=None):
             DELAY_READ_INDICATOR_VALUE = delays['read_indicator_value']
         elif config.has_option('delays', 'read_indicator_value'):
             DELAY_READ_INDICATOR_VALUE = config.getfloat('delays', 'read_indicator_value')
+        if 'download_file' in delays and isinstance(delays['download_file'], numbers.Real):
+            DELAY_DOWNLOAD_FILE = delays['download_file']
+        elif config.has_option('delays', 'download_file'):
+            DELAY_DOWNLOAD_FILE = config.getfloat('delays', 'download_file')
 
 
 def set_options(chart=None):
@@ -1575,12 +1583,12 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
     previous_values = []
     first_signal = True
     is_a_signal_triggered = False
-    export_data_config = []
+    # export_data_config = []
     export_data_always = False
-    export_data_on_signal = False
+    # export_data_on_signal = False
     if 'export_data' in chart and 'enabled' in chart['export_data'] and chart['export_data']['enabled']:
-        export_data_config = chart['export_data']
-        export_data_on_signal = 'on_signal_only' in export_data_config and export_data_config['on_signal_only']
+        # export_data_config = chart['export_data']
+        export_data_on_signal = 'on_signal_only' in chart['export_data'] and chart['export_data']['on_signal_only']
         export_data_always = not export_data_on_signal
 
     try:
@@ -1845,8 +1853,11 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                     snapshot(browser)
 
         # export data
-        if export_data_config and (export_data_always or is_a_signal_triggered and export_data_on_signal):
-            export_chart_data(browser, export_data_config, symbol)
+        # test = export_data_config and (export_data_always or is_a_signal_triggered and export_data_on_signal)
+        export_enabled = 'enabled' in chart['export_data'] and chart['export_data']['enabled'] and \
+                         (export_data_always or is_a_signal_triggered)
+        if export_enabled:
+            export_chart_data(browser, chart['export_data'], symbol)
 
         if 'signals' in chart or 'alerts' in chart:
             total_alerts += 1
@@ -1882,9 +1893,8 @@ def retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name,
 
 def export_chart_data(browser, export_data_config, symbol, tries=0):
     try:
-        if 'enabled' in export_data_config and not export_data_config['enabled']:
-            return
-
+        # if 'enabled' in export_data_config and not export_data_config['enabled']:
+        #     return
         # set period (if any)
         if 'period' in export_data_config:
             starting_date = ''
@@ -1918,10 +1928,10 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
         # open dialog
         css = 'div.layout__area--topleft div[data-role="button"]'
         wait_and_click(browser, css)
-        time.sleep(DELAY_BREAK_MINI)
+        time.sleep(DELAY_BREAK)
         css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
         wait_and_click(browser, css)
-        time.sleep(DELAY_BREAK*4)
+        time.sleep(DELAY_DOWNLOAD_FILE)
 
         # make sure the correct symbol is loaded
         css = 'span[id="chart-select"] > span:nth-child(1) > span > span'
@@ -2793,22 +2803,23 @@ def create_browser(run_in_background, resolution, download_path):
         options.add_argument('--window-size=' + resolution)
         # suppress the INFO:CONSOLE messages
         options.add_argument("--log-level=3")
-        # fix gpu_process_transport)factory.cc(980) error on Windows when in 'headless' mode, see:
-        # https://stackoverflow.com/questions/50143413/errorgpu-process-transport-factory-cc1007-lost-ui-shared-context-while-ini
-        if OS == 'windows':
-            options.add_argument('--disable-gpu')
         if OS == 'linux':
             options.add_argument('--no-sandbox')
             options.add_argument("--disable-dev-shm-usage")
         # run chrome in the background
         if run_in_background:
             options.add_argument('--headless')
+        # fix for https://stackoverflow.com/questions/40514022/chrome-webdriver-produces-timeout-in-selenium
+        # options.add_argument("--dns-prefetch-disable")
 
     if download_path:
+        now = datetime.datetime.now()  # current date and time
+        date_time = now.strftime("%Y%m%d_%H%M%S")
+        download_path = os.path.join(download_path, date_time)
         if not os.path.exists(download_path):
             # noinspection PyBroadException
             try:
-                os.mkdir(download_path)
+                os.makedirs(download_path)
             except Exception:
                 log.warning('No download_path specified or unable to create it.')
                 download_path = ''
