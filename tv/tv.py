@@ -2463,15 +2463,13 @@ def set_value(browser, element, string, use_clipboard=False, use_send_keys=False
     """
     if use_send_keys:
         send_keys(element, string, interval)
-    else:
+    elif use_clipboard and config.getboolean('webdriver', 'clipboard'):
         browser.execute_script("arguments[0].value = arguments[1];".format(string), element, string)
-        if use_clipboard:
-            if config.getboolean('webdriver', 'clipboard'):
-                element.send_keys(SELECT_ALL)
-                element.send_keys(CUT)
-                element.send_keys(PASTE)
-            else:
-                send_keys(element, string, interval)
+        element.send_keys(SELECT_ALL)
+        element.send_keys(CUT)
+        element.send_keys(PASTE)
+    else:
+        send_keys(element, string, interval)
 
 
 def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number=0):
