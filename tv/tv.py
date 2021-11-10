@@ -3983,6 +3983,9 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             interval = intervals[chart_index]
+            if element_exists(browser, 'div.report-error'):
+                log.warning("Strategy resulted in a data error. Please make sure the strategy runs for the selected symbol {} and timeframe {}".format(symbol, interval))
+                break
 
             # take_screenshot(browser, symbol, interval, False, '%Y%m%d_%H%M%S')
             # log.info("previous_element is {}".format(type(previous_element)))
@@ -3995,7 +3998,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     raise value
 
                 # check if the total closed trades is over the threshold
-                if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and config.getint('backtesting', 'threshold') > value:
+                if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
                     log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
                     over_the_threshold = False
                     values[key] = value
