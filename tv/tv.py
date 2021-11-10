@@ -3571,8 +3571,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                     set_indicator_dialog_values(browser, inputs, input_locations)
                     wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
 
-                elem_interval = find_element(browser, css_selectors['active_chart_interval'])
-                interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
+                interval = get_active_interval(browser)
                 intervals.append(interval)
 
                 if not (interval in interval_totals):
@@ -3907,6 +3906,16 @@ def back_test_sort(json_data, sort_by, reverse=True):
         log.exception(e)
 
 
+def get_active_interval(browser):
+    try:
+        elem_interval = find_element(browser, css_selectors['active_chart_interval'], except_on_timeout=False)
+        if not elem_interval:
+            elem_interval = find_element(browser, 'div[id="header-toolbar-intervals"]  > div > div > div')
+        return repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
+    except Exception as e:
+        log.exception(e)
+
+
 def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
     try:
         log.info(symbol)
@@ -3956,9 +3965,8 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     select_strategy(browser, strategy_config, chart_index)
                     # open the strategy dialog and set the input & property values
                     format_strategy(browser, inputs, properties, input_locations, property_locations)
-                elem_interval = find_element(browser, css_selectors['active_chart_interval'])
-                interval = repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
-                log.info(interval)
+
+                interval = get_active_interval(browser)
                 intervals.append(interval)
 
                 if not (interval in interval_averages):
