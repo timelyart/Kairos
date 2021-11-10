@@ -1854,8 +1854,8 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
 
         # export data
         # test = export_data_config and (export_data_always or is_a_signal_triggered and export_data_on_signal)
-        export_enabled = 'enabled' in chart['export_data'] and chart['export_data']['enabled'] and \
-                         (export_data_always or is_a_signal_triggered)
+        export_enabled = 'export_data' in chart and 'enabled' in chart['export_data'] and \
+                         chart['export_data']['enabled'] and (export_data_always or is_a_signal_triggered)
         if export_enabled:
             export_chart_data(browser, chart['export_data'], symbol)
 
