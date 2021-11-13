@@ -4269,7 +4269,6 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
                 if element:
                     css += input_css
                 else:
-                    # css += ' div[class^="selected"]'
                     css += ' span'
                 # save the css for future use in this run
                 locations[key] = css
@@ -4281,6 +4280,7 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
 
             element = find_element(browser, css)
             if isinstance(element, WebElement):
+                has_semi_column = re.search(r"\w+:\w+", str(val))
                 # check if it is an input box
                 if element.tag_name == 'input':
                     if element.get_attribute("type") == "checkbox":
@@ -4290,9 +4290,15 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
                         clear(element)
                         set_value(browser, element, val, True)
 
+                # check if it a symbol
+                elif has_semi_column and str(val).isupper():
+                    element.click()
+                    dlg_symbol_search_input = find_element(browser, css_selectors['dlg_symbol_search_input'])
+                    set_value(browser, dlg_symbol_search_input, val)
+                    dlg_symbol_search_input.send_keys(Keys.ENTER)
+
                 # assume it is a select box
                 else:
-                    # click on the select box
                     element.click()
                     # get it's options
                     select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
@@ -4310,6 +4316,7 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
         retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
     except TimeoutException as e:
         log.exception("unable to set {} to {}".format(key, value))
+        log.exception("css not found: {}".format(css))
         log.exception(e)
         snapshot(browser, chart_only=False)
     except Exception as e:
