@@ -1893,6 +1893,7 @@ def retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name,
 
 def export_chart_data(browser, export_data_config, symbol, tries=0):
     try:
+        time.sleep(DELAY_DOWNLOAD_FILE)
         # if 'enabled' in export_data_config and not export_data_config['enabled']:
         #     return
         # set period (if any)
@@ -1928,10 +1929,9 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
         # open dialog
         css = 'div.layout__area--topleft div[data-role="button"]'
         wait_and_click(browser, css)
-        time.sleep(DELAY_BREAK)
         css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
         wait_and_click(browser, css)
-        time.sleep(DELAY_DOWNLOAD_FILE)
+        time.sleep(DELAY_BREAK*2)
 
         # make sure the correct symbol is loaded
         css = 'span[id="chart-select"] > span:nth-child(1) > span > span'
@@ -1969,10 +1969,10 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
                 log.warning("Option {} not found in 'Export chart data ...' dialog. Defaulting to UNIX timestamp.".format(timeformat))
 
         # click on export
-        time.sleep(DELAY_BREAK * 2)
+        time.sleep(DELAY_BREAK)
         css = 'div[data-name="chart-export-dialog"] button[name="submit"]'
         wait_and_click(browser, css)
-        time.sleep(DELAY_BREAK * 4)
+        time.sleep(DELAY_DOWNLOAD_FILE)
 
     except ElementClickInterceptedException:
         if not close_oops_dialog(browser):
@@ -3293,11 +3293,8 @@ def remove_watchlists(browser, name):
     i = 0
     while i < len(el_options):
         try:
-            element_name = None
             element = find_element(el_options[i], 'span[class^="title"]', except_on_timeout=False)
-            if element:
-                element_name = element.get_attribute('textContent').strip()
-            if element_name == name:
+            if element and element.get_attribute('textContent').strip() == name:
                 hover(browser, el_options[i])
                 wait_and_click(el_options[i], 'span[data-name="remove-button"]')
                 # handle confirmation dialog
@@ -3964,22 +3961,23 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     # open the strategy dialog and set the input & property values
                     format_strategy(browser, inputs, properties, input_locations, property_locations)
 
-                interval = get_active_interval(browser)
+            interval = get_active_interval(browser)
+            if interval not in intervals:
                 intervals.append(interval)
 
-                if not (interval in interval_averages):
-                    interval_averages[interval] = dict()
-                    interval_averages[interval]['Net Profit'] = 0
-                    interval_averages[interval]['Net Profit %'] = 0
-                    interval_averages[interval]['Closed Trades'] = 0
-                    interval_averages[interval]['Percent Profitable'] = 0
-                    interval_averages[interval]['Profit Factor'] = 0
-                    interval_averages[interval]['Max Drawdown'] = 0
-                    interval_averages[interval]['Max Drawdown %'] = 0
-                    interval_averages[interval]['Avg Trade'] = 0
-                    interval_averages[interval]['Avg Trade %'] = 0
-                    interval_averages[interval]['Avg # Bars In Trade'] = 0
-                    interval_averages[interval]['Counter'] = 0
+            if interval not in interval_averages:
+                interval_averages[interval] = dict()
+                interval_averages[interval]['Net Profit'] = 0
+                interval_averages[interval]['Net Profit %'] = 0
+                interval_averages[interval]['Closed Trades'] = 0
+                interval_averages[interval]['Percent Profitable'] = 0
+                interval_averages[interval]['Profit Factor'] = 0
+                interval_averages[interval]['Max Drawdown'] = 0
+                interval_averages[interval]['Max Drawdown %'] = 0
+                interval_averages[interval]['Avg Trade'] = 0
+                interval_averages[interval]['Avg Trade %'] = 0
+                interval_averages[interval]['Avg # Bars In Trade'] = 0
+                interval_averages[interval]['Counter'] = 0
 
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             interval = intervals[chart_index]
@@ -3999,7 +3997,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                 # check if the total closed trades is over the threshold
                 if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
-                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
+                    log.debug("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
                     over_the_threshold = False
                     values[key] = value
                     break
