@@ -4265,11 +4265,12 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
             else:
                 css = css_selectors['indicator_dialog_tab_cell'].format(index + 2)
                 input_css = ' input'
-                element = find_element(browser, css + input_css, By.CSS_SELECTOR, True, False, 1)
+                element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, False, 1)
                 if element:
                     css += input_css
                 else:
-                    css += ' div[class^="selected"]'
+                    # css += ' div[class^="selected"]'
+                    css += ' span'
                 # save the css for future use in this run
                 locations[key] = css
 
@@ -4284,7 +4285,7 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
                 if element.tag_name == 'input':
                     if element.get_attribute("type") == "checkbox":
                         if is_checkbox_checked(element) != val:
-                            wait_and_click(browser, css + " + div")
+                            wait_and_click(browser, css + " + span")
                     else:
                         clear(element)
                         set_value(browser, element, val, True)
@@ -4308,6 +4309,7 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
     except StaleElementReferenceException:
         retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
     except Exception as e:
+        log.exception(e)
         return e
     return True
 
