@@ -4308,6 +4308,10 @@ def set_indicator_dialog_value(browser, locations, key, value, index, sub_key=''
             log.error("Unable to generate CSS")
     except StaleElementReferenceException:
         retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
+    except TimeoutException as e:
+        log.exception("unable to set {} to {}".format(key, value))
+        log.exception(e)
+        snapshot(browser, chart_only=False)
     except Exception as e:
         log.exception(e)
         return e
