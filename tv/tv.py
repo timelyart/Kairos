@@ -1355,7 +1355,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     strategy_element = find_element(browser, css_selectors['strategy_id'])
                     if strategy_element:
                         summaries[strategy['name']]['id'] = strategy_element.text
-                    default_chart_inputs, default_chart_properties = get_strategy_default_values(browser, strategy)
+                    default_chart_inputs, default_chart_properties = get_strategy_default_values(browser)
                     log.info("default_inputs: {}".format(default_chart_inputs))
                     log.info("default_properties: {}".format(default_chart_properties))
                     summaries[strategy['name']]['default_inputs'] = default_chart_inputs
@@ -3366,11 +3366,10 @@ def open_data_window_tab(browser):
         snapshot(browser, True)
 
 
-def get_strategy_default_values(browser, strategy, retry_number=0):
+def get_strategy_default_values(browser, retry_number=0):
     """
     Get the default input and property values of the strategy settings dialog
     :param browser:
-    :param strategy: the strategy config from the YAML file
     :param retry_number:
     :return:
     """
@@ -3379,21 +3378,21 @@ def get_strategy_default_values(browser, strategy, retry_number=0):
         wait_and_click(browser, css_selectors['btn_strategy_dialog'])
         # click and get inputs
         wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
-        inputs = get_indicator_dialog_values(browser, 'is_custom' in strategy and strategy['is_custom'])
+        inputs = get_indicator_dialog_values(browser)
         # click and get properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
         properties = get_indicator_dialog_values(browser)
         # click OK
         wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
     except Exception as e:
-        return retry_get_strategy_default_values(browser, config, e, retry_number)
+        return retry_get_strategy_default_values(browser, e, retry_number)
     return inputs, properties
 
 
-def retry_get_strategy_default_values(browser, strategy, e, retry_number=0):
+def retry_get_strategy_default_values(browser, e, retry_number=0):
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
     if retry_number < max_tries:
-        return get_strategy_default_values(browser, strategy, retry_number+1)
+        return get_strategy_default_values(browser, retry_number+1)
     else:
         log.exception(e)
         return {}, {}
@@ -3493,34 +3492,34 @@ def get_dialog_input_value(elements):
     return values
 
 
-def get_indicator_dialog_values(browser, is_custom=False):
+def get_indicator_dialog_values(browser):
     result = dict()
     try:
-        if is_custom:
-            rows = find_elements(browser, 'div[data-name="indicator-properties-dialog"] div[class^="inlineRow"]')
-            for row in rows:
-                title = get_dialog_input_title(
-                    find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
-                try:
-                    value_cells = find_elements(row, 'input, span[role="button"]', delay=1)
-                    result[title] = get_dialog_input_value(value_cells)
-                except TimeoutException:
-                    continue
-        else:
-            title_elements = find_elements(browser,
-                                           'div[data-name="indicator-properties-dialog"] div[class*="first"] div, '
-                                           'div[data-name="indicator-properties-dialog"] div[class*="fill"] span[class^="label"] span[class^="label"]')
-            value_elements = find_elements(browser,
-                                           'div[data-name="indicator-properties-dialog"] div[class*="first"] + div, '
-                                           'div[data-name="indicator-properties-dialog"] div[class*="fill"] div')
-            for i, e in enumerate(title_elements):
-                title = get_dialog_input_title(e)
-                result[title] = get_dialog_input_value(find_elements(value_elements[i], 'input, span[role="button"], div[class^="text"] > span'))
+        rows = find_elements(browser,
+                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=first], '
+                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=fill], '
+                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=inlineRow]')
+        for row in rows:
+            class_name = row.get_attribute('class')
+            if class_name.find('separator') >= 0:
+                continue
+            title = get_dialog_input_title(
+                find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
+            value_cells = get_indicator_dialog_elements(browser, title)
+            result[title] = get_dialog_input_value(value_cells)
+
+            # if class_name.find('inlineRow') >= 0:
+            #     log.info("{} = {}".format(title, result[title]))
+            # for i, e in enumerate(value_cells):
+            #     result[title] = get_dialog_input_value(find_elements(value_cells[i], value_cells))
+            #     result[title] = get_dialog_input_value(find_elements(value_cells[i], 'input, span[role="button"], div[class^="text"] > span'))
+
         for title in result:
             if len(result[title]) == 1:
                 result[title] = result[title][0]
-    except TimeoutException:
-        return get_indicator_dialog_values(browser, is_custom)
+    except TimeoutException as e:
+        log.exception(e)
+        return get_indicator_dialog_values(browser)
     except StaleElementReferenceException:
         pass
     except Exception as e:
@@ -3651,7 +3650,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                     # open the indicator's settings dialog of the active chart
                     open_indicator_settings(browser, indicator['name'], chart_index)
                     # set input values and click OK
-                    set_indicator_dialog_values(browser, inputs, is_custom)
+                    set_indicator_dialog_values(browser, inputs)
                     wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
 
                 interval = get_active_interval(browser)
@@ -3792,7 +3791,6 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                     strategy_summary['inputs'] = inputs
                     strategy_summary['properties'] = properties
                     strategy_summary['summary'] = dict()
-                    # strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw']
                     strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies)
                     summaries.append(strategy_summary)
 
@@ -4047,7 +4045,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     # Select correct strategy on the chart, wait for it to be loaded and get current inputs and properties
                     select_strategy(browser, strategy_config, chart_index)
                     # open the strategy dialog and set the input & property values
-                    format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations)
+                    format_strategy(browser, inputs, properties, input_locations, property_locations)
 
             interval = get_active_interval(browser)
             if interval not in intervals:
@@ -4262,65 +4260,60 @@ def get_strategy_statistic(browser, key, previous_elements):
     return result
 
 
-def format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number=0):
+def format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number=0):
     try:
-        is_custom = 'is_custom' in strategy_config and strategy_config['is_custom']
         # open dialog
         wait_and_click(browser, css_selectors['btn_strategy_dialog'])
         # click and set inputs
         wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
-        set_indicator_dialog_values(browser, inputs, is_custom)
+        set_indicator_dialog_values(browser, inputs)
         # click and set properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
         set_indicator_dialog_values(browser, properties)
+        time.sleep(300)
         # click OK
         wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
     except StaleElementReferenceException:
-        return retry_format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number)
+        return retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number)
     except Exception as e:
         return e
     return True
 
 
-def get_indicator_dialog_elements(browser, key, is_custom=False):
+def get_indicator_dialog_elements(browser, key):
     value_cells = None
     try:
-        if is_custom:
-            rows = find_elements(browser, 'div[data-name="indicator-properties-dialog"] div[class^="inlineRow"]')
-            for row in rows:
-                title = get_dialog_input_title(find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
-                if title == key:
-                    value_cells = find_elements(row, 'input, span[role="button"], div[class^="text"] > span', delay=1)
-                    break
+        rows = find_elements(browser,
+                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=first], '
+                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=fill], '
+                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=inlineRow]')
+        for row in rows:
+            class_name = row.get_attribute('class')
+            if class_name.find('separator') >= 0:
+                continue
+            title = get_dialog_input_title(find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
 
-        else:
-            title_elements = find_elements(browser,
-                                           'div[data-name="indicator-properties-dialog"] div[class*="first"] div, '
-                                           'div[data-name="indicator-properties-dialog"] div[class*="fill"] span[class^="label"] span[class^="label"]')
-            for i, element in enumerate(title_elements):
-                title = get_dialog_input_title(element)
-                if title == key:
-                    value_elements = find_elements(browser,
-                                                   'div[data-name="indicator-properties-dialog"] div[class*="first"] + div, '
-                                                   'div[data-name="indicator-properties-dialog"] div[class*="fill"] div')
-                    value_cells = find_elements(value_elements[i],
-                                                'input, span[role="button"], div[class^="text"] > span')
-                    break
+            if title == key or ((not EXACT_CONDITIONS) and title.startswith(key)):
+                # by default, inputs are found in the next sibling's row
+                if class_name.find('first') >= 0:
+                    row = browser.execute_script("return arguments[0].nextElementSibling", row)
+                value_cells = find_elements(row, 'input, span[role="button"], div[class^="text"] > span', delay=1)
+                break
 
     except Exception as e:
         log.exception(e)
     return value_cells
 
 
-def set_indicator_dialog_values(browser, inputs, is_custom=False):
+def set_indicator_dialog_values(browser, inputs):
     tries = 0
     try:
         for key in inputs:
             value = inputs[key]
-            value_cells = get_indicator_dialog_elements(browser, key, is_custom)
+            value_cells = get_indicator_dialog_elements(browser, key)
 
             if value_cells:
-                log.debug("{} = ({}) {} ".format(key, type(value), value))
+                log.debug("{} = {} {} ".format(key, type(value), value))
                 if type(value) is dict:
                     if len(value_cells) == len(value):
                         for i, value_key in enumerate(value):
@@ -4329,7 +4322,7 @@ def set_indicator_dialog_values(browser, inputs, is_custom=False):
                                 if value[value_key] is str and value[value_key].find('-'):
                                     value_cells[i].send_keys(SELECT_ALL)
                                     for char in value[value_key]:
-                                        value_cells = get_indicator_dialog_elements(browser, key, is_custom)
+                                        value_cells = get_indicator_dialog_elements(browser, key)
                                         set_value(browser, value_cells[i], char, use_send_keys=True)
 
                                 # other fields
@@ -4337,7 +4330,7 @@ def set_indicator_dialog_values(browser, inputs, is_custom=False):
                                     set_indicator_dialog_element(browser, value_cells[i], value[value_key])
                             except StaleElementReferenceException as e:
                                 if tries < 3:
-                                    value_cells = get_indicator_dialog_elements(browser, key, is_custom)
+                                    value_cells = get_indicator_dialog_elements(browser, key)
                                     set_indicator_dialog_element(browser, value_cells[i], value[value_key])
                                     tries += 1
                                 else:
@@ -4368,9 +4361,8 @@ def set_indicator_dialog_element(browser, element, value):
                     next_sibling = browser.execute_script("return arguments[0].nextElementSibling", element)
                     next_sibling.click()
             else:
-                # clear(element)
-                # set_value(browser, element, value, True)
-                browser.execute_script("arguments[0].value=arguments[1];", element, value)
+                clear(element)
+                set_value(browser, element, value, True)
 
         # check if it a symbol
         elif has_semi_column and str(value).isupper():
@@ -4392,15 +4384,15 @@ def set_indicator_dialog_element(browser, element, value):
                     break
         log.debug("{} set to {}".format(element, value))
     except Exception as e:
-        return e
+        log.exception(e)
 
 
-def retry_format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number):
+def retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number):
     max_retries = config.getint('tradingview', 'create_alert_max_retries')
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
     if retry_number < max_retries:
-        return format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number + 1)
+        return format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number + 1)
     else:
         return False
 
