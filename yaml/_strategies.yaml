@@ -16,14 +16,14 @@ charts:
     # Kairos will look for the first strategy on a pane within a chart that starts with the value defined below
   - name: "<(start of) name of strategy>"
     # Define on which pane the strategy is.
-    # Use 0 for the 1st pane on your chart, 1 for the 2nd pane, etc. The top pane has always index 0.
+    # Use 0 for the 1st pane on your chart, 1 for the 2nd pane, etc. The top pane always has an index of 0.
     pane_index: 0
     # Define the inputs with their allowed values. You should only define inputs and properties that differ from the
     # default settings.
     #  - Use the names of the inputs/properties to set the value of that input/property.
     #    Use lowercase only, use underscore (_) instead of white space, and ignore non-latin non-number characters.
     #    For example: input 'Max. Width Of Price W/M' becomes 'max_width_of_price_wm'.
-    #  - If a row has multiple inputs, use the name of the most left input and write down the values as a dictionairy.
+    #  - If a row has multiple inputs, use the name of the most left input and write down the values as a dictionary.
     #    Consider the Commission field on the properties tab which would translate to: commission: {0: [0.25], 1: '%'}
     #    Consider the Recalculate field on the properties tab which would translate to: recalculate: {0: yes, 1: no}
     # Values:
