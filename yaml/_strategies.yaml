@@ -1,7 +1,7 @@
 # use a url + other settings per type of alert you want to set
-# note that all values are case sensitive
+# note that all values are case-sensitive
 charts:
-- url: https://www.tradingview.com/chart/t4F8gk5m/
+- url: https://www.tradingview.com/chart/<your_chart>/
   # Note that strategies ignore this setting, use a multi chart layout instead.
   timeframes: [1 hour]
   watchlists: [Example]
@@ -13,29 +13,34 @@ charts:
   # For multiple chart layouts to work 'Sync On All Charts' should be set for 'Symbol' and each chart on the layout
   # should have the same strategy (with the same inputs and properties) but on a different time frame.
   strategies:
-    # Kairos will look for the first indicator on a pane within a chart that starts with the value defined below
+    # Kairos will look for the first strategy on a pane within a chart that starts with the value defined below
   - name: "<(start of) name of strategy>"
     # Define on which pane the strategy is.
     # Use 0 for the 1st pane on your chart, 1 for the 2nd pane, etc. The top pane has always index 0.
     pane_index: 0
     # Define the inputs with their allowed values. You should only define inputs and properties that differ from the
     # default settings.
-    # Use the names of the inputs/properties to set the value of that input/property.
-    # Use lowercase only, use underscore (_) instead of white space, and ignore non-latin non-number characters.
-    # For example: input 'Max. Width Of Price W/M' becomes 'max_width_of_price_wm'.
-    # You can define a list of values by defining a comma separated list in brackets, e.g. [0, 2, 4, 8], or [yes, no]
-    # You can define a range of values by using white space, underscore, white space ( - ).
-    # You can define an increment for a range by using the special operator ampersand (&) directly after the range, and
-    # followed by the increment.
-    # Ranges can be integers as well as decimal numbers.
-    # Example ranges:
-    #   create strategies for the values between 5 and 13 (including 13): 5 - 13
-    #   create strategies for the values between 0 and 8 with an increment of 2: 0 - 8&2
-    #   create strategies for the values between 0 and 0.25 with an increment of 0.05: 0.0 - 0.25&0.05
+    #  - Use the names of the inputs/properties to set the value of that input/property.
+    #    Use lowercase only, use underscore (_) instead of white space, and ignore non-latin non-number characters.
+    #    For example: input 'Max. Width Of Price W/M' becomes 'max_width_of_price_wm'.
+    #  - If a row has multiple inputs, use the name of the most left input and write down the values as a dictionairy.
+    #    Consider the Commission field on the properties tab which would translate to: commission: {0: [0.25], 1: '%'}
+    #    Consider the Recalculate field on the properties tab which would translate to: recalculate: {0: yes, 1: no}
+    # Values:
+    #  - You can define a list of values by defining a comma separated list in brackets, e.g. [0, 2, 4, 8], or [yes, no]
+    #  - You can define a range of values by using white space, underscore, white space ( - ).
+    #  - You can define an increment for a range by using the special operator ampersand (&) directly after the range,
+    #    and followed by the increment. Ranges can be integers as well as decimal numbers.
+    #    Example ranges:
+    #      create strategies for the values between 5 and 13 (including 13): 5 - 13
+    #      create strategies for the values between 0 and 8 with an increment of 2: 0 - 8&2
+    #      create strategies for the values between 0 and 0.25 with an increment of 0.05: 0.0 - 0.25&0.05
     #
-    # NOTE: Kairos will run all the symbols of the watchlist(s) for every separate option. Having a strategy for
-    # 500 symbols and say 5 options can easily take a few hours.
+    # NOTE: Kairos will run all the symbols of the watchlist(s) for every separate option. Having a strategy for 500
+    # symbols and say 5 options can easily take a few hours.
     inputs: {my_first_input: 6, my_second_input: [60, 240, 1D, 1W], my_third_input: yes}
-    properties: {initial_capital: 1000, base_currency: EUR, order_size: {0: 1 - 5&1, 1: '% of equity'}, commission: {0: [0.25], 1: '%'}, verify_price_for_limit_orders: 10, slippage: 10, recalculate: {after_order_filled: yes, on_every_tick: no}}
+    properties: {initial_capital: 1000, base_currency: EUR, order_size: {0: 1 - 5&1, 1: '% of equity'},
+                 commission: {0: [0.1, 0.25], 1: '%'}, verify_price_for_limit_orders: 10, slippage: 10,
+                 recalculate: {0: yes, 1: no}}
 webdriver:
   run-in-background: yes

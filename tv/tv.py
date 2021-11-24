@@ -40,7 +40,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from multiprocessing import Pool
 from kairos import timing
 from kairos import tools
-from kairos.tools import format_number, wait_for_element_is_stale, unicode_to_float_int
+from kairos.tools import format_number, wait_for_element_is_stale, unicode_to_float_int, strip_to_ascii
 from fastnumbers import fast_real
 
 TEST = False
@@ -230,6 +230,7 @@ css_selectors = dict(
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
     # indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"] > div',
     indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"]',
+    # indicator_dialog_tab_cells='div[data-name="indicator-properties-dialog"] input, div[data-name="indicator-properties-dialog"] span[role="button"]',
     indicator_dialog_tab_cell='#overlap-manager-root div[class^="content"] div[class^="cell-"]:nth-child({})',
     indicator_dialog_titles='#overlap-manager-root div[class^="content"] div[class*="first"] > div',
     indicator_dialog_checkbox_titles='#overlap-manager-root label[class^="checkbox"] span > span',
@@ -237,6 +238,7 @@ css_selectors = dict(
     indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
     indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
     indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
+    # indicator_dialog_select_options='#overlap-manager-root div[role="listbox"] div[role="option"]',
     btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
     active_chart_interval='div[id="header-toolbar-intervals"] div[class*="isActive"] > div > div',
@@ -345,6 +347,16 @@ def close_all_popups(browser):
         close_alerts(browser)
         browser.close()
     browser.switch_to.window(browser.window_handles[0])
+
+
+def close_banner(browser):
+    try:
+        wait_and_click(browser, 'div.tv-dialog.js-dialog.i-focused > div.tv-dialog__close', delay=1)
+    except TimeoutException:
+        pass
+    except Exception as e:
+        log.exception(e)
+        snapshot(browser, chart_only=False)
 
 
 def close_alerts(browser):
@@ -1064,6 +1076,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
     try:
         # load the chart
         close_all_popups(browser)
+        close_banner(browser)
         log.info("opening chart " + chart['url'])
 
         # set wait times defined in chart
@@ -1282,10 +1295,11 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 open_data_window_tab(browser)
                 move_to_data_window_indicator(browser, indicator)
 
+                is_custom = 'is_custom' in indicator and indicator['is_custom']
                 # test the strategy and sort the results
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    test_data = test_indicators(browser, indicator, symbols, data, atomic_inputs)
+                    test_data = test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom)
                     # sort if the user defined one for the indicator
                     if sort_by:
                         test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1341,7 +1355,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     strategy_element = find_element(browser, css_selectors['strategy_id'])
                     if strategy_element:
                         summaries[strategy['name']]['id'] = strategy_element.text
-                    default_chart_inputs, default_chart_properties = get_strategy_default_values(browser)
+                    default_chart_inputs, default_chart_properties = get_strategy_default_values(browser, strategy)
                     log.info("default_inputs: {}".format(default_chart_inputs))
                     log.info("default_properties: {}".format(default_chart_properties))
                     summaries[strategy['name']]['default_inputs'] = default_chart_inputs
@@ -3352,69 +3366,59 @@ def open_data_window_tab(browser):
         snapshot(browser, True)
 
 
-def get_strategy_default_values(browser, retry_number=0):
+def get_strategy_default_values(browser, strategy, retry_number=0):
+    """
+    Get the default input and property values of the strategy settings dialog
+    :param browser:
+    :param strategy: the strategy config from the YAML file
+    :param retry_number:
+    :return:
+    """
     try:
         # open dialog
         wait_and_click(browser, css_selectors['btn_strategy_dialog'])
-        # click and set inputs
+        # click and get inputs
         wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
-        inputs = get_indicator_dialog_values(browser)
-        # click and set properties
+        inputs = get_indicator_dialog_values(browser, 'is_custom' in strategy and strategy['is_custom'])
+        # click and get properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
         properties = get_indicator_dialog_values(browser)
         # click OK
         wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
     except Exception as e:
-        return retry_get_strategy_default_values(browser, e, retry_number)
+        return retry_get_strategy_default_values(browser, config, e, retry_number)
     return inputs, properties
 
 
-def retry_get_strategy_default_values(browser, e, retry_number=0):
+def retry_get_strategy_default_values(browser, strategy, e, retry_number=0):
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
     if retry_number < max_tries:
-        return get_strategy_default_values(browser, retry_number+1)
+        return get_strategy_default_values(browser, strategy, retry_number+1)
     else:
         log.exception(e)
         return {}, {}
 
 
-def get_indicator_dialog_values(browser):
+def get_indicator_dialog_values_old(browser):
     # get input titles
     result = dict()
     try:
         cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
+        title = ''
         for i, cell in enumerate(cells):
-            css_class = cell.get_attribute("class")
-            if str(css_class).find('last') > 0:
-                title = re.sub(r"[\W]", '', cells[i-1].text.replace(' ', '_')).lower()
-                value = cell.text
-
-                css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
-                css_labels = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' label > span > span'
-                inputs = find_elements(browser, css, By.CSS_SELECTOR, False, False, 1)
-                labels = find_elements(browser, css_labels, By.CSS_SELECTOR, False, False, 1)
-                # one or more checkboxes
-                if labels and inputs:
-                    for j, label in enumerate(labels):
-                        value = ""
-                        title += "_" + re.sub(r"[\W]", '', label.text.replace(' ', '_')).lower()
-                        if inputs[j].get_attribute('type') == "checkbox":
-                            if is_checkbox_checked(inputs[j]):
-                                value = 'yes'
-                            else:
-                                value = 'no'
-                        result[title] = value
-                    continue
-                elif inputs:
-                    value = ""
-                    for input_element in inputs:
-                        value += input_element.get_attribute("value") + " "
-                    if value:
-                        value += cell.text
-
-                if value:
-                    result[title] = value.strip()
-            elif str(css_class).find('fill') > 0:
+            css_class = str(cell.get_attribute("class"))
+            # if str(css_class).find('first') > 0:
+            #     title = re.sub(r"[\W]", '', cells[i - 1].text.replace(' ', '_')).lower()
+            #     value = cell.text
+            #     log.info(value)
+            if css_class.find('separator') >= 0:
+                continue
+            elif css_class.find('first') >= 0:
+                # title = re.sub(r"[\W]", '', cells[i - 1].text.replace(' ', '_')).lower()
+                title = cell.text
+                log.info(title)
+                result[title] = {}
+            elif css_class.find('fill') > 0:
                 # all elements that have class '...fill...' are checkboxes
                 title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
                 css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
@@ -3432,7 +3436,27 @@ def get_indicator_dialog_values(browser):
                 if value:
                     result[title] = value.strip()
             else:
-                continue
+                values = {}
+                css_inputs = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
+                log.info(css_inputs)
+                css_labels = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' label > span > span'
+                inputs = find_elements(browser, css_inputs, By.CSS_SELECTOR, False, False, 1)
+                labels = find_elements(browser, css_labels, By.CSS_SELECTOR, False, False, 1)
+                # one or more checkboxes
+                if labels and inputs:
+                    for j, label in enumerate(labels):
+                        subtitle = re.sub(r"[\W]", '', label.text.replace(' ', '_')).lower()
+                        if inputs[j].get_attribute('type') == "checkbox":
+                            if is_checkbox_checked(inputs[j]):
+                                value = 'yes'
+                            else:
+                                value = 'no'
+                            values[subtitle] = value
+                elif inputs:
+                    for input_element in inputs:
+                        values[len(values)] = input_element.get_attribute("value").strip()
+                result[title] = values
+                #
     except StaleElementReferenceException:
         pass
     except Exception as e:
@@ -3440,7 +3464,71 @@ def get_indicator_dialog_values(browser):
     return result
 
 
-def test_indicators(browser, indicator, symbols, data, atomic_inputs):
+def get_dialog_input_title(element):
+    # return strip_to_ascii(element.text).replace('>', '').replace('<', '').strip()
+    result = ""
+    try:
+        if element.text:
+            result = element.text
+        else:
+            checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
+            result = checkbox_label.text
+    except Exception as e:
+        log.exception(e)
+    return strip_to_ascii(result).strip('<>:; ').lower().replace(' ', '_')
+
+
+def get_dialog_input_value(elements):
+    values = {}
+    for element in elements:
+        value = element.get_attribute('value')
+        if element.get_attribute('type') == "checkbox":
+            if is_checkbox_checked(element):
+                value = 'yes'
+            else:
+                value = 'no'
+        elif not value:
+            value = element.text
+        values[len(values)] = unicode_to_float_int(strip_to_ascii(value).strip())
+    return values
+
+
+def get_indicator_dialog_values(browser, is_custom=False):
+    result = dict()
+    try:
+        if is_custom:
+            rows = find_elements(browser, 'div[data-name="indicator-properties-dialog"] div[class^="inlineRow"]')
+            for row in rows:
+                title = get_dialog_input_title(
+                    find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
+                try:
+                    value_cells = find_elements(row, 'input, span[role="button"]', delay=1)
+                    result[title] = get_dialog_input_value(value_cells)
+                except TimeoutException:
+                    continue
+        else:
+            title_elements = find_elements(browser,
+                                           'div[data-name="indicator-properties-dialog"] div[class*="first"] div, '
+                                           'div[data-name="indicator-properties-dialog"] div[class*="fill"] span[class^="label"] span[class^="label"]')
+            value_elements = find_elements(browser,
+                                           'div[data-name="indicator-properties-dialog"] div[class*="first"] + div, '
+                                           'div[data-name="indicator-properties-dialog"] div[class*="fill"] div')
+            for i, e in enumerate(title_elements):
+                title = get_dialog_input_title(e)
+                result[title] = get_dialog_input_value(find_elements(value_elements[i], 'input, span[role="button"], div[class^="text"] > span'))
+        for title in result:
+            if len(result[title]) == 1:
+                result[title] = result[title][0]
+    except TimeoutException:
+        return get_indicator_dialog_values(browser, is_custom)
+    except StaleElementReferenceException:
+        pass
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom):
     try:
         summaries = list()
         name = indicator['full_name']
@@ -3462,7 +3550,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs):
                 strategy_summary['inputs'] = inputs
                 strategy_summary['summary'] = dict()
                 strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
-                    test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, i + 1, len(atomic_inputs))
+                    test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, i + 1, len(atomic_inputs), is_custom)
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs
         else:
@@ -3471,7 +3559,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs):
             strategy_summary['inputs'] = []
             strategy_summary['summary'] = dict()
             strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
-                test_indicator(browser, [], symbols, indicator, data, number_of_charts, 1, 1)
+                test_indicator(browser, [], symbols, indicator, data, number_of_charts, 1, 1, is_custom)
             summaries.append(strategy_summary)
 
         return summaries
@@ -3480,7 +3568,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs):
         log.exception(e)
 
 
-def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants):
+def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants, is_custom):
     global tv_start
 
     raw = []
@@ -3498,7 +3586,7 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -3506,7 +3594,7 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom)
 
     # Aggregate all the data to get totals
     totals = dict()
@@ -3533,7 +3621,7 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
     return [totals, interval_totals, symbol_totals, raw]
 
 
-def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, tries=0):
+def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom, tries=0):
     max_tries = 5
     try:
         max_tries = config.getint('tradingview', 'create_alert_max_retries')
@@ -3563,7 +3651,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
                     # open the indicator's settings dialog of the active chart
                     open_indicator_settings(browser, indicator['name'], chart_index)
                     # set input values and click OK
-                    set_indicator_dialog_values(browser, inputs, input_locations)
+                    set_indicator_dialog_values(browser, inputs, is_custom)
                     wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
 
                 interval = get_active_interval(browser)
@@ -3628,7 +3716,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
     except Exception as e:
         log.exception(e)
         if tries < max_tries:
-            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, tries)
+            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom, tries)
 
 
 def calculate_indicator_data_points(data, values, interval=False):
@@ -3959,7 +4047,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     # Select correct strategy on the chart, wait for it to be loaded and get current inputs and properties
                     select_strategy(browser, strategy_config, chart_index)
                     # open the strategy dialog and set the input & property values
-                    format_strategy(browser, inputs, properties, input_locations, property_locations)
+                    format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations)
 
             interval = get_active_interval(browser)
             if interval not in intervals:
@@ -4174,173 +4262,145 @@ def get_strategy_statistic(browser, key, previous_elements):
     return result
 
 
-def format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number=0):
+def format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number=0):
     try:
+        is_custom = 'is_custom' in strategy_config and strategy_config['is_custom']
         # open dialog
         wait_and_click(browser, css_selectors['btn_strategy_dialog'])
         # click and set inputs
         wait_and_click(browser, css_selectors['indicator_dialog_tab_inputs'])
-        set_indicator_dialog_values(browser, inputs, input_locations)
+        set_indicator_dialog_values(browser, inputs, is_custom)
         # click and set properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
-        set_indicator_dialog_values(browser, properties, property_locations)
+        set_indicator_dialog_values(browser, properties)
         # click OK
         wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
     except StaleElementReferenceException:
-        return retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number)
+        return retry_format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number)
     except Exception as e:
         return e
-        # refresh(browser)
-        # if not retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number):
-        #     log.exception(e)
-        #     snapshot(browser, True)
     return True
 
 
-def set_indicator_dialog_values(browser, inputs, input_locations):
+def get_indicator_dialog_elements(browser, key, is_custom=False):
+    value_cells = None
     try:
-        # get input titles
-        cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
-        titles = []
-        for i, cell in enumerate(cells):
-            title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
-            titles.append(title)
+        if is_custom:
+            rows = find_elements(browser, 'div[data-name="indicator-properties-dialog"] div[class^="inlineRow"]')
+            for row in rows:
+                title = get_dialog_input_title(find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
+                if title == key:
+                    value_cells = find_elements(row, 'input, span[role="button"], div[class^="text"] > span', delay=1)
+                    break
 
+        else:
+            title_elements = find_elements(browser,
+                                           'div[data-name="indicator-properties-dialog"] div[class*="first"] div, '
+                                           'div[data-name="indicator-properties-dialog"] div[class*="fill"] span[class^="label"] span[class^="label"]')
+            for i, element in enumerate(title_elements):
+                title = get_dialog_input_title(element)
+                if title == key:
+                    value_elements = find_elements(browser,
+                                                   'div[data-name="indicator-properties-dialog"] div[class*="first"] + div, '
+                                                   'div[data-name="indicator-properties-dialog"] div[class*="fill"] div')
+                    value_cells = find_elements(value_elements[i],
+                                                'input, span[role="button"], div[class^="text"] > span')
+                    break
+
+    except Exception as e:
+        log.exception(e)
+    return value_cells
+
+
+def set_indicator_dialog_values(browser, inputs, is_custom=False):
+    tries = 0
+    try:
         for key in inputs:
             value = inputs[key]
-            index = -1
-            for i, title in enumerate(titles):
-                if (title == key) or ((not EXACT_CONDITIONS) and title.startswith(key)):
-                    index = i
+            value_cells = get_indicator_dialog_elements(browser, key, is_custom)
 
-            if index >= 0:
-                # check first if it is a set of values, e.g. 100 USD
-                if isinstance(value, dict):
-                    for sub_index, sub_key in enumerate(value):
-                        sub_value = value[sub_key]
-                        set_indicator_dialog_value(browser, input_locations, key, value, index, sub_key, sub_value, sub_index)
-                else:
-                    set_indicator_dialog_value(browser, input_locations, key, value, index)
+            if value_cells:
+                log.debug("{} = ({}) {} ".format(key, type(value), value))
+                if type(value) is dict:
+                    if len(value_cells) == len(value):
+                        for i, value_key in enumerate(value):
+                            try:
+                                # date / calender field
+                                if value[value_key] is str and value[value_key].find('-'):
+                                    value_cells[i].send_keys(SELECT_ALL)
+                                    for char in value[value_key]:
+                                        value_cells = get_indicator_dialog_elements(browser, key, is_custom)
+                                        set_value(browser, value_cells[i], char, use_send_keys=True)
+
+                                # other fields
+                                else:
+                                    set_indicator_dialog_element(browser, value_cells[i], value[value_key])
+                            except StaleElementReferenceException as e:
+                                if tries < 3:
+                                    value_cells = get_indicator_dialog_elements(browser, key, is_custom)
+                                    set_indicator_dialog_element(browser, value_cells[i], value[value_key])
+                                    tries += 1
+                                else:
+                                    log.exception(e)
+                            except Exception as e:
+                                log.exception(e)
+                    else:
+                        log.warning("elements: {}; values: {}".format(value_cells, value))
+                        log.warning("number of elements ({}) unequal to number of values ({})".format(len(value_cells), len(value)))
+                elif len(value_cells) == 1:
+                    set_indicator_dialog_element(browser, value_cells[0], value)
+
     except Exception as e:
         log.exception(e)
-        snapshot(browser, True)
 
 
-def set_indicator_dialog_value(browser, locations, key, value, index, sub_key='', sub_value='', sub_index=-1, retry_number=0):
-    css = ''
-    if key in locations:
-        css = locations[key]
-        if isinstance(css, dict):
-            if sub_key and sub_key in css:
-                css = css[sub_key]
-            else:
-                css = ''
-
+def set_indicator_dialog_element(browser, element, value):
     try:
-        # we need to generate the css
-        if not css:
-            # check first if it is a set of values, e.g. 100 USD
-            if sub_index >= 0:
-                # css = css_selectors['indicator_dialog_tab_cell'].format(index + 2) + ' div[class^="inputGroup"] > div:nth-child({})'.format(sub_index + 1)
-                css = css_selectors['indicator_dialog_tab_cell'].format(index + 2) + ' > div[class^="inner"] > div > div:nth-child({})'.format(sub_index + 1)
-                # check if it is a boolean
-                if isinstance(sub_value, bool):
-                    css += ' input'
-                else:
-                    input_css = ' input'
-                    element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, False, 1)
-                    if element:
-                        css += input_css
-                    else:
-                        css += ' div[class^="selected"]'
-                # save the css for future use in this run
-                if not (key in locations):
-                    locations[key] = dict()
-                locations[key][sub_key] = css
+        action = ActionChains(browser)
+        action.move_to_element(element)
+        action.perform()
+        has_semi_column = re.search(r"\w+:\w+", str(value))
 
-            # check if it is a boolean
-            elif isinstance(value, bool):
-                css = css_selectors['indicator_dialog_tab_cell'].format(index + 1) + ' input'
-                locations[key] = css
+        # check if it is an input box
+        if element.tag_name == 'input':
+            if element.get_attribute("type") == "checkbox":
+                if is_checkbox_checked(element) != value:
+                    next_sibling = browser.execute_script("return arguments[0].nextElementSibling", element)
+                    next_sibling.click()
             else:
-                css = css_selectors['indicator_dialog_tab_cell'].format(index + 2)
-                input_css = ' input'
-                element = find_element(browser, css + input_css, By.CSS_SELECTOR, False, False, 1)
-                if element:
-                    css += input_css
-                else:
-                    css += ' span'
-                # save the css for future use in this run
-                locations[key] = css
+                # clear(element)
+                # set_value(browser, element, value, True)
+                browser.execute_script("arguments[0].value=arguments[1];", element, value)
 
-        if css:
-            val = value
-            if sub_index >= 0:
-                val = sub_value
+        # check if it a symbol
+        elif has_semi_column and str(value).isupper():
+            element.click()
+            dlg_symbol_search_input = find_element(browser, css_selectors['dlg_symbol_search_input'])
+            set_value(browser, dlg_symbol_search_input, value)
+            dlg_symbol_search_input.send_keys(Keys.ENTER)
 
-            element = find_element(browser, css)
-            if isinstance(element, WebElement):
-                has_semi_column = re.search(r"\w+:\w+", str(val))
-                # check if it is an input box
-                if element.tag_name == 'input':
-                    if element.get_attribute("type") == "checkbox":
-                        if is_checkbox_checked(element) != val:
-                            wait_and_click(browser, css + " + span")
-                    else:
-                        clear(element)
-                        set_value(browser, element, val, True)
-
-                # check if it a symbol
-                elif has_semi_column and str(val).isupper():
-                    element.click()
-                    dlg_symbol_search_input = find_element(browser, css_selectors['dlg_symbol_search_input'])
-                    set_value(browser, dlg_symbol_search_input, val)
-                    dlg_symbol_search_input.send_keys(Keys.ENTER)
-
-                # assume it is a select box
-                else:
-                    element.click()
-                    # get it's options
-                    select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
-                    for option in select_options:
-                        option_value = option.text.strip()
-                        if option_value == str(val) or ((not EXACT_CONDITIONS) and option_value.startswith(str(val))):
-                            # select the option
-                            option.click()
-                            break
-            else:
-                log.error("No element found for {}".format(css))
+        # assume it is a select box
         else:
-            log.error("Unable to generate CSS")
-    except StaleElementReferenceException:
-        retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number)
-    except TimeoutException as e:
-        log.exception("unable to set {} to {}".format(key, value))
-        log.exception("css not found: {}".format(css))
-        log.exception(e)
-        snapshot(browser, chart_only=False)
+            element.click()
+            # get it's options
+            select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
+            for option in select_options:
+                option_value = option.text.strip()
+                if option_value == str(value) or ((not EXACT_CONDITIONS) and option_value.startswith(str(value))):
+                    # select the option
+                    option.click()
+                    break
+        log.debug("{} set to {}".format(element, value))
     except Exception as e:
-        log.exception(e)
         return e
-    return True
 
 
-def retry_set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number):
+def retry_format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number):
     max_retries = config.getint('tradingview', 'create_alert_max_retries')
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
     if retry_number < max_retries:
-        return set_indicator_dialog_value(browser, locations, key, value, sub_key, sub_value, sub_index, retry_number + 1)
-    else:
-        return False
-
-
-def retry_format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number):
-    max_retries = config.getint('tradingview', 'create_alert_max_retries')
-    if config.has_option('tradingview', 'indicator_values_max_retries'):
-        max_retries = config.getint('tradingview', 'indicator_values_max_retries')
-    if retry_number < max_retries:
-        return format_strategy(browser, inputs, properties, input_locations, property_locations, retry_number + 1)
+        return format_strategy(browser, strategy_config, inputs, properties, input_locations, property_locations, retry_number + 1)
     else:
         return False
 
@@ -4377,9 +4437,6 @@ def select_strategy(browser, strategy_config, chart_index, retry_number=0):
         return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
     except Exception as e:
         return e
-        # log.exception(e)
-        # refresh(browser)
-        # return retry_select_strategy(browser, strategy_config, chart_index, retry_number)
     return indicator_index
 
 
@@ -4393,8 +4450,6 @@ def retry_select_strategy(browser, strategy_config, chart_index, retry_number):
 
 def open_indicator_settings(browser, indicator_name, chart_index=0):
     try:
-        # css = 'div.chart-container.active'
-        # active_chart = find_element(browser, css)
         xpath = '//div[@data-name="legend-source-item"]/div/div/div[starts-with(text(), "{}")]'.format(indicator_name)
         indicator_elements = find_elements(browser, xpath, By.XPATH)
         hover(browser, indicator_elements[chart_index])
@@ -4402,7 +4457,6 @@ def open_indicator_settings(browser, indicator_name, chart_index=0):
         xpath = '//div[@data-name="legend-source-item"]/div/div/div[starts-with(text(), "{}")]/parent::div/parent::div//div[@data-name="legend-settings-action"]'.format(indicator_name)
         setting_elements = find_elements(browser, xpath, By.XPATH)
         setting_elements[chart_index].click()
-        # wait_and_click(setting_elements[chart_index], xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
         # click the settings dialog's input tab
         xpath = '//div[text()="Inputs"]'
         wait_and_click(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
