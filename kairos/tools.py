@@ -141,7 +141,7 @@ def get_yaml_config(file, log, root=False):
     result = None
     string_yaml = ""
     try:
-        with open(file, 'r') as stream:
+        with open(file, 'r', errors='replace') as stream:
             try:
                 temp_yaml = yaml.safe_load(stream)
                 string_yaml = yaml.dump(temp_yaml, default_flow_style=False)
@@ -410,3 +410,7 @@ def replace_apostrophe(json_data):
             else:
                 json_data[_key] = value.replace("'", "%APOS")
     return json_data
+
+
+def strip_to_ascii(value):
+    return ''.join([i if ord(i) < 128 else '' for i in value])
