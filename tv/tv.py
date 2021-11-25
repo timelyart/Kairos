@@ -30,7 +30,7 @@ from PIL import Image
 from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, StaleElementReferenceException, NoAlertPresentException, \
     TimeoutException, InvalidArgumentException, WebDriverException, InvalidSessionIdException, \
-    SessionNotCreatedException, JavascriptException, ElementClickInterceptedException
+    SessionNotCreatedException, JavascriptException, ElementClickInterceptedException, ElementNotInteractableException
 from selenium.webdriver import DesiredCapabilities, ActionChains
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
@@ -2358,14 +2358,12 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_webhook'])
             if webhook:
                 element = find_element(alert_dialog, css_selectors['dlg_create_alert_webhook'])
-                set_value(browser, element, "")
-                set_value(browser, element, alert_config['webhook'], False, True)
+                set_value(browser, element, alert_config['webhook'], True)
 
             # Alert name
             if 'name' in alert_config and alert_config['name'] != '':
                 element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
-                set_value(browser, element, "")
-                set_value(browser, element, alert_config['name'], False, True)
+                set_value(browser, element, alert_config['name'], True)
 
             # Construct message
             if 'message' in alert_config and alert_config['message'] != '':
@@ -2397,7 +2395,16 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                     snapshot(browser)
                 except KeyError:
                     log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-                set_value(browser, textarea, text, True)
+
+                try:
+                    set_value(browser, textarea, text, True)
+                except ElementNotInteractableException:
+                    # ignore ElementNotInteractableException when the 'Message' box is hidden due to
+                    # "Any alert() function call" being set as a condition
+                    pass
+                except Exception as e:
+                    log.exception(e)
+
         except Exception as alert_err:
             log.exception(alert_err)
             snapshot(browser)
@@ -4382,7 +4389,6 @@ def set_indicator_dialog_element(browser, element, value):
                     # select the option
                     option.click()
                     break
-        log.debug("{} set to {}".format(element, value))
     except Exception as e:
         log.exception(e)
 
