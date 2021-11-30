@@ -60,14 +60,6 @@ SELECTBOX = 'selectbox'
 DATE = 'date'
 TIME = 'time'
 MAX_SCREENSHOTS_ON_ERROR = 0
-# WAIT_TIME_IMPLICIT_DEF = 30
-# PAGE_LOAD_TIMEOUT_DEF = 15
-# CHECK_IF_EXISTS_TIMEOUT_DEF = 15
-# DELAY_BREAK_MINI_DEF = 0.2
-# DELAY_BREAK_DEF = 0.5
-# DELAY_SUBMIT_ALERT_DEF = 3.5
-# DELAY_CLEAR_INACTIVE_ALERTS_DEF = 0
-# DELAY_CHANGE_SYMBOL_DEF = 0.2
 DELAY_SCREENSHOT_DIALOG = 3
 DELAY_SCREENSHOT = 1
 DELAY_KEYSTROKE = 0.05
@@ -3486,33 +3478,30 @@ def get_dialog_input_title(element):
 
 def get_dialog_input_value(elements):
     values = {}
-    found = False
+
     for element in elements:
-        value = element.get_attribute('value')
+        value = None
 
         # color pickers
         if element.get_attribute('class') and str(element.get_attribute('class')).startswith('swatch'):
-            # value = element.get_attribute('style')
-            # ignore color pickers for now - they can't be set anyway
-            # value = None
             continue
-
+        # input boxes
+        elif element.get_attribute('value'):
+            value = element.get_attribute('value')
         # checkboxes
         elif element.get_attribute('type') == "checkbox":
-            found = True
             if is_checkbox_checked(element):
                 value = 'yes'
             else:
                 value = 'no'
-
         # grab the text if there is no value
         elif not value:
-            found = True
             value = element.text
 
-        values[len(values)] = unicode_to_float_int(strip_to_ascii(value).strip())
+        if value:
+            values[len(values)] = unicode_to_float_int(strip_to_ascii(value).strip())
 
-    if found:
+    if len(values) > 0:
         return values
     else:
         return None
@@ -3534,15 +3523,7 @@ def get_indicator_dialog_values(browser):
             value_cells = get_indicator_dialog_elements(browser, title)
             value = get_dialog_input_value(value_cells)
             if value is not None:
-                if title == 'header_background_color':
-                    log.info("{}: {}".format('header_background_color', value))
                 result[title] = value
-
-            # if class_name.find('inlineRow') >= 0:
-            #     log.info("{} = {}".format(title, result[title]))
-            # for i, e in enumerate(value_cells):
-            #     result[title] = get_dialog_input_value(find_elements(value_cells[i], value_cells))
-            #     result[title] = get_dialog_input_value(find_elements(value_cells[i], 'input, span[role="button"], div[class^="text"] > span'))
 
         for title in result:
             if len(result[title]) == 1:
@@ -4321,7 +4302,6 @@ def get_indicator_dialog_elements(browser, key):
             if class_name.find('separator') >= 0:
                 continue
             title = get_dialog_input_title(find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
-
             if title == key or ((not EXACT_CONDITIONS) and title.startswith(key)):
                 # by default, inputs are found in the next sibling's row
                 if class_name.find('first') >= 0:
