@@ -3486,17 +3486,36 @@ def get_dialog_input_title(element):
 
 def get_dialog_input_value(elements):
     values = {}
+    found = False
     for element in elements:
         value = element.get_attribute('value')
-        if element.get_attribute('type') == "checkbox":
+
+        # color pickers
+        if element.get_attribute('class') and str(element.get_attribute('class')).startswith('swatch'):
+            # value = element.get_attribute('style')
+            # ignore color pickers for now - they can't be set anyway
+            # value = None
+            continue
+
+        # checkboxes
+        elif element.get_attribute('type') == "checkbox":
+            found = True
             if is_checkbox_checked(element):
                 value = 'yes'
             else:
                 value = 'no'
+
+        # grab the text if there is no value
         elif not value:
+            found = True
             value = element.text
+
         values[len(values)] = unicode_to_float_int(strip_to_ascii(value).strip())
-    return values
+
+    if found:
+        return values
+    else:
+        return None
 
 
 def get_indicator_dialog_values(browser):
@@ -3513,7 +3532,11 @@ def get_indicator_dialog_values(browser):
             title = get_dialog_input_title(
                 find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
             value_cells = get_indicator_dialog_elements(browser, title)
-            result[title] = get_dialog_input_value(value_cells)
+            value = get_dialog_input_value(value_cells)
+            if value is not None:
+                if title == 'header_background_color':
+                    log.info("{}: {}".format('header_background_color', value))
+                result[title] = value
 
             # if class_name.find('inlineRow') >= 0:
             #     log.info("{} = {}".format(title, result[title]))
@@ -4277,7 +4300,6 @@ def format_strategy(browser, inputs, properties, input_locations, property_locat
         # click and set properties
         wait_and_click(browser, css_selectors['indicator_dialog_tab_properties'])
         set_indicator_dialog_values(browser, properties)
-        time.sleep(300)
         # click OK
         wait_and_click(browser, css_selectors['btn_indicator_dialog_ok'])
     except StaleElementReferenceException:
@@ -4304,9 +4326,12 @@ def get_indicator_dialog_elements(browser, key):
                 # by default, inputs are found in the next sibling's row
                 if class_name.find('first') >= 0:
                     row = browser.execute_script("return arguments[0].nextElementSibling", row)
-                value_cells = find_elements(row, 'input, span[role="button"], div[class^="text"] > span', delay=1)
+                value_cells = find_elements(row, 'input, span[role="button"], div[class^="text"] > span, div[data-name="color-select"] div[class^="swatch"]', delay=1)
                 break
 
+    except TimeoutException:
+        log.warning("{}: no inputs found".format(key))
+        pass
     except Exception as e:
         log.exception(e)
     return value_cells

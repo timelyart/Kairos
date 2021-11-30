@@ -18,8 +18,8 @@ charts:
     # Define on which pane the strategy is.
     # Use 0 for the 1st pane on your chart, 1 for the 2nd pane, etc. The top pane always has an index of 0.
     pane_index: 0
-    # Define the inputs with their allowed values. You should only define inputs and properties that differ from the
-    # default settings.
+    # Define inputs and properties with their allowed values. For best performance, only the inputs and properties
+    # that differ from the default settings should be defined.
     #  - Use the names of the inputs/properties to set the value of that input/property.
     #    Use lowercase only, use underscore (_) instead of white space, and ignore non-latin non-number characters.
     #    For example: input 'Max. Width Of Price W/M' becomes 'max_width_of_price_wm'.
@@ -35,6 +35,7 @@ charts:
     #      create strategies for the values between 5 and 13 (including 13): 5 - 13
     #      create strategies for the values between 0 and 8 with an increment of 2: 0 - 8&2
     #      create strategies for the values between 0 and 0.25 with an increment of 0.05: 0.0 - 0.25&0.05
+    # - Color pickers are unsupported.
     #
     # NOTE: Kairos will run all the symbols of the watchlist(s) for every separate option. Having a strategy for 500
     # symbols and say 5 options can easily take a few hours.
