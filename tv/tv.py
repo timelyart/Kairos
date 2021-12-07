@@ -4515,11 +4515,20 @@ def generate_atomic_values(items, strategies, depth=0):
 
                 atomic = True
                 for tmp_item in tmp:
-                    if isinstance(tmp[tmp_item], list) or isinstance(tmp[tmp_item], dict):
+                    if isinstance(tmp[tmp_item], dict):
+                        for key in tmp[tmp_item]:
+                            if isinstance(tmp[tmp_item][key], list):
+                                atomic = False
+                                break
+                        if not atomic:
+                            break
+                    if isinstance(tmp[tmp_item], list):
                         atomic = False
                         break
+
                 if atomic and tmp not in strategies:
                     strategies.append(tmp)
+
                 result.append(tmp_result)
         else:
             result = [items[item]]
