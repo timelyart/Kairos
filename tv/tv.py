@@ -3911,7 +3911,6 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
 
     # calculate interval averages
     for interval in interval_averages:
-        log.info(interval)
         counter = max(interval_averages[interval]['Counter'], 1)
         interval_averages[interval]['Net Profit'] = format_number(float(interval_averages[interval]['Net Profit']) / counter)
         interval_averages[interval]['Net Profit %'] = format_number(float(interval_averages[interval]['Net Profit %']) / counter)
