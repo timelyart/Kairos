@@ -209,14 +209,14 @@ css_selectors = dict(
     performance_overview_avg_bars_in_trade='div.report-data > div:nth-child(7) > strong',
     performance_summary_net_profit='div.report-content.performance > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div:nth-child(1)',
     performance_summary_net_profit_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div:nth-child(2) > span',
-    performance_summary_total_closed_trades='div.report-content.performance > div > table > tbody > tr:nth-child(11) > td:nth-child(2)',
-    performance_summary_percent_profitable='div.report-content.performance > div > table > tbody > tr:nth-child(15) > td:nth-child(2)',
-    performance_summary_profit_factor='div.report-content.performance > div > table > tbody > tr:nth-child(7) > td:nth-child(2)',
+    performance_summary_total_closed_trades='div.report-content.performance > div > table > tbody > tr:nth-child(12) > td:nth-child(2)',
+    performance_summary_percent_profitable='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2)',
+    performance_summary_profit_factor='div.report-content.performance > div > table > tbody > tr:nth-child(8) > td:nth-child(2)',
     performance_summary_max_drawdown='div.report-content.performance > div > table > tbody > tr:nth-child(4) > td:nth-child(2) > div:nth-child(1)',
     performance_summary_max_drawdown_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(4) > td:nth-child(2) > div:nth-child(2) > span',
-    performance_summary_avg_trade='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2) > div:nth-child(1)',
-    performance_summary_avg_trade_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2) > div:nth-child(2) > span',
-    performance_summary_avg_bars_in_trade='div.report-content.performance > div > table > tbody > tr:nth-child(22) > td:nth-child(2)',
+    performance_summary_avg_trade='div.report-content.performance > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div:nth-child(1)',
+    performance_summary_avg_trade_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div:nth-child(2) > span',
+    performance_summary_avg_bars_in_trade='div.report-content.performance > div > table > tbody > tr:nth-child(23) > td:nth-child(2)',
     # Indicator dialog
     indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
@@ -3897,7 +3897,6 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
         first_symbol = refresh_session(browser)
         back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
 
-    # calculate interval averages
     total_average = dict()
     total_average['Net Profit'] = 0
     total_average['Net Profit %'] = 0
@@ -3910,7 +3909,9 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     total_average['Avg Trade %'] = 0
     total_average['Avg # Bars In Trade'] = 0
 
+    # calculate interval averages
     for interval in interval_averages:
+        log.info(interval)
         counter = max(interval_averages[interval]['Counter'], 1)
         interval_averages[interval]['Net Profit'] = format_number(float(interval_averages[interval]['Net Profit']) / counter)
         interval_averages[interval]['Net Profit %'] = format_number(float(interval_averages[interval]['Net Profit %']) / counter)
@@ -4230,7 +4231,7 @@ def get_strategy_statistic(browser, key, previous_elements):
 
             el = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
             if not el:
-                log.debug("NOT FOUND: {} = {}".format(By.CSS_SELECTOR, css))
+                log.debug("unable to find {} (css = {})".format(key, css))
                 break
             text = repr(el.get_attribute('innerHTML')).replace('\\u2009', '')
             negative = text.find("neg") >= 0
