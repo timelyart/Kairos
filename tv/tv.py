@@ -907,7 +907,7 @@ def get_indicator_values(browser, indicator, symbol, previous_result, retry_numb
                             time.sleep(DELAY_BREAK_MINI)
                         else:
                             result.append(str(e.text).translate({0x2c: '.', 0xa0: None, 0x2212: '-'}))
-                # check if the amount of elements equals the size of of the result dictionary
+                # check if the amount of elements equals the size of the result dictionary
                 extracted = len(result) == visible_values
 
     except StaleElementReferenceException:
@@ -1189,7 +1189,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             summaries['chart'] = chart['url']
             summaries['datetime'] = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
-            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            # Sort if the user defined one for all strategies. This overrides sorting on a per-strategy basis.
             sort = dict()
             for indicator in chart['backtest']:
                 if 'sort' in indicator:
@@ -1301,7 +1301,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     else:
                         summaries[indicator['name']][watchlist] = test_data
 
-            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            # Sort if the user defined one for all strategies. This overrides sorting on a per-strategy basis.
             if sort:
                 log.info('sort')
                 if 'sort_by' in sort:
@@ -1333,7 +1333,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             summaries['chart'] = chart['url']
             summaries['datetime'] = date.strftime('%Y-%m-%d %H:%M:%S %z')
 
-            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            # Sort if the user defined one for all strategies. This overrides sorting on a per-strategy basis.
             sort = dict()
             for strategy in chart['strategies']:
                 if 'sort' in strategy:
@@ -1387,7 +1387,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     else:
                         summaries[strategy['name']][watchlist] = test_data
 
-            # Sort if the user defined one for all strategies. This overrides sorting on a per strategy basis.
+            # Sort if the user defined one for all strategies. This overrides sorting on a per-strategy basis.
             if sort:
                 log.info('sort')
                 if 'sort_by' in sort:
@@ -2088,7 +2088,7 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
             # close the newly opened tab
             browser.close()
             browser.switch_to_window(previous_window)
-            log.debug(screenshot_url)
+            log.info(screenshot_url)
 
         elif screenshot_dir != '':
             chart_dir = ''
@@ -2127,7 +2127,7 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
                 im = Image.open(filename)
                 im = im.crop((int(x), int(y), int(width), int(height)))
                 im.save(filename)
-            log.debug(filename)
+            log.info(filename)
 
     except Exception as take_screenshot_error:
         log.exception(take_screenshot_error)
@@ -2458,7 +2458,7 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
     if interval == 0:
         element.send_keys(string)
     else:
-        for char in string:
+        for char in str(string):
             element.send_keys(char)
             time.sleep(interval)
 
@@ -2664,7 +2664,7 @@ def login(browser, uid='', pwd='', retry_login=False):
         if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
             # close the menu/widget pane
             wait_and_click(browser, css_selectors['btn_alerts'])
-            # check if we closed one pane but opened the alerts pane instead
+            # check if we closed one pane but opened the alert's pane instead
             if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
                 # close the alerts pane
                 wait_and_click(browser, css_selectors['btn_alerts'])
@@ -2864,7 +2864,7 @@ def create_browser(run_in_background, resolution, download_path):
         display = Display(visible=False, size=(1920, 1024))
         display.start()
 
-    # use open chrome browser
+    # use open Chrome browser
     # options = webdriver.ChromeOptions()
     # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
 
@@ -3109,7 +3109,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                     if export_signals_immediately:
                         if 'summary' in tv:
                             mail.send_mail(browser, tv['summary'], triggered_signals, False)
-                            # we've send the signals, let's make sure they aren't send a 2nd time
+                            # we've sent the signals, let's make sure they aren't send a 2nd time
                             triggered_signals.clear()
                         else:
                             log.warning('No summary configuration found in {}. Unable to create a summary and to export data.'.format(str(file)))
@@ -4030,7 +4030,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_average['Counter'] = 0
 
         for chart_index in range(number_of_charts):
-            # move to correct chart
+            # move to the correct chart
             # charts = find_elements(browser, "div.chart-container")
             charts = find_elements(browser, css_selectors["chart_container"])
             next_chart_clicked = False
@@ -4103,6 +4103,9 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
             # previous_element[0] = find_element(browser, css_selectors['performance_summary_profit_factor'])
             # log.info("previous_element = {}".format(repr(previous_element[0])))
+            # log.info("screenshot: {}".format('screenshot' in strategy_config and strategy_config['screenshot']))
+            if 'screenshot' in strategy_config and strategy_config['screenshot']:
+                take_screenshot(browser, symbol, interval)
             if not over_the_threshold:
                 continue
             ############################################################
@@ -4110,7 +4113,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             # Exceptions may give incomplete results. Make sure that   #
             # all Selenium interaction is done above this comment.     #
             ############################################################
-
             # Save the results
             result = dict()
             result['Symbol'] = symbol
@@ -4330,7 +4332,7 @@ def set_indicator_dialog_values(browser, inputs):
                     if len(value_cells) == len(value):
                         for i, value_key in enumerate(value):
                             try:
-                                # date / calender field
+                                # date / calendar field
                                 if value[value_key] is str and value[value_key].find('-'):
                                     value_cells[i].send_keys(SELECT_ALL)
                                     for char in value[value_key]:
@@ -4376,7 +4378,7 @@ def set_indicator_dialog_element(browser, element, value):
                 clear(element)
                 set_value(browser, element, value, True)
 
-        # check if it a symbol
+        # check if it is a symbol
         elif has_semi_column and str(value).isupper():
             element.click()
             dlg_symbol_search_input = find_element(browser, css_selectors['dlg_symbol_search_input'])
