@@ -85,8 +85,8 @@ CHANGE_SYMBOL_WITH_SPACE = False
 
 MODIFIER_KEY = Keys.LEFT_CONTROL
 OS = tools.get_operating_system()
-# if OS == 'macos':
-#     MODIFIER_KEY = Keys.COMMAND
+if OS == 'macos':
+    MODIFIER_KEY = Keys.COMMAND
 
 SELECT_ALL = MODIFIER_KEY + 'a'
 CUT = MODIFIER_KEY + 'x'
@@ -4327,21 +4327,20 @@ def set_indicator_dialog_values(browser, inputs):
             value_cells = get_indicator_dialog_elements(browser, key)
 
             if value_cells:
-                log.debug("{} = {} {} ".format(key, type(value), value))
+                # log.info("{} = {} {} ".format(key, type(value), value))
                 if type(value) is dict:
                     if len(value_cells) == len(value):
                         for i, value_key in enumerate(value):
                             try:
+                                value_cells[i].send_keys(SELECT_ALL)
+                                set_value(browser, value_cells[i], value[value_key])
                                 # date / calendar field
-                                if value[value_key] is str and value[value_key].find('-'):
-                                    value_cells[i].send_keys(SELECT_ALL)
-                                    for char in value[value_key]:
-                                        value_cells = get_indicator_dialog_elements(browser, key)
-                                        set_value(browser, value_cells[i], char, use_send_keys=True)
-
+                                # if tools.is_date(value[value_key]):
+                                #     set_value(browser, value_cells[i], value[value_key])
                                 # other fields
-                                else:
-                                    set_indicator_dialog_element(browser, value_cells[i], value[value_key])
+                                # else:
+                                #     set_value(browser, value_cells[i], value[value_key])
+                                # set_indicator_dialog_element(browser, value_cells[i], value[value_key])
                             except StaleElementReferenceException as e:
                                 if tries < 3:
                                     value_cells = get_indicator_dialog_elements(browser, key)
@@ -4361,7 +4360,7 @@ def set_indicator_dialog_values(browser, inputs):
         log.exception(e)
 
 
-def set_indicator_dialog_element(browser, element, value):
+def set_indicator_dialog_element(browser, element, value, tries=0):
     try:
         action = ActionChains(browser)
         action.move_to_element(element)
@@ -4371,12 +4370,14 @@ def set_indicator_dialog_element(browser, element, value):
         # check if it is an input box
         if element.tag_name == 'input':
             if element.get_attribute("type") == "checkbox":
+                if value is not bool:
+                    value = str(value).lower() == 'yes'
                 if is_checkbox_checked(element) != value:
                     next_sibling = browser.execute_script("return arguments[0].nextElementSibling", element)
                     next_sibling.click()
             else:
                 clear(element)
-                set_value(browser, element, value, True)
+                set_value(browser, element, value)
 
         # check if it is a symbol
         elif has_semi_column and str(value).isupper():
@@ -4390,12 +4391,21 @@ def set_indicator_dialog_element(browser, element, value):
             element.click()
             # get it's options
             select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
-            for option in select_options:
+            for i, option in enumerate(select_options):
                 option_value = option.text.strip()
                 if option_value == str(value) or ((not EXACT_CONDITIONS) and option_value.startswith(str(value))):
                     # select the option
-                    option.click()
+                    try:
+                        option.click()
+                    except StaleElementReferenceException:
+                        select_options = find_elements(browser, css_selectors['indicator_dialog_select_options'])
+                        select_options[i].click()
+                        pass
                     break
+    except StaleElementReferenceException:
+        max_retries = config.getint('tradingview', 'create_alert_max_retries')
+        if tries < max_retries:
+            set_indicator_dialog_element(browser, element, value, tries+1)
     except Exception as e:
         log.exception(e)
 

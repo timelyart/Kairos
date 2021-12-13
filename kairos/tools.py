@@ -368,7 +368,7 @@ def path_in_use(path, log=None, browser='chrome'):
 
 def get_operating_system():
     result = platform.system().lower()
-    if result == 'Darwin':
+    if result == 'darwin':
         result = 'macos'
     return result
 
@@ -414,3 +414,7 @@ def replace_apostrophe(json_data):
 
 def strip_to_ascii(value):
     return ''.join([i if ord(i) < 128 else '' for i in value])
+
+
+def is_date(string):
+    return re.search(r"^\d+[-\/]\d+[-\/]\d+$", str(string)) is not None
