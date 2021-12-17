@@ -4324,6 +4324,7 @@ def set_indicator_dialog_values(browser, inputs):
     try:
         for key in inputs:
             value = inputs[key]
+            log.info("{}: {}".format(key, value))
             value_cells = get_indicator_dialog_elements(browser, key)
 
             if value_cells:
@@ -4362,7 +4363,7 @@ def set_indicator_dialog_element(browser, element, value, tries=0):
         # check if it is an input box
         if element.tag_name == 'input':
             if element.get_attribute("type") == "checkbox":
-                if value is not bool:
+                if type(value) is not bool:
                     value = str(value).lower() == 'yes'
                 if is_checkbox_checked(element) != value:
                     next_sibling = browser.execute_script("return arguments[0].nextElementSibling", element)
