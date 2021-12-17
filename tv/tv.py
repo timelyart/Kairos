@@ -4332,15 +4332,7 @@ def set_indicator_dialog_values(browser, inputs):
                     if len(value_cells) == len(value):
                         for i, value_key in enumerate(value):
                             try:
-                                value_cells[i].send_keys(SELECT_ALL)
-                                set_value(browser, value_cells[i], value[value_key])
-                                # date / calendar field
-                                # if tools.is_date(value[value_key]):
-                                #     set_value(browser, value_cells[i], value[value_key])
-                                # other fields
-                                # else:
-                                #     set_value(browser, value_cells[i], value[value_key])
-                                # set_indicator_dialog_element(browser, value_cells[i], value[value_key])
+                                set_indicator_dialog_element(browser, value_cells[i], value[value_key])
                             except StaleElementReferenceException as e:
                                 if tries < 3:
                                     value_cells = get_indicator_dialog_elements(browser, key)
