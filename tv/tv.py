@@ -3485,15 +3485,16 @@ def get_dialog_input_value(elements):
         # color pickers
         if element.get_attribute('class') and str(element.get_attribute('class')).startswith('swatch'):
             continue
-        # input boxes
-        elif element.get_attribute('value'):
-            value = element.get_attribute('value')
         # checkboxes
         elif element.get_attribute('type') == "checkbox":
+            log.info("is_checkbox_checked(element): {}".format(is_checkbox_checked(element)))
             if is_checkbox_checked(element):
                 value = 'yes'
             else:
                 value = 'no'
+        # input boxes
+        elif element.get_attribute('value'):
+            value = element.get_attribute('value')
         # grab the text if there is no value
         elif not value:
             value = element.text
