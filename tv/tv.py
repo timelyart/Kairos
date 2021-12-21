@@ -76,6 +76,7 @@ REFRESH_START = timing.time()
 REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 ALREADY_LOGGED_IN = False
 VERIFY_MARKET_LISTING = True
+ACCEPT_COOKIES = False
 
 # performance
 READ_FROM_DATA_WINDOW = True
@@ -327,6 +328,8 @@ if config.has_option('tradingview', 'exact_conditions'):
     EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 if config.has_option('tradingview', 'verify_market_listing'):
     VERIFY_MARKET_LISTING = config.getboolean('tradingview', 'verify_market_listing')
+if config.has_option('tradingview', 'accept_cookies'):
+    ACCEPT_COOKIES = config.getboolean('tradingview', 'accept_cookies')
 
 RESOLUTION = '1920,1080'
 if config.has_option('webdriver', 'resolution'):
@@ -502,14 +505,30 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
     action.perform()
 
 
-def close_cookies_message(browser):
-    xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/button'
-    try:
-        wait_and_click_by_xpath(browser, xpath, 2)
-        log.info("Cookie banner found")
-    except TimeoutException as e:
-        log.debug(e)
-        log.info("Cookie banner not found")
+# def accept_cookies(browser):
+#     try:
+#         css = 'article h2'
+#         element = find_element(browser, css, By.CSS_SELECTOR, False, True, 2)
+#         if element and str(element.get_attribute('textContent')).find('cookies'):
+#             css = 'article h2 + p + div > button'
+#             element = find_element(browser, css, By.CSS_SELECTOR, False, True, 2)
+#             if element and str(element.get_attribute('textContent')) == 'Accept':
+#                 element.click()
+#     except Exception as e:
+#         log.exception(e)
+
+
+def accept_cookies(browser):
+    global ACCEPT_COOKIES
+    if ACCEPT_COOKIES:
+        xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/button'
+        try:
+            wait_and_click_by_xpath(browser, xpath, 2)
+            log.info("cookies accepted")
+            ACCEPT_COOKIES = False
+        except TimeoutException as e:
+            log.debug(e)
+            log.info("cookies already accepted")
 
 
 def set_timeframe(browser, timeframe):
@@ -1089,6 +1108,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         log.info("READ_ALL_VALUES_AT_ONCE = " + str(READ_ALL_VALUES_AT_ONCE))
         log.info("CHANGE_SYMBOL_WITH_SPACE = " + str(CHANGE_SYMBOL_WITH_SPACE))
         log.info("VERIFY_MARKET_LISTING = " + str(VERIFY_MARKET_LISTING))
+        log.info("ACCEPT_COOKIES = " + str(ACCEPT_COOKIES))
         print('')
 
         url = unquote(chart['url'])
@@ -1178,6 +1198,9 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
+
+        # accept cookies (if any)
+        accept_cookies(browser)
         if 'backtest' in chart:
             # open data window tab
             # check if data window is open
@@ -2557,19 +2580,6 @@ def set_expiration(browser, _alert_dialog, alert_config):
     time.sleep(DELAY_BREAK_MINI)
 
 
-def accept_cookies(browser):
-    try:
-        css = 'article h2'
-        element = find_element(browser, css, By.CSS_SELECTOR, False, True, 2)
-        if element and str(element.get_attribute('textContent')).find('cookies'):
-            css = 'article h2 + p + div > button'
-            element = find_element(browser, css, By.CSS_SELECTOR, False, True, 2)
-            if element and str(element.get_attribute('textContent')) == 'Accept':
-                element.click()
-    except Exception as e:
-        log.exception(e)
-
-
 def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
@@ -3487,7 +3497,6 @@ def get_dialog_input_value(elements):
             continue
         # checkboxes
         elif element.get_attribute('type') == "checkbox":
-            log.info("is_checkbox_checked(element): {}".format(is_checkbox_checked(element)))
             if is_checkbox_checked(element):
                 value = 'yes'
             else:
@@ -4325,7 +4334,7 @@ def set_indicator_dialog_values(browser, inputs):
     try:
         for key in inputs:
             value = inputs[key]
-            log.info("{}: {}".format(key, value))
+            log.debug("{}: {}".format(key, value))
             value_cells = get_indicator_dialog_elements(browser, key)
 
             if value_cells:
