@@ -322,7 +322,7 @@ def wait_for_element_is_stale(element):
 @contextlib.contextmanager
 def wait_for_page_load(self, timeout=10):
     """
-    This solution only works for "non-javascript" clicks, ie clicks that will cause the browser to load a brand new page, and thus load a brand new HTML body element.
+    This solution only works for "non-javascript" clicks, ie clicks that will cause the browser to load a brand-new page, and thus load a brand-new HTML body element.
     @see http://www.obeythetestinggoat.com/how-to-get-selenium-to-wait-for-page-load-after-a-click.html
     :param self:
     :param timeout:
@@ -417,4 +417,4 @@ def strip_to_ascii(value):
 
 
 def is_date(string):
-    return re.search(r"^\d+[-\/]\d+[-\/]\d+$", str(string)) is not None
+    return re.search(r"^\d+[-/]\d+[-/]\d+$", str(string)) is not None
