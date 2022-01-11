@@ -2781,7 +2781,7 @@ def check_driver(driver):
     log.info("driver version: {}".format(driver_version))
 
 
-def create_browser(run_in_background, resolution, download_path):
+def create_browser(run_in_background, resolution='1920,1080', download_path=None):
     global log
     capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
@@ -2802,7 +2802,10 @@ def create_browser(run_in_background, resolution, download_path):
                 fn = fn.replace(match.group(1), "_{}{}".format(instance, match.group(1)))
             tools.shutdown_logging()
             tools.debug.file_name = fn
-            log = tools.create_log()
+            log_mode = 'a'
+            if config.getboolean('logging', 'clear_on_start_up'):
+                log_mode = 'w'
+            log = tools.create_log(log_mode)
 
         options.add_argument('--user-data-dir=' + kairos_data_directory)
         match = re.search(r".*(\d+)", kairos_data_directory)
