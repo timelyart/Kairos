@@ -6,9 +6,8 @@ import sys
 
 from datetime import datetime
 
-log_path = './log'  # project dir
 file_name = 'debug.log'
-
+log_path = os.path.join('.', 'log')
 if not os.path.exists(log_path):
     os.mkdir(log_path)
 
@@ -53,8 +52,8 @@ def write_console_log(browser, mode='a'):
         'performance': load_console_log(browser, 'performance')
     }
 
-    match = re.search(r".*(/d+)", file_name)
     postfix = ""
+    match = re.search(r".*(/d+)", file_name)
     if match:
         postfix = "_".format(match.group(1))
 
