@@ -240,6 +240,7 @@ css_selectors = dict(
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='div[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
+    invalid_symbol='div[title="Invalid Symbol"]',
 )
 
 class_selectors = dict(
@@ -1139,7 +1140,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     break
 
             if watchlist_exists:
-
                 # move to first element in the watchlist
                 previous_first_element_symbol = "NA"
                 first_element_symbol = ""
@@ -1480,14 +1480,13 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 def is_market_listed(browser):
     """
     Checks if a market is listed
-    NOTE: requires the chart and the data window tab to be open
+    NOTE: requires the chart to be open
     :param browser:
     :return: bool, whether the market is listed
     """
     listed = False
     try:
-        xpath = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[contains(text(), ",")][1]'
-        listed = element_exists(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
+        listed = find_element(browser, css_selectors['invalid_symbol'], By.CSS_SELECTOR, except_on_timeout=False) is None
     except StaleElementReferenceException:
         return is_market_listed(browser)
     except Exception as e:
@@ -2802,10 +2801,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
                 fn = fn.replace(match.group(1), "_{}{}".format(instance, match.group(1)))
             tools.shutdown_logging()
             tools.debug.file_name = fn
-            log_mode = 'a'
-            if config.getboolean('logging', 'clear_on_start_up'):
-                log_mode = 'w'
-            log = tools.create_log(log_mode)
+            log = tools.create_log()
 
         options.add_argument('--user-data-dir=' + kairos_data_directory)
         match = re.search(r".*(\d+)", kairos_data_directory)
@@ -3648,9 +3644,12 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
     max_tries = 5
     try:
         max_tries = config.getint('tradingview', 'create_alert_max_retries')
-
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
-        log.info(symbol)
+        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser):
+            log.info(symbol)
+        else:
+            log.warning("{} isn't listed".format(symbol))
+            return False
         previous_values = copy.deepcopy(values)
         values = dict()
         symbol_total = dict()
@@ -4023,7 +4022,6 @@ def get_active_interval(browser):
 
 def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
     try:
-        log.info(symbol)
         if first_symbol:
             open_performance_summary_tab(browser)
 
@@ -4092,8 +4090,13 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             interval = intervals[chart_index]
             if element_exists(browser, 'div.report-error'):
-                log.warning("Strategy resulted in a data error. Please make sure the strategy runs for the selected symbol {} and timeframe {}".format(symbol, interval))
+                if not is_market_listed(browser):
+                    log.warning("{} isn't listed".format(symbol))
+                else:
+                    log.warning("{}. Strategy resulted in a data error. Please make sure the strategy "
+                                "runs for the selected timeframe {}".format(symbol, interval))
                 break
+            log.info(symbol)
 
             # take_screenshot(browser, symbol, interval, False, '%Y%m%d_%H%M%S')
             # log.info("previous_element is {}".format(type(previous_element)))
