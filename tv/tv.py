@@ -3528,7 +3528,7 @@ def get_indicator_dialog_values(browser):
             if class_name.find('separator') >= 0:
                 continue
             title = get_dialog_input_title(
-                find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
+                find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
             value_cells = get_indicator_dialog_elements(browser, title)
             value = get_dialog_input_value(value_cells)
             if value is not None:
@@ -4319,12 +4319,12 @@ def get_indicator_dialog_elements(browser, key):
             class_name = row.get_attribute('class')
             if class_name.find('separator') >= 0:
                 continue
-            title = get_dialog_input_title(find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"]'))
+            title = get_dialog_input_title(find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
             if title == key or ((not EXACT_CONDITIONS) and title.startswith(key)):
                 # by default, inputs are found in the next sibling's row
                 if class_name.find('first') >= 0:
                     row = browser.execute_script("return arguments[0].nextElementSibling", row)
-                value_cells = find_elements(row, 'input, span[role="button"], div[class^="text"] > span, div[data-name="color-select"] div[class^="swatch"]', delay=1)
+                value_cells = find_elements(row, 'textarea, input, span[role="button"], div[class^="text"] > span, div[data-name="color-select"] div[class^="swatch"]', delay=1)
                 break
 
     except TimeoutException:
