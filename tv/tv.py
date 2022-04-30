@@ -3478,8 +3478,8 @@ def get_dialog_input_title(element):
         if element.text:
             result = element.text
         else:
-            checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
-            result = checkbox_label.text
+            # Prevent that Kairos crashes when a title is empty. Simply ignore these elements and show a warning
+            log.warning('Element {} has no title. It will be ignored.'.format(element.id))
     except Exception as e:
         log.exception(e)
     return strip_to_ascii(result).strip('<>:; ').lower().replace(' ', '_')
@@ -3527,12 +3527,15 @@ def get_indicator_dialog_values(browser):
             class_name = row.get_attribute('class')
             if class_name.find('separator') >= 0:
                 continue
-            title = get_dialog_input_title(
-                find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
-            value_cells = get_indicator_dialog_elements(browser, title)
-            value = get_dialog_input_value(value_cells)
-            if value is not None:
-                result[title] = value
+
+            # If title is empty, ignore this row
+            if title:
+                title = get_dialog_input_title(
+                    find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
+                value_cells = get_indicator_dialog_elements(browser, title)
+                value = get_dialog_input_value(value_cells)
+                if value is not None:
+                    result[title] = value
 
         for title in result:
             if len(result[title]) == 1:
