@@ -4388,6 +4388,11 @@ def set_indicator_dialog_element(browser, element, value, tries=0):
                 clear(element)
                 set_value(browser, element, value)
 
+        # check if it's textarea
+        elif element.tag_name == 'textarea':
+            clear(element)
+            set_value(browser, element, value)
+
         # check if it is a symbol
         elif has_semi_column and str(value).isupper():
             element.click()
