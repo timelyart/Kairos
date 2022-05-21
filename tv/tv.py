@@ -195,10 +195,10 @@ css_selectors = dict(
     # Strategy Tester
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
-    tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
-    btn_strategy_dialog='div.icon-button.js-backtesting-open-format-dialog',
-    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting > div.backtesting-head-wrapper > div:nth-child(1) > div > span',
-    performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',
+    tab_strategy_tester_performance_summary='div.deep-history > div:nth-child(1) > div:nth-child(3) > div > div > div > div > div > div > button:nth-child(2)',
+    btn_strategy_dialog='div.deep-history > div > div > div > button',
+    strategy_id='div.deep-history > div:nth-child(1) > div > div > span > span > span > span',
+    performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',  # FIXME when the value is negative this element is wrapped in an addition span tag
     performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
     performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
     performance_overview_percent_profitable='div.report-data > div:nth-child(3) > strong',
@@ -208,16 +208,16 @@ css_selectors = dict(
     performance_overview_avg_trade='div.report-data > div:nth-child(6) > strong',
     performance_overview_avg_trade_percentage='div.report-data > div:nth-child(6) > p > span',
     performance_overview_avg_bars_in_trade='div.report-data > div:nth-child(7) > strong',
-    performance_summary_net_profit='div.report-content.performance > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div:nth-child(1)',
-    performance_summary_net_profit_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div:nth-child(2) > span',
-    performance_summary_total_closed_trades='div.report-content.performance > div > table > tbody > tr:nth-child(12) > td:nth-child(2)',
-    performance_summary_percent_profitable='div.report-content.performance > div > table > tbody > tr:nth-child(16) > td:nth-child(2)',
-    performance_summary_profit_factor='div.report-content.performance > div > table > tbody > tr:nth-child(8) > td:nth-child(2)',
-    performance_summary_max_drawdown='div.report-content.performance > div > table > tbody > tr:nth-child(4) > td:nth-child(2) > div:nth-child(1)',
-    performance_summary_max_drawdown_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(4) > td:nth-child(2) > div:nth-child(2) > span',
-    performance_summary_avg_trade='div.report-content.performance > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div:nth-child(1)',
-    performance_summary_avg_trade_percentage='div.report-content.performance > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div:nth-child(2) > span',
-    performance_summary_avg_bars_in_trade='div.report-content.performance > div > table > tbody > tr:nth-child(23) > td:nth-child(2)',
+    performance_summary_net_profit='div.report-content.performance > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_net_profit_percentage='div.report-content.performance > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_total_closed_trades='div.report-content.performance > div > div > table > tbody > tr:nth-child(13) > td:nth-child(2)',
+    performance_summary_percent_profitable='div.report-content.performance > div > div > table > tbody > tr:nth-child(17) > td:nth-child(2)',
+    performance_summary_profit_factor='div.report-content.performance > div > div > table > tbody > tr:nth-child(9) > td:nth-child(2)',
+    performance_summary_max_drawdown='div.report-content.performance > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_max_drawdown_percentage='div.report-content.performance > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_avg_trade='div.report-content.performance > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_avg_trade_percentage='div.report-content.performance > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_avg_bars_in_trade='div.report-content.performance > div > div > table > tbody > tr:nth-child(24) > td:nth-child(2)',
     # Indicator dialog
     indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
@@ -522,7 +522,7 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 def accept_cookies(browser):
     global ACCEPT_COOKIES
     if ACCEPT_COOKIES:
-        xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/button'
+        xpath = '/html/body/div[4]/div/div/div/article/div/div/div/button[2]'   # TODO Tidy up this xpath
         try:
             wait_and_click_by_xpath(browser, xpath, 2)
             log.info("cookies accepted")
