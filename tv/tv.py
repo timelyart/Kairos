@@ -2437,6 +2437,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 # we are getting a timeout exception because there likely was no warning
                 log.debug('no warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
+        time.sleep(DELAY_SUBMIT_ALERT)
     except TimeoutError:
         log.warning('time out')
         # on except, refresh and try again
