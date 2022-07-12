@@ -1367,7 +1367,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 if not strategy['name'] in summaries:
                     summaries[strategy['name']] = dict()
                     summaries[strategy['name']]['id'] = "unknown"
-                    time.sleep(30000)
                     strategy_element = find_element(browser, css_selectors['strategy_id'])
                     if strategy_element:
                         summaries[strategy['name']]['id'] = strategy_element.text
