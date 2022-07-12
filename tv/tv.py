@@ -196,8 +196,8 @@ css_selectors = dict(
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
     tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
-    btn_strategy_dialog='div.icon-button.js-backtesting-open-format-dialog',
-    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting > div.backtesting-head-wrapper > div:nth-child(1) > div > span',
+    btn_strategy_dialog='div[data-qa-strategy-title] + button',
+    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-qa-strategy-title]',
     performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',
     performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
     performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
@@ -3348,11 +3348,7 @@ def open_performance_summary_tab(browser):
         while tries < max_tries:
             # noinspection PyBroadException
             try:
-                strategy_performance_strategy_tab = find_element(browser,
-                                                                 css_selectors['tab_strategy_tester_performance_summary'],
-                                                                 By.CSS_SELECTOR, True, False, 2)
-                if isinstance(strategy_performance_strategy_tab, WebElement):
-                    strategy_performance_strategy_tab.click()
+                wait_and_click_by_text(browser, 'button', 'Performance Summary')
                 tries = max_tries
             except Exception as e:
                 log.exception(e)
