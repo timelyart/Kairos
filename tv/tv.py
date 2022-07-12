@@ -2731,29 +2731,26 @@ def assign_user_data_directory():
         # find an unused kairos user data directory
         user_data_base_dir, tail = os.path.split(user_data_directory)
         try:
-            with os.scandir(user_data_base_dir) as user_data_directories:
-                # number_of_kairos_user_data_directories = 0
-                for entry in user_data_directories:
-                    if entry.name.startswith('kairos_'):
-                        # number_of_kairos_user_data_directories += 1
-                        path = os.path.join(user_data_base_dir, entry.name)
-                        if not tools.path_in_use(path, log, browser) and not user_data_directory_found:
-                            user_data_directory = path
-                            user_data_directory_found = True
-                            break
-
-                # make a copy of the default user data directory if it is not found
-                i = 0
-                while not user_data_directory_found and i < 100:
-                    path = os.path.join(user_data_base_dir, "kairos_{}".format(i))
-                    if not os.path.exists(path):
-                        user_data_directory_found = True
-                        log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
-                        shutil.copytree(kairos_data_directory, path)
-                        if OS == 'linux':
-                            tools.chmod_r(path, 0o777)
+            for entry in os.scandir(user_data_base_dir):
+                if entry.name.startswith('kairos_'):
+                    path = os.path.join(user_data_base_dir, entry.name)
+                    if not tools.path_in_use(path, log, browser) and not user_data_directory_found:
                         user_data_directory = path
-                    i += 1
+                        user_data_directory_found = True
+                        break
+
+            # make a copy of the default user data directory if it is not found
+            i = 0
+            while not user_data_directory_found and i < 100:
+                path = os.path.join(user_data_base_dir, "kairos_{}".format(i))
+                if not os.path.exists(path):
+                    user_data_directory_found = True
+                    log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
+                    shutil.copytree(kairos_data_directory, path)
+                    if OS == 'linux':
+                        tools.chmod_r(path, 0o777)
+                    user_data_directory = path
+                i += 1
         except Exception as e:
             log.exception(e)
 
@@ -3478,8 +3475,10 @@ def get_dialog_input_title(element):
         if element.text:
             result = element.text
         else:
-            checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
-            result = checkbox_label.text
+            # checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
+            # result = checkbox_label.text
+            # Prevent that Kairos crashes when a title is empty. Simply ignore these elements and show a warning
+            log.warning('Element {} has no title. It will be ignored.'.format(element.id))
     except Exception as e:
         log.exception(e)
     return strip_to_ascii(result).strip('<>:; ').lower().replace(' ', '_')
@@ -3529,10 +3528,12 @@ def get_indicator_dialog_values(browser):
                 continue
             title = get_dialog_input_title(
                 find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
-            value_cells = get_indicator_dialog_elements(browser, title)
-            value = get_dialog_input_value(value_cells)
-            if value is not None:
-                result[title] = value
+            # If title is empty, ignore this row
+            if title:
+                value_cells = get_indicator_dialog_elements(browser, title)
+                value = get_dialog_input_value(value_cells)
+                if value is not None:
+                    result[title] = value
 
         for title in result:
             if len(result[title]) == 1:
