@@ -522,7 +522,7 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 def accept_cookies(browser):
     global ACCEPT_COOKIES
     if ACCEPT_COOKIES:
-        xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/button'
+        xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/div/button[contains(@class, "accept")]'
         try:
             wait_and_click_by_xpath(browser, xpath, 2)
             log.info("cookies accepted")
@@ -1367,6 +1367,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 if not strategy['name'] in summaries:
                     summaries[strategy['name']] = dict()
                     summaries[strategy['name']]['id'] = "unknown"
+                    time.sleep(30000)
                     strategy_element = find_element(browser, css_selectors['strategy_id'])
                     if strategy_element:
                         summaries[strategy['name']]['id'] = strategy_element.text
