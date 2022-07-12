@@ -195,9 +195,9 @@ css_selectors = dict(
     # Strategy Tester
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
-    tab_strategy_tester_performance_summary='div.deep-history > div:nth-child(1) > div:nth-child(3) > div > div > div > div > div > div > button:nth-child(2)',
-    btn_strategy_dialog='div.deep-history > div > div > div > button',
-    strategy_id='div.deep-history > div:nth-child(1) > div > div > span > span > span > span',
+    tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
+    btn_strategy_dialog='div[data-qa-strategy-title] + button',
+    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-qa-strategy-title]',
     performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',  # FIXME when the value is negative this element is wrapped in an addition span tag
     performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
     performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
@@ -522,7 +522,7 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 def accept_cookies(browser):
     global ACCEPT_COOKIES
     if ACCEPT_COOKIES:
-        xpath = '/html/body/div[4]/div/div/div/article/div/div/div/button[2]'   # TODO Tidy up this xpath
+        xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/div/button[contains(@class, "accept")]'
         try:
             wait_and_click_by_xpath(browser, xpath, 2)
             log.info("cookies accepted")
@@ -2437,6 +2437,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 # we are getting a timeout exception because there likely was no warning
                 log.debug('no warning found when setting the alert.')
                 SEARCH_FOR_WARNING = False
+        time.sleep(DELAY_SUBMIT_ALERT)
     except TimeoutError:
         log.warning('time out')
         # on except, refresh and try again
@@ -2731,29 +2732,26 @@ def assign_user_data_directory():
         # find an unused kairos user data directory
         user_data_base_dir, tail = os.path.split(user_data_directory)
         try:
-            with os.scandir(user_data_base_dir) as user_data_directories:
-                # number_of_kairos_user_data_directories = 0
-                for entry in user_data_directories:
-                    if entry.name.startswith('kairos_'):
-                        # number_of_kairos_user_data_directories += 1
-                        path = os.path.join(user_data_base_dir, entry.name)
-                        if not tools.path_in_use(path, log, browser) and not user_data_directory_found:
-                            user_data_directory = path
-                            user_data_directory_found = True
-                            break
-
-                # make a copy of the default user data directory if it is not found
-                i = 0
-                while not user_data_directory_found and i < 100:
-                    path = os.path.join(user_data_base_dir, "kairos_{}".format(i))
-                    if not os.path.exists(path):
-                        user_data_directory_found = True
-                        log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
-                        shutil.copytree(kairos_data_directory, path)
-                        if OS == 'linux':
-                            tools.chmod_r(path, 0o777)
+            for entry in os.scandir(user_data_base_dir):
+                if entry.name.startswith('kairos_'):
+                    path = os.path.join(user_data_base_dir, entry.name)
+                    if not tools.path_in_use(path, log, browser) and not user_data_directory_found:
                         user_data_directory = path
-                    i += 1
+                        user_data_directory_found = True
+                        break
+
+            # make a copy of the default user data directory if it is not found
+            i = 0
+            while not user_data_directory_found and i < 100:
+                path = os.path.join(user_data_base_dir, "kairos_{}".format(i))
+                if not os.path.exists(path):
+                    user_data_directory_found = True
+                    log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
+                    shutil.copytree(kairos_data_directory, path)
+                    if OS == 'linux':
+                        tools.chmod_r(path, 0o777)
+                    user_data_directory = path
+                i += 1
         except Exception as e:
             log.exception(e)
 
@@ -3351,11 +3349,7 @@ def open_performance_summary_tab(browser):
         while tries < max_tries:
             # noinspection PyBroadException
             try:
-                strategy_performance_strategy_tab = find_element(browser,
-                                                                 css_selectors['tab_strategy_tester_performance_summary'],
-                                                                 By.CSS_SELECTOR, True, False, 2)
-                if isinstance(strategy_performance_strategy_tab, WebElement):
-                    strategy_performance_strategy_tab.click()
+                wait_and_click_by_text(browser, 'button', 'Performance Summary')
                 tries = max_tries
             except Exception as e:
                 log.exception(e)
@@ -3478,8 +3472,10 @@ def get_dialog_input_title(element):
         if element.text:
             result = element.text
         else:
-            checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
-            result = checkbox_label.text
+            # checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
+            # result = checkbox_label.text
+            # Prevent that Kairos crashes when a title is empty. Simply ignore these elements and show a warning
+            log.warning('Element {} has no title. It will be ignored.'.format(element.id))
     except Exception as e:
         log.exception(e)
     return strip_to_ascii(result).strip('<>:; ').lower().replace(' ', '_')
@@ -3529,10 +3525,12 @@ def get_indicator_dialog_values(browser):
                 continue
             title = get_dialog_input_title(
                 find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
-            value_cells = get_indicator_dialog_elements(browser, title)
-            value = get_dialog_input_value(value_cells)
-            if value is not None:
-                result[title] = value
+            # If title is empty, ignore this row
+            if title:
+                value_cells = get_indicator_dialog_elements(browser, title)
+                value = get_dialog_input_value(value_cells)
+                if value is not None:
+                    result[title] = value
 
         for title in result:
             if len(result[title]) == 1:
