@@ -106,7 +106,7 @@ css_selectors = dict(
     account='button.tv-header__user-menu-button--logged',
     username='a[data-name="header-user-menu-profile"] span[class^="username"]',
     anonymous_account='button.tv-header__user-menu-button--anonymous',
-    anonymous_signin='div[data-name="header-user-menu-sign-in"]',
+    anonymous_signin='button[data-name="header-user-menu-sign-in"]',
     show_email_and_username='span.js-show-email',
     input_username='input[name="username"]',
     input_password='input[name="password"]',
