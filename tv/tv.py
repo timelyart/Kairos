@@ -238,7 +238,7 @@ css_selectors = dict(
     chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
     # User Menu
     btn_user_menu='button.tv-header__user-menu-button--logged',
-    btn_logout='div[data-name="header-user-menu-sign-out"]',
+    btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
     invalid_symbol='div[title="Invalid Symbol"]',
 )
