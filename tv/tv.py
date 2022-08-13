@@ -196,7 +196,7 @@ css_selectors = dict(
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
     tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
-    btn_strategy_dialog='div[data-qa-strategy-title] + button',
+    btn_strategy_dialog='.deep-history > div > div > div > div > button',
     strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-qa-strategy-title]',
     performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',  # FIXME when the value is negative this element is wrapped in an addition span tag
     performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
