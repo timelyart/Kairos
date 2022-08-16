@@ -13,7 +13,7 @@ charts:
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
-    # list of charts (url's) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
+    # list of charts (urls) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
     include_screenshots_of_charts: [https://www.tradingview.com/chart/<chart_id>/]
     conditions: ["Davo v5", "Alert davo long"]
     options: "Only Once"
@@ -41,9 +41,9 @@ charts:
       # %TIMEFRAME, is self-explanatory
       # %SYMBOL is <exchange>:<ticker symbol>
       # %NAME is the name of the alert
-      # %CHART add a url to the chart (inc. timeframe and symbol)
+      # %CHART add an url to the chart (inc. timeframe and symbol)
       # %GENERATED is the text that TradingView generates
-      # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
+      # %SCREENSHOT add an url to a screenshot (only available when config option tradingview_screenshot is set to true)
       # NOTE: TradingView's default link is incomplete. I recommend including %CHART at all times.
       # NOTE: If you want to create summary mails and generate a watchlist don't change this.
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
@@ -60,7 +60,7 @@ summary:
     subject: 'TradingView Alert Summary'
     # Use keyword %SUMMARY in your text and/or html to include the Kairos generated summary
     text: 'my prepended text %SUMMARY my appended text'
-    # Note: you may include <html> and <body> tags but it is not necessary (Kairos will include them if they aren't found)
+    # Note: you may include <html> and <body> tags, but it is not necessary (Kairos will include them if they aren't found)
     html: '<p>my prepended text</p>%SUMMARY<p>my appended text</p>'
     # If you just want to send the signals to webhooks (see your config file) or import them as a watchlist, set this to no
     send: yes
