@@ -1,5 +1,5 @@
-# use a url + other settings per type of alert you want to set
-# note that all values are case sensitive
+# use an url + other settings per type of alert you want to set
+# note that all values are case-sensitive
 charts:
 - url: https://www.tradingview.com/chart/<chart_id>/
   timeframes: [1 day]
@@ -15,7 +15,7 @@ charts:
     show_multi_chart_layout: no
     # list of charts (url's) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
     include_screenshots_of_charts: [https://www.tradingview.com/chart/<chart_id>/]
-    conditions: ["Davo v3.5.", "Alert davo long"]
+    conditions: ["Davo v5", "Alert davo long"]
     options: "Only Once"
     expiration:
       # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
