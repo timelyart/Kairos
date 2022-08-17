@@ -127,7 +127,7 @@ css_selectors = dict(
     item_restart_inactive_alerts='div[data-name="menu-inner"] > div:nth-child(1) > div:nth-child(1)',
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
-    alerts_counter='div.widgetbar-widget-alerts_manage span[title*="active alerts used from"]',
+    alerts_counter='div.widgetbar-widget-alerts_manage div[class*="label-"]', # alternative - div.widgetbar-widget-alerts_manage div[class*="apply-common-tooltip"]
     btn_create_alert='#header-toolbar-alerts',
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
