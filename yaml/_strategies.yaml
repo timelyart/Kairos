@@ -1,10 +1,12 @@
-# use a url + other settings per type of alert you want to set
+# use an url + other settings per type of alert you want to set
 # note that all values are case-sensitive
 charts:
 - url: https://www.tradingview.com/chart/<your_chart>/
-  # Note that strategies ignore this setting, use a multi chart layout instead.
-  timeframes: [1 hour]
   watchlists: [Example]
+  # Set the timeframe of the chart, or the timeframe of the first chart in case of a multi chart layout.
+  # If you want to test multiple timeframes use a multi chart layout wherein each chart is on a different timeframe.
+  # You can test multiple timeframes with this setting but a multi chart layout will have a better performance.
+  timeframes: [1 hour]
   # Strategies listed must be available from the chart which is loaded through the "url" parameter. Although, you can
   # define multiple strategies here there is no way to "select" a particular strategy from a list of strategies. My
   # hope is that one day we'll be able to do so in TV. Until such time, don't define more than one strategy on a layout.
