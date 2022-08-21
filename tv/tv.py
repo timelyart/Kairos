@@ -127,7 +127,7 @@ css_selectors = dict(
     item_restart_inactive_alerts='div[data-name="menu-inner"] > div:nth-child(1) > div:nth-child(1)',
     btn_dlg_clear_alerts_confirm='div.tv-dialog > div.tv-dialog__section--actions > div[data-name="yes"]',
     item_alerts='table.alert-list > tbody > tr.alert-item',
-    alerts_counter='div.widgetbar-widget-alerts_manage div[class*="label-"]', # alternative - div.widgetbar-widget-alerts_manage div[class*="apply-common-tooltip"]
+    alerts_counter='div.widgetbar-widget-alerts_manage div[class*="label-"]',
     btn_create_alert='#header-toolbar-alerts',
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
@@ -1398,17 +1398,33 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     reverse = not strategy['sort_asc']
 
                 # test the strategy and sort the results
-                for watchlist in chart['watchlists']:
-                    symbols = dict_watchlist[watchlist]
-                    test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
-                    # sort if the user defined one for the strategy
-                    if sort_by:
-                        test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
+                if 'timeframes' in chart:
+                    for timeframe in chart['timeframes']:
+                        set_timeframe(browser, timeframe)
+                        time.sleep(DELAY_TIMEFRAME)
+                        for watchlist in chart['watchlists']:
+                            symbols = dict_watchlist[watchlist]
+                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                            # sort if the user defined one for the strategy
+                            if sort_by:
+                                test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
 
-                    if watchlist in summaries[strategy['name']]:
-                        summaries[strategy['name']][watchlist] += test_data
-                    else:
-                        summaries[strategy['name']][watchlist] = test_data
+                            if watchlist in summaries[strategy['name']]:
+                                summaries[strategy['name']][watchlist] += test_data
+                            else:
+                                summaries[strategy['name']][watchlist] = test_data
+                else:
+                    for watchlist in chart['watchlists']:
+                        symbols = dict_watchlist[watchlist]
+                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                        # sort if the user defined one for the strategy
+                        if sort_by:
+                            test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
+
+                        if watchlist in summaries[strategy['name']]:
+                            summaries[strategy['name']][watchlist] += test_data
+                        else:
+                            summaries[strategy['name']][watchlist] = test_data
 
             # Sort if the user defined one for all strategies. This overrides sorting on a per-strategy basis.
             if sort:
@@ -1921,9 +1937,6 @@ def retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name,
 
 def export_chart_data(browser, export_data_config, symbol, tries=0):
     try:
-        time.sleep(DELAY_DOWNLOAD_FILE)
-        # if 'enabled' in export_data_config and not export_data_config['enabled']:
-        #     return
         # set period (if any)
         if 'period' in export_data_config:
             starting_date = ''
@@ -1955,10 +1968,12 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
                 wait_and_click(browser, css)
 
         # open dialog
-        css = 'div.layout__area--topleft div[data-role="button"]'
+        # css = 'div.layout__area--topleft div[data-role="button"]'
+        css = 'div[data-name="save-load-menu"]'
         wait_and_click(browser, css)
-        css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
-        wait_and_click(browser, css)
+        # css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
+        wait_and_click_by_text(browser, 'span', 'Export chart data…')
+        # wait_and_click(browser, css)
         time.sleep(DELAY_BREAK*2)
 
         # make sure the correct symbol is loaded
@@ -1984,11 +1999,12 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
             timeformat = export_data_config['timeformat']
             css = 'span[id="time-format-select"]'
             wait_and_click(browser, css)
-            css = 'div[data-name="menu-inner"] div[role="option"] > div > div'
+            css = 'div[data-name="menu-inner"] div[role="option"] span span'
             el_options = find_elements(browser, css)
             found = False
             for option in el_options:
                 option_tv = str(option.get_attribute("innerHTML")).strip()
+                # log.info(option_tv)
                 if (option_tv == timeformat) or ((not EXACT_CONDITIONS) and option_tv.startswith(timeformat)):
                     hover(browser, option, True)
                     found = True
