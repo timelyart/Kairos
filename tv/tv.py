@@ -4131,6 +4131,40 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # Update previous values with the current ones
                 values[key] = value
 
+            ### Export the list of trades for the current symbol ###
+
+            # TODO: Add a check to see if the strategy has just 1 variation.
+            # If there are more variations show a warning and don't download the trades.
+
+            # TODO: Check if the user has premium TradingView account.
+            # With a free account, the export button is still visible but will show
+            # popup dialog rather than exporting the trades.
+
+            # TODO: Check if there is no study error on the chart.
+
+            if 'export_trades' in strategy_config and strategy_config['export_trades']:
+
+                log.info("Exporting the list of trades for as a CSV file.".format(symbol))
+                latest_downloaded_file = export_list_of_trades(browser)
+                time.sleep(DELAY_BREAK)
+
+                if latest_downloaded_file:
+                    log.info("The list of trades exported to {}".format(latest_downloaded_file))
+
+                    # Get the base so that we can extract the quote later
+                    quote = browser.find_elements_by_xpath('//span[contains(@class, "price-axis-currency-label-text-")]')[0].text
+
+                    # Rename the file because TradingView always uses the same filename when
+                    # exporting trades from one strategy regardless of the symbol.
+                    rename_exported_trades_file(latest_downloaded_file, strategy_config['name'], symbol, quote)
+                else:
+                    # FIXME 
+                    # Should we throw an exception here rather than returning None?
+                    # When the download has failed we would like to at least retry the download.
+                    log.error("Failed to export the list of trades for {}".format(symbol))
+            
+            ### End of exporting the list of trades ###
+
             # previous_element[0] = find_element(browser, css_selectors['performance_summary_profit_factor'])
             # log.info("previous_element = {}".format(repr(previous_element[0])))
             # log.info("screenshot: {}".format('screenshot' in strategy_config and strategy_config['screenshot']))
@@ -4701,3 +4735,92 @@ def summary(total_alerts, counter_alerts):
     elif len(triggered_signals) > 0:
         result = "{} markets screened and {} signals triggered with an average process time of {} seconds per market".format(str(total_alerts), len(triggered_signals), avg)
     return result
+
+def export_list_of_trades(browser):
+    """
+    The file will be downloaded to DOWNLOAD_PATH/datetimestamp as specified in download.default_directory
+
+    When testing this function and running the browser in the foreground,
+    make sure to keep the browser window on top otherwise the download will not work.
+
+    A strategy that has 0 trades will still result in a csv file being downloaded.
+
+    Exporting of the trades will fail when there is a study error in the strategy.
+
+    :return: The path to the exported file or None if the export failed.
+    """
+    try:
+        # Keep track of the previous downloaded file so that we can 
+        # check if the download was successful.
+        most_recent_downloaded_file = get_latest_file_in_folder(DOWNLOAD_PATH)
+
+        # Open the list of trades tab
+        wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
+        
+        # Click the export trades button
+        wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+                
+        MAX_DOWNLOAD_WAIT_TIME = 10 # seconds
+        max_retries = MAX_DOWNLOAD_WAIT_TIME / DELAY_DOWNLOAD_FILE
+
+        # Selumium doens't have a built in way to check if a file has been downloaded.
+        # So we have to monitor the DOWNLOAD_PATH to check if the new file has been downloaded.
+        retries = 0
+        while retries < max_retries:
+            retries+=1
+            time.sleep(DELAY_DOWNLOAD_FILE)
+            latest_file_in_folder = get_latest_file_in_folder(DOWNLOAD_PATH)
+
+            if latest_file_in_folder != most_recent_downloaded_file:
+                log.info("Downloaded list of trades in {} seconds.".format(str(retries * DELAY_DOWNLOAD_FILE)))
+                return latest_file_in_folder
+        
+        snapshot(browser)
+        log.error("Failed to export list of trades. Max download timeout expired.")
+        return None
+
+    except Exception as e:
+        return e
+
+def get_latest_file_in_folder(path):
+    """
+    Find the latest downloaded file in the specified folder
+
+    :param path:
+    :return: The file with the latest modified time in the folder or None if there are no files in the folder
+    """
+    # find the most recent subfolder in the path
+    # then find the most recent file in that subfolder
+    # then return the file
+    subfolders = [os.path.join(path, d) for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
+    if subfolders:
+        latest_subfolder = max(subfolders, key=os.path.getmtime)
+        # get all csv files in the sub folder
+        list_of_files = [os.path.join(latest_subfolder, f) for f in os.listdir(latest_subfolder) if f.endswith('.csv')]
+        if list_of_files:
+            return max(list_of_files, key=os.path.getctime)
+            
+    return None
+
+def rename_exported_trades_file(file_path, strategy_name, symbol, quote):
+    """
+    Rename the file to the format: exchange-quote_base-strategyname.csv
+
+    :param file_path:
+    :param strategy_name:
+    :param symbol:
+    :param quote:
+    """
+    # get full path of the latest_file_in_folder
+    download_folder_with_datestamp = os.path.dirname(file_path)
+    
+    # Extract the exchange from the symbol
+    exchange = symbol.split(':')[0]
+
+    # Extract the base from the symbol
+    base = re.search(exchange + ':(.*)' + quote, symbol).group(1)
+
+    new_file_name = exchange + "-" + base + "_" + quote + "-" + strategy_name + ".csv"
+
+    os.rename(file_path, os.path.join(download_folder_with_datestamp, new_file_name))
+    log.info("Renamed file to {}".format(new_file_name))
