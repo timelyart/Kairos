@@ -1966,6 +1966,8 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                          chart['export_data']['enabled'] and (export_data_always or is_a_signal_triggered)
         if export_enabled:
             export_chart_data(browser, chart['export_data'], symbol)
+            # set permissions of the latest download
+            tools.set_permission(get_latest_file_in_folder(DOWNLOAD_PATH))
 
         if 'signals' in chart or 'alerts' in chart:
             total_alerts += 1
@@ -2920,11 +2922,12 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
         date_time = now.strftime("%Y%m%d_%H%M%S")
         download_path = os.path.join(download_path, date_time)
         if not os.path.exists(download_path):
-            # noinspection PyBroadException
             try:
                 os.makedirs(download_path)
-            except Exception:
+                tools.set_permission(download_path)
+            except Exception as e:
                 log.warning('No download_path specified or unable to create it.')
+                log.exception(e)
                 download_path = ''
         prefs = {
             "profile.default_content_setting_values.notifications": 2,
@@ -4915,6 +4918,7 @@ def rename_exported_trades_file(file_path, new_file_name):
         # get full path of the latest_file_in_folder
         new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
         os.rename(file_path, new_file_path)
+        tools.set_permission(new_file_path)
         log.debug("Renamed file to {}".format(new_file_path))
     except Exception as e:
         log.exception(e)

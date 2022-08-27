@@ -2,6 +2,7 @@
 import contextlib
 import os
 import re
+import stat
 import sys
 from datetime import datetime, timedelta
 import time
@@ -423,3 +424,22 @@ def strip_to_ascii(value):
 
 def is_date(string):
     return re.search(r"^\d+[-/]\d+[-/]\d+$", str(string)) is not None
+
+
+def set_permission(path):
+    """
+    Sets permissions of folders and files to read, write and  777
+    NOTE: on Windows only accepts read permissions and ignores write and execute permissions
+    :param path: path to the file or directory
+    :return: True or Exception when unsuccessful
+    """
+    try:
+        owner = stat.S_IRWXU
+        group = stat.S_IRWXG
+        other = stat.S_IRWXO
+        os.chmod(path, owner)
+        os.chmod(path, group)
+        os.chmod(path, other)
+        return True
+    except Exception as e:
+        return e
