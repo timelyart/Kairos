@@ -44,6 +44,8 @@ from kairos.tools import format_number, wait_for_element_is_stale, unicode_to_fl
 from fastnumbers import fast_real
 
 TEST = False
+DEBUG_LEVEL = 10
+INFO_LEVEL = 20
 processing_errors = []
 
 triggered_signals = []
@@ -75,6 +77,7 @@ SEARCH_FOR_WARNING = True
 REFRESH_START = timing.time()
 REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 ALREADY_LOGGED_IN = False
+ACCOUNT_LEVEL = False
 VERIFY_MARKET_LISTING = True
 ACCEPT_COOKIES = False
 
@@ -101,18 +104,24 @@ NEGATIVE_COLOR = '#DD2E02'
 WEBDRIVER_INSTANCE = 0
 
 css_selectors = dict(
-    # ALERTS
-    # username='span.tv-header__dropdown-text.tv-header__dropdown-text--username.js-username.tv-header__dropdown-text--ellipsis.apply-overflow-tooltip.common-tooltip-fixed',
+    # Account
     account='button.tv-header__user-menu-button--logged',
     username='a[data-name="header-user-menu-profile"] span[class^="username"]',
+    account_level='a[data-name="header-user-menu-profile"] span[class^="badge"] span',
     anonymous_account='button.tv-header__user-menu-button--anonymous',
     anonymous_signin='button[data-name="header-user-menu-sign-in"]',
     show_email_and_username='span.js-show-email',
     input_username='input[name="username"]',
     input_password='input[name="password"]',
     btn_login_by_email='span.tv-signin-dialog__toggle-email',
+    # Study error
+    study_error='div[class*="dataProblemLow"]',
+    # Study loading
+    study_loading='span[class^="loaderItem"]',
+    # Timeframe
     btn_timeframe='#header-toolbar-intervals > div:last-child',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
+    # Watchlist / ticker
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
     options_watchlist='div[class^="watchlistMenu"] span[class^="title"]',
@@ -121,6 +130,7 @@ css_selectors = dict(
     dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
     input_symbol='div[id="header-toolbar-symbol-search"] div',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
+    # Alerts
     btn_alert_menu='div[data-name="alerts-settings-button"]',
     item_clear_alerts='div.charts-popup-list > a.item:last-child',
     item_clear_inactive_alerts='div[data-name="menu-inner"] > div:nth-child(3) > div:nth-child(1)',
@@ -208,16 +218,16 @@ css_selectors = dict(
     performance_overview_avg_trade='div.report-data > div:nth-child(6) > strong',
     performance_overview_avg_trade_percentage='div.report-data > div:nth-child(6) > p > span',
     performance_overview_avg_bars_in_trade='div.report-data > div:nth-child(7) > strong',
-    performance_summary_net_profit='div.report-content.performance > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(1)',
-    performance_summary_net_profit_percentage='div.report-content.performance > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(2)',
-    performance_summary_total_closed_trades='div.report-content.performance > div > div > table > tbody > tr:nth-child(13) > td:nth-child(2)',
-    performance_summary_percent_profitable='div.report-content.performance > div > div > table > tbody > tr:nth-child(17) > td:nth-child(2)',
-    performance_summary_profit_factor='div.report-content.performance > div > div > table > tbody > tr:nth-child(9) > td:nth-child(2)',
-    performance_summary_max_drawdown='div.report-content.performance > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(1)',
-    performance_summary_max_drawdown_percentage='div.report-content.performance > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(2)',
-    performance_summary_avg_trade='div.report-content.performance > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(1)',
-    performance_summary_avg_trade_percentage='div.report-content.performance > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(2)',
-    performance_summary_avg_bars_in_trade='div.report-content.performance > div > div > table > tbody > tr:nth-child(24) > td:nth-child(2)',
+    performance_summary_net_profit='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_net_profit_percentage='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_total_closed_trades='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(13) > td:nth-child(2) > div > div',
+    performance_summary_percent_profitable='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div > div',
+    performance_summary_profit_factor='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(9) > td:nth-child(2) > div > div',
+    performance_summary_max_drawdown='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_max_drawdown_percentage='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_avg_trade='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_avg_trade_percentage='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_avg_bars_in_trade='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(24) > td:nth-child(2) > div > div',
     # Indicator dialog
     indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
@@ -264,7 +274,7 @@ mode = 'a'  # append
 if config.getboolean('logging', 'clear_on_start_up'):
     mode = 'w'  # overwrite
 log = tools.create_log(mode)
-log.setLevel(20)
+log.setLevel(INFO_LEVEL)
 # WARNING: debug level will log all HTTP requests
 if config.has_option('logging', 'level'):
     log.setLevel(config.getint('logging', 'level'))
@@ -676,6 +686,23 @@ def set_options(chart=None):
 
     if chart and 'verify_market_listing' in chart and isinstance(chart['verify_market_listing'], bool):
         VERIFY_MARKET_LISTING = chart['verify_market_listing']
+
+
+def wait_until_studies_are_loaded(browser):
+    log.debug("studies loading ...")
+    while is_study_loading(browser):
+        if log.level == DEBUG_LEVEL:
+            print('.')
+    log.debug("studies loaded")
+
+
+def is_study_loading(browser, delay=0.1):
+    result = True
+    try:
+        find_elements(browser, css_selectors['study_loading'], visible=True, delay=delay)
+    except TimeoutException:
+        result = False
+    return result
 
 
 def wait_until_indicators_are_loaded(browser):
@@ -1123,7 +1150,9 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
 
         # get the symbols for each watchlist
         dict_watchlist = dict()
+        valid_ticker = None
         for i, watchlist in enumerate(chart['watchlists']):
+            delisted = []
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
             log.debug("collecting symbols from watchlist {}".format(watchlist))
@@ -1172,7 +1201,18 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                                                      True, False, 30)
                         for symbol in dict_symbols:
                             last_element_symbol = symbol.get_attribute('data-symbol-full')
-                            symbols.append(last_element_symbol)
+                            # check if the market is (still) valid
+                            css_class = symbol.get_attribute('class')
+                            listed = css_class.find(' invalid') == -1
+                            if listed:
+                                symbols.append(last_element_symbol)
+                                if not valid_ticker:
+                                    valid_ticker = last_element_symbol
+                            else:
+                                # assume market got delisted
+                                if not(last_element_symbol in delisted):
+                                    delisted.append(last_element_symbol)
+                                    log.debug("{} has been delisted".format(last_element_symbol))
                             if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
                                 break
 
@@ -1194,13 +1234,24 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 # symbols = list(sorted(set(symbols)))
                 symbols = list(set(symbols))
                 dict_watchlist[chart['watchlists'][i]] = symbols
-                log.info("{}: {} markets found".format(watchlist, len(symbols)))
+                if len(delisted) == 0:
+                    log.info("{}: {} markets found".format(watchlist, len(symbols)))
+                else:
+                    log.info("{}: {} markets found of which {} have been delisted: {}".format(watchlist, (len(symbols) + len(delisted)), len(delisted), tools.array_to_string(delisted)))
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
-
         # accept cookies (if any)
         accept_cookies(browser)
+
+        # make sure that we are on a valid market
+        if valid_ticker:
+            change_symbol(browser, valid_ticker)
+            time.sleep(DELAY_CHANGE_SYMBOL)
+        else:
+            log.exception("no valid market has been found in your watchlist(s). Exiting program ...")
+            exit(0)
+
         if 'backtest' in chart:
             # open data window tab
             # check if data window is open
@@ -1379,6 +1430,17 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     # ensure fall back to default inputs and properties
                     refresh(browser)
 
+                export_trades_filename = None
+                if 'export_trades' in strategy and strategy['export_trades']:
+                    # Exporting trades to .csv is only available for Premium members
+                    if ACCOUNT_LEVEL == 'Premium':
+                        export_trades_filename = export_list_of_trades(browser)
+                        log.info("default filename list of trades: {}".format(export_trades_filename))
+                        if os.path.exists(export_trades_filename):
+                            os.remove(export_trades_filename)
+                    else:
+                        log.warning('Unable to export trades. This is a Premium member feature and you are currently logged as a {} member'.format(ACCOUNT_LEVEL))
+
                 # generate input/property sets
                 atomic_inputs = []
                 atomic_properties = []
@@ -1404,7 +1466,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         time.sleep(DELAY_TIMEFRAME)
                         for watchlist in chart['watchlists']:
                             symbols = dict_watchlist[watchlist]
-                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties, export_trades_filename)
                             # sort if the user defined one for the strategy
                             if sort_by:
                                 test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1416,7 +1478,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 else:
                     for watchlist in chart['watchlists']:
                         symbols = dict_watchlist[watchlist]
-                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties, export_trades_filename)
                         # sort if the user defined one for the strategy
                         if sort_by:
                             test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1502,8 +1564,10 @@ def is_market_listed(browser):
     """
     listed = False
     try:
+        # listed = element_exists(browser, css_selectors['invalid_symbol'])
         listed = find_element(browser, css_selectors['invalid_symbol'], By.CSS_SELECTOR, except_on_timeout=False) is None
-    except StaleElementReferenceException:
+    except StaleElementReferenceException as e:
+        log.info(e)
         return is_market_listed(browser)
     except Exception as e:
         log.exception(e)
@@ -1539,7 +1603,7 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
         verb = 's are'
         if len(delisted_markets) == 1:
             verb = ' is'
-        log.warn("the following market{} delisted: {}".format(verb, ', '.join(delisted_markets)))
+        log.warn("the following market{} delisted: {}".format(verb, tools.array_to_string(delisted_markets)))
 
     return counter_alerts, total_alerts
 
@@ -2600,6 +2664,7 @@ def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
     global ALREADY_LOGGED_IN
+    global ACCOUNT_LEVEL
     if uid == '' and config.has_option('tradingview', 'username'):
         uid = config.get('tradingview', 'username')
     if pwd == '' and config.has_option('tradingview', 'password'):
@@ -2621,10 +2686,12 @@ def login(browser, uid='', pwd='', retry_login=False):
             try:
                 wait_and_click(browser, css_selectors['account'], 5)
                 elem_username = wait_and_visible(browser, css_selectors['username'], 5)
+                elem_account_level = wait_and_visible(browser, css_selectors['account_level'], 5)
                 if type(elem_username) is WebElement:
                     if elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
+                        ACCOUNT_LEVEL = elem_account_level.get_attribute('textContent')
                         ALREADY_LOGGED_IN = True
-                        log.info("already logged in")
+                        log.info("already logged in ({} account)".format(ACCOUNT_LEVEL))
                         return True
                     else:
                         log.info("logged in under a different username. Logging out.")
@@ -2700,10 +2767,12 @@ def login(browser, uid='', pwd='', retry_login=False):
     try:
         wait_and_click(browser, css_selectors['account'], 5)
         elem_username = wait_and_get(browser, css_selectors['username'])
+        elem_account_level = wait_and_get(browser, css_selectors['account_level'], 5)
         if type(elem_username) is WebElement and elem_username.get_attribute('textContent') != '' and elem_username.get_attribute('textContent') == uid:
             TV_UID = uid
             TV_PWD = pwd
-            log.info("logged in successfully at tradingview.com as {}".format(elem_username.get_attribute('textContent')))
+            ACCOUNT_LEVEL = elem_account_level.get_attribute('textContent')
+            log.info("logged in successfully at tradingview.com as {} ({} account)".format(elem_username.get_attribute('textContent'), ACCOUNT_LEVEL))
         else:
             if elem_username.get_attribute('textContent') == '' or elem_username.get_attribute('textContent') == 'Guest':
                 log.warning("not logged in at tradingview.com")
@@ -2860,11 +2929,13 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
         prefs = {
             "profile.default_content_setting_values.notifications": 2,
             "download.default_directory": download_path,
+            "download.prompt_for_download": "false",
             "safebrowsing.enabled": "false"
         }
     else:
         prefs = {
             "profile.default_content_setting_values.notifications": 2,
+            "download.prompt_for_download": "false",
             "safebrowsing.enabled": "false"
         }
     options.add_experimental_option('prefs', prefs)
@@ -3413,6 +3484,7 @@ def retry_get_strategy_default_values(browser, e, retry_number=0):
         return get_strategy_default_values(browser, retry_number+1)
     else:
         log.exception(e)
+        snapshot(browser)
         return {}, {}
 
 
@@ -3528,36 +3600,56 @@ def get_dialog_input_value(elements):
         return None
 
 
-def get_indicator_dialog_values(browser):
+def get_indicator_dialog_values(browser, tries=0):
     result = dict()
-    try:
-        rows = find_elements(browser,
-                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=first], '
-                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=fill], '
-                             'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=inlineRow]')
-        for row in rows:
-            class_name = row.get_attribute('class')
-            if class_name.find('separator') >= 0:
-                continue
-            title = get_dialog_input_title(
-                find_element(row, 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'))
-            # If title is empty, ignore this row
-            if title:
-                value_cells = get_indicator_dialog_elements(browser, title)
-                value = get_dialog_input_value(value_cells)
-                if value is not None:
-                    result[title] = value
+    max_tries = max(config.getint('tradingview', 'create_alert_max_retries') * 10, 100)
+    if tries >= max_tries:
+        return result
 
-        for title in result:
-            if len(result[title]) == 1:
-                result[title] = result[title][0]
+    css = 'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=first], ' \
+          'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=fill], ' \
+          'div[data-name="indicator-properties-dialog"] div[class*=content] > div[class*=inlineRow]'
+    try:
+        rows = find_elements(browser, css)
+        try:
+            for row in rows:
+                title = ''
+                class_name = row.get_attribute('class')
+                if class_name.find('separator') >= 0:
+                    continue
+                css = 'div[class*="first"] > div, span[class^="label"] span[class^="label"], div[class^="label"] span[class^="label"]'
+                try:
+                    elem = find_element(row, css)
+                    title = get_dialog_input_title(elem)
+                except TimeoutException as e:
+                    log.exception("no such element {}".format(css))
+                    log.exception(e)
+                except Exception as e:
+                    log.exception(e)
+
+                # If title is empty, ignore this row
+                if title:
+                    value_cells = get_indicator_dialog_elements(browser, title)
+                    value = get_dialog_input_value(value_cells)
+                    if value is not None:
+                        result[title] = value
+
+            for title in result:
+                if len(result[title]) == 1:
+                    result[title] = result[title][0]
+        except TimeoutException as e:
+            log.exception(e)
+            return get_indicator_dialog_values(browser)
+        except StaleElementReferenceException:
+            pass
+        except Exception as e:
+            log.exception(e)
     except TimeoutException as e:
+        log.exception("no such element {}".format(css))
         log.exception(e)
-        return get_indicator_dialog_values(browser)
-    except StaleElementReferenceException:
-        pass
     except Exception as e:
         log.exception(e)
+
     return result
 
 
@@ -3802,7 +3894,7 @@ def post_process_data_points(data, values):
             del values[key]
 
 
-def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
+def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties, export_trades_filename):
     try:
 
         summaries = list()
@@ -3828,7 +3920,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                     strategy_summary['inputs'] = inputs
                     strategy_summary['properties'] = properties
                     strategy_summary['summary'] = dict()
-                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies)
+                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies, export_trades_filename)
                     summaries.append(strategy_summary)
 
         # Inputs have been defined. Run back test for each input with default properties
@@ -3840,7 +3932,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                 strategy_summary['inputs'] = inputs
                 strategy_summary['properties'] = []
                 strategy_summary['summary'] = dict()
-                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies)
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies, export_trades_filename)
                 summaries.append(strategy_summary)
         # Properties have been defined. Run back test for property with default inputs
         elif len(atomic_properties) > 0:
@@ -3851,7 +3943,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                 strategy_summary['inputs'] = []
                 strategy_summary['properties'] = properties
                 strategy_summary['summary'] = dict()
-                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies)
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies, export_trades_filename)
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs and properties
         else:
@@ -3860,7 +3952,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
             strategy_summary['inputs'] = []
             strategy_summary['properties'] = []
             strategy_summary['summary'] = dict()
-            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1)
+            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1, export_trades_filename)
             summaries.append(strategy_summary)
 
         # close strategy tab
@@ -3874,7 +3966,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
         log.exception(e)
 
 
-def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants):
+def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants, export_trades_filename):
     global tv_start
 
     raw = []
@@ -3913,7 +4005,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants, export_trades_filename)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -3921,7 +4013,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants, export_trades_filename)
 
     total_average = dict()
     total_average['Net Profit'] = 0
@@ -4034,12 +4126,26 @@ def get_active_interval(browser):
         log.exception(e)
 
 
-def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries=0):
+def is_study_error(browser):
+    result = True
+    try:
+        result = wait_and_visible(browser, css_selectors['study_error']) is WebElement
+    except TimeoutException:
+        result = False
+    except Exception as e:
+        log.exception(e)
+    return result
+
+
+def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, variant_number, number_of_variants, export_trades_filename, tries=0):
     try:
         if first_symbol:
             open_performance_summary_tab(browser)
 
         change_symbol(browser, symbol)
+        if not is_market_listed(browser):
+            log.warning("{} has been delisted".format(symbol))
+            return
 
         symbol_average = dict()
         symbol_average['Net Profit'] = 0
@@ -4100,21 +4206,23 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 interval_averages[interval]['Avg Trade %'] = 0
                 interval_averages[interval]['Avg # Bars In Trade'] = 0
                 interval_averages[interval]['Counter'] = 0
+            interval = intervals[chart_index]
 
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
-            interval = intervals[chart_index]
-            if element_exists(browser, 'div.report-error'):
-                if not is_market_listed(browser):
-                    log.warning("{} isn't listed".format(symbol))
-                else:
-                    log.warning("{}. Strategy resulted in a data error. Please make sure the strategy "
-                                "runs for the selected timeframe {}".format(symbol, interval))
+            wait_until_studies_are_loaded(browser)
+
+            if is_study_error(browser):
+                log.warning("{}. Strategy resulted in a data error. Please make sure the strategy "
+                            "runs for the selected timeframe {}".format(symbol, interval))
                 break
-            log.info(symbol)
 
-            # take_screenshot(browser, symbol, interval, False, '%Y%m%d_%H%M%S')
-            # log.info("previous_element is {}".format(type(previous_element)))
+            symbol_info = symbol
+            if number_of_charts > 1:
+                symbol_info = "{}, {}".format(symbol, interval)
+            log.info(symbol_info)
 
+            # Make sure the Performance Summary tab is open
+            wait_and_click_by_xpath(browser, '//button[contains(text(), "Performance Summary")]')
             # Extract results
             over_the_threshold = True
             for i, key in enumerate(values):
@@ -4131,53 +4239,46 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # Update previous values with the current ones
                 values[key] = value
 
-            ### Export the list of trades for the current symbol ###
-
-            # TODO: Add a check to see if the strategy has just 1 variation.
-            # If there are more variations show a warning and don't download the trades.
-
-            # TODO: Check if the user has premium TradingView account.
-            # With a free account, the export button is still visible but will show
-            # popup dialog rather than exporting the trades.
-
-            # TODO: Check if there is no study error on the chart.
-
-            if 'export_trades' in strategy_config and strategy_config['export_trades']:
-
-                log.info("Exporting the list of trades for as a CSV file.".format(symbol))
-                latest_downloaded_file = export_list_of_trades(browser)
-                time.sleep(DELAY_BREAK)
-
-                if latest_downloaded_file:
-                    log.info("The list of trades exported to {}".format(latest_downloaded_file))
-
-                    # Get the base so that we can extract the quote later
-                    quote = browser.find_elements_by_xpath('//span[contains(@class, "price-axis-currency-label-text-")]')[0].text
-
-                    # Rename the file because TradingView always uses the same filename when
-                    # exporting trades from one strategy regardless of the symbol.
-                    rename_exported_trades_file(latest_downloaded_file, strategy_config['name'], symbol, quote)
-                else:
-                    # FIXME 
-                    # Should we throw an exception here rather than returning None?
-                    # When the download has failed we would like to at least retry the download.
-                    log.error("Failed to export the list of trades for {}".format(symbol))
-            
-            ### End of exporting the list of trades ###
-
-            # previous_element[0] = find_element(browser, css_selectors['performance_summary_profit_factor'])
-            # log.info("previous_element = {}".format(repr(previous_element[0])))
-            # log.info("screenshot: {}".format('screenshot' in strategy_config and strategy_config['screenshot']))
             if 'screenshot' in strategy_config and strategy_config['screenshot']:
                 take_screenshot(browser, symbol, interval)
             if not over_the_threshold:
                 continue
+
+            # Export the list of trades for the current symbol
+            export_file_name = None
+            if 'export_trades' in strategy_config and strategy_config['export_trades'] and ACCOUNT_LEVEL == 'Premium' and export_trades_filename:
+                # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
+                timeframe = interval.replace("'", "").replace(" ", "_")
+                quote = browser.find_elements_by_xpath('//span[contains(@class, "price-axis-currency-label-text-")]')[0].text
+                exchange, base = symbol.split(':', 1)
+                match = re.search(exchange + ':(.*)' + quote + '$', symbol)
+                if match:
+                    base = match.group(1)
+                else:
+                    log.debug("could not determine base from {} with quote {}".format(symbol, quote))
+                export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
+                if number_of_variants == 1:
+                    export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
+
+                # export trades
+                filename = export_list_of_trades(browser, export_trades_filename)
+                time.sleep(DELAY_BREAK)
+                if filename:
+                    export_file_name = rename_exported_trades_file(filename, export_file_name)
+                    log.debug("list of trades exported to {}".format(export_file_name))
+                    # make sure that no file exists with the original download filename
+                    if os.path.exists(filename):
+                        os.remove(filename)
+                else:
+                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
+
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
             # Exceptions may give incomplete results. Make sure that   #
             # all Selenium interaction is done above this comment.     #
             ############################################################
             # Save the results
+
             result = dict()
             result['Symbol'] = symbol
             result['Interval'] = interval.replace("'", "")
@@ -4191,6 +4292,8 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             result['Avg Trade'] = format_number(float(values['performance_summary_avg_trade']), 8)
             result['Avg Trade %'] = format_number(float(values['performance_summary_avg_trade_percentage']), 8)
             result['Avg # Bars In Trade'] = format_number(float(values['performance_summary_avg_bars_in_trade']), 8)
+            if export_file_name:
+                result['Trades'] = "{}".format(export_file_name.replace("\\", "/"))
             results.append(result)
 
             # add to averages
@@ -4236,10 +4339,12 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_averages[symbol] = symbol_average
 
     except Exception as e:
-        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries, e)
+        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, export_trades_filename, tries, e)
 
 
-def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries, e):
+def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, export_trades_filename, tries, e):
+    if e:
+        log.exception(e)
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
     if tries < max_tries:
         # log.debug("try {}".format(tries))
@@ -4264,7 +4369,7 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
         if not isinstance(e, StaleElementReferenceException):
             log.exception(e)
             refresh(browser)
-        return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, tries+1)
+        return back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, export_trades_filename, tries+1)
     else:
         log.exception(e)
         snapshot(browser, True, False)
@@ -4289,7 +4394,7 @@ def get_strategy_statistic(browser, key, previous_elements):
                 try:
                     wait_for_element_is_stale(previous_elements[key])
                 except TimeoutException as e:
-                    log.info(e)
+                    log.debug(e)
                     pass
                 except Exception as e:
                     log.exception(e)
@@ -4685,10 +4790,6 @@ def generate_config_values(value):
             else:
                 result.append(int(number))
         result.append(end)
-        # if decimal_places > 0:
-        #     result.append(float(round(end, decimal_places)))
-        # else:
-        #     result.append(int(end))
     else:
         result = value
         # log.error("unable to convert {} is of numpy type {} to a python type".format(value, type(value)))
@@ -4736,9 +4837,10 @@ def summary(total_alerts, counter_alerts):
         result = "{} markets screened and {} signals triggered with an average process time of {} seconds per market".format(str(total_alerts), len(triggered_signals), avg)
     return result
 
-def export_list_of_trades(browser):
+
+def export_list_of_trades(browser, default_filename=None):
     """
-    The file will be downloaded to DOWNLOAD_PATH/datetimestamp as specified in download.default_directory
+    The file will be downloaded to DOWNLOAD_PATH/date_timestamp as specified in download.default_directory
 
     When testing this function and running the browser in the foreground,
     make sure to keep the browser window on top otherwise the download will not work.
@@ -4750,37 +4852,33 @@ def export_list_of_trades(browser):
     :return: The path to the exported file or None if the export failed.
     """
     try:
-        # Keep track of the previous downloaded file so that we can 
-        # check if the download was successful.
-        most_recent_downloaded_file = get_latest_file_in_folder(DOWNLOAD_PATH)
-
         # Open the list of trades tab
         wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
-        
-        # Click the export trades button
-        wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
-                
-        MAX_DOWNLOAD_WAIT_TIME = 10 # seconds
-        max_retries = MAX_DOWNLOAD_WAIT_TIME / DELAY_DOWNLOAD_FILE
 
-        # Selumium doens't have a built in way to check if a file has been downloaded.
-        # So we have to monitor the DOWNLOAD_PATH to check if the new file has been downloaded.
+        max_download_wait_time = 10  # seconds
+        max_retries = max_download_wait_time / max(DELAY_DOWNLOAD_FILE, 0.1)
         retries = 0
-        while retries < max_retries:
-            retries+=1
-            time.sleep(DELAY_DOWNLOAD_FILE)
-            latest_file_in_folder = get_latest_file_in_folder(DOWNLOAD_PATH)
-
-            if latest_file_in_folder != most_recent_downloaded_file:
-                log.info("Downloaded list of trades in {} seconds.".format(str(retries * DELAY_DOWNLOAD_FILE)))
-                return latest_file_in_folder
-        
-        snapshot(browser)
-        log.error("Failed to export list of trades. Max download timeout expired.")
-        return None
+        if default_filename:
+            while not os.path.exists(default_filename) and retries < max_retries:
+                retries += 1
+                # Click the export trades button
+                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+                time.sleep(DELAY_DOWNLOAD_FILE)
+        else:
+            while default_filename is None and retries < max_retries:
+                retries += 1
+                # Open the list of trades tab
+                wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
+                # Click the export trades button
+                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+                time.sleep(DELAY_DOWNLOAD_FILE)
+                default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
 
     except Exception as e:
-        return e
+        log.exception(e)
+    finally:
+        return default_filename
+
 
 def get_latest_file_in_folder(path):
     """
@@ -4789,6 +4887,7 @@ def get_latest_file_in_folder(path):
     :param path:
     :return: The file with the latest modified time in the folder or None if there are no files in the folder
     """
+    result = None
     # find the most recent subfolder in the path
     # then find the most recent file in that subfolder
     # then return the file
@@ -4798,29 +4897,25 @@ def get_latest_file_in_folder(path):
         # get all csv files in the sub folder
         list_of_files = [os.path.join(latest_subfolder, f) for f in os.listdir(latest_subfolder) if f.endswith('.csv')]
         if list_of_files:
-            return max(list_of_files, key=os.path.getctime)
-            
-    return None
+            result = max(list_of_files, key=os.path.getctime)
 
-def rename_exported_trades_file(file_path, strategy_name, symbol, quote):
+    return result
+
+
+def rename_exported_trades_file(file_path, new_file_name):
     """
     Rename the file to the format: exchange-quote_base-strategyname.csv
 
     :param file_path:
-    :param strategy_name:
-    :param symbol:
-    :param quote:
+    :param new_file_name:
+    :return path of renamed file
     """
-    # get full path of the latest_file_in_folder
-    download_folder_with_datestamp = os.path.dirname(file_path)
-    
-    # Extract the exchange from the symbol
-    exchange = symbol.split(':')[0]
-
-    # Extract the base from the symbol
-    base = re.search(exchange + ':(.*)' + quote, symbol).group(1)
-
-    new_file_name = exchange + "-" + base + "_" + quote + "-" + strategy_name + ".csv"
-
-    os.rename(file_path, os.path.join(download_folder_with_datestamp, new_file_name))
-    log.info("Renamed file to {}".format(new_file_name))
+    new_file_path = None
+    try:
+        # get full path of the latest_file_in_folder
+        new_file_path = os.path.join(os.path.dirname(file_path), new_file_name)
+        os.rename(file_path, new_file_path)
+        log.debug("Renamed file to {}".format(new_file_path))
+    except Exception as e:
+        log.exception(e)
+    return new_file_path
