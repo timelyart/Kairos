@@ -412,6 +412,11 @@ def replace_apostrophe(json_data):
     return json_data
 
 
+def array_to_string(my_list):
+    result = ', '.join(str(x) for x in my_list)
+    return result
+
+
 def strip_to_ascii(value):
     return ''.join([i if ord(i) < 128 else '' for i in value])
 
