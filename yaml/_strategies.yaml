@@ -45,5 +45,9 @@ charts:
     properties: {initial_capital: 1000, base_currency: EUR, order_size: {0: 1 - 5&1, 1: '% of equity'},
                  commission: {0: [0.1, 0.25], 1: '%'}, verify_price_for_limit_orders: 10, slippage: 10,
                  recalculate: {0: yes, 1: no}}
+    # Export trades to a CSV file
+    # The file will be named as 'exchange-quote_base-strategyname_strategyvariant.csv' and a reference to the file's
+    # location will be saved with the results of the strategy (.json file).
+    export_trades: yes
 webdriver:
-  run-in-background: yes
+  run-in-background: no
