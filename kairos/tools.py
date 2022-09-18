@@ -437,9 +437,7 @@ def set_permission(path):
         owner = stat.S_IRWXU
         group = stat.S_IRWXG
         other = stat.S_IRWXO
-        os.chmod(path, owner)
-        os.chmod(path, group)
-        os.chmod(path, other)
+        os.chmod(path, owner | group | other)
         return True
     except Exception as e:
         return e
