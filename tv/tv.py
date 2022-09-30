@@ -4862,6 +4862,10 @@ def export_list_of_trades(browser, default_filename=None):
         max_retries = max_download_wait_time / max(DELAY_DOWNLOAD_FILE, 0.1)
         retries = 0
         if default_filename:
+            # The default filename changes when the clock strikes midnight
+            current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+            default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
+
             while not os.path.exists(default_filename) and retries < max_retries:
                 retries += 1
                 # Click the export trades button
