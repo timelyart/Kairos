@@ -2835,7 +2835,6 @@ def assign_user_data_directory():
                     user_data_directory_found = True
                     log.info("creating user data directory 'kairos_{}'. Please be patient while data is being copied ...".format(i))
                     shutil.copytree(kairos_data_directory, path)
-                    # FIXME: can this be done using set_permission() in tools.py
                     if OS == 'linux':
                         tools.chmod_r(path, 0o777)
                     user_data_directory = path
@@ -4210,6 +4209,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 interval_averages[interval]['Avg Trade %'] = 0
                 interval_averages[interval]['Avg # Bars In Trade'] = 0
                 interval_averages[interval]['Counter'] = 0
+            interval = intervals[chart_index]
 
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             wait_until_studies_are_loaded(browser)
