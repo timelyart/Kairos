@@ -4252,7 +4252,10 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             if 'export_trades' in strategy_config and strategy_config['export_trades'] and ACCOUNT_LEVEL == 'Premium' and export_trades_filename:
                 # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
                 timeframe = interval.replace("'", "").replace(" ", "_")
-                quote = browser.find_elements_by_xpath('//span[contains(@class, "price-axis-currency-label-text-")]')[0].text
+
+                wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
+                quote = browser.find_elements_by_xpath('//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span')[0].text[:-1]
+
                 exchange, base = symbol.split(':', 1)
                 match = re.search(exchange + ':(.*)' + quote + '$', symbol)
                 if match:
