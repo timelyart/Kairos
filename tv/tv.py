@@ -4297,18 +4297,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                     else:
                         log.error("could not determine base from {} with quote {}".format(symbol, quote))
 
-                # export trades
-                filename = export_list_of_trades(browser, export_trades_filename)
-                time.sleep(DELAY_BREAK)
-                if filename:
-                    export_file_name = rename_exported_trades_file(filename, export_file_name)
-                    log.debug("list of trades exported to {}".format(export_file_name))
-                    # make sure that no file exists with the original download filename
-                    if os.path.exists(filename):
-                        os.remove(filename)
-                else:
-                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
-
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
             # Exceptions may give incomplete results. Make sure that   #
