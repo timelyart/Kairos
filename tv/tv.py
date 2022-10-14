@@ -4885,7 +4885,7 @@ def export_list_of_trades(browser, default_filename=None):
         retries = 0
         if default_filename:
             # Click the export trades button
-            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
 
             # The default filename changes when the clock strikes midnight
             current_date = datetime.datetime.now().strftime("%Y-%m-%d")
