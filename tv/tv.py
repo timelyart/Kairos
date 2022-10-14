@@ -1435,8 +1435,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     # Exporting trades to .csv is only available for Premium members
                     if ACCOUNT_LEVEL == 'Premium':
                         export_trades_filename = export_list_of_trades(browser)
-                        log.info("default filename list of trades: {}".format(export_trades_filename))
-                        if os.path.exists(export_trades_filename):
+                        if export_trades_filename and os.path.exists(export_trades_filename):
+                            log.info("default filename list of trades: {}".format(export_trades_filename))
                             os.remove(export_trades_filename)
                     else:
                         log.warning('Unable to export trades. This is a Premium member feature and you are currently logged as a {} member'.format(ACCOUNT_LEVEL))
@@ -2867,6 +2867,8 @@ def check_driver(driver):
 
 def create_browser(run_in_background, resolution='1920,1080', download_path=None):
     global log
+    global DOWNLOAD_PATH
+
     capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
 
@@ -2925,6 +2927,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             try:
                 os.makedirs(download_path)
                 tools.set_permission(download_path)
+                DOWNLOAD_PATH = download_path
             except Exception as e:
                 log.warning('No download_path specified or unable to create it.')
                 log.exception(e)
@@ -4258,29 +4261,41 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # quote = browser.find_element_by_xpath(xpath).text
                 # open the Strategy Tester tab and read the currency from 'Symbol info'
                 wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
-                quote = browser.find_elements_by_xpath('//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span')[0].text[:-1]
-
-                exchange, base = symbol.split(':', 1)
-                match = re.search(exchange + ':(.*)' + quote + '$', symbol)
-                if match:
-                    base = match.group(1)
-                else:
-                    log.debug("could not determine base from {} with quote {}".format(symbol, quote))
-                export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
-                if number_of_variants == 1:
-                    export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
-
-                # export trades
-                filename = export_list_of_trades(browser, export_trades_filename)
                 time.sleep(DELAY_BREAK)
-                if filename:
-                    export_file_name = rename_exported_trades_file(filename, export_file_name)
-                    log.debug("list of trades exported to {}".format(export_file_name))
-                    # make sure that no file exists with the original download filename
-                    if os.path.exists(filename):
-                        os.remove(filename)
-                else:
-                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
+                quote_element = browser.find_elements_by_xpath('//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span')
+
+                # alternative on the List of trades tab
+                # Reads the quote from the first row of the list of trades
+                # wait_and_click_by_xpath(browser, '//button[contains(text(), "List of trades")]')
+                # we could remove the click to this list of trades tab in the export_list_of_trades() function
+                # //*[@id="bottom-area"]//*[@class="ka-tbody"]//tr[2]//td[5]//span
+                if quote_element and quote_element[0].text:
+                    quote = quote_element[0].text[:-1]
+
+                    exchange, base = symbol.split(':', 1)
+                    match = re.search(exchange + ':(.*)' + quote + '$', symbol)
+
+                    if match:
+                        base = match.group(1)
+
+                        export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
+                        if number_of_variants == 1:
+                            export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
+
+                        # export trades
+                        filename = export_list_of_trades(browser, export_trades_filename)
+                        time.sleep(DELAY_BREAK)
+                        if filename:
+                            export_file_name = rename_exported_trades_file(filename, export_file_name)
+                            log.debug("list of trades exported to {}".format(export_file_name))
+                            # make sure that no file exists with the original download filename
+                            if os.path.exists(filename):
+                                os.remove(filename)
+                        else:
+                            log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
+
+                    else:
+                        log.error("could not determine base from {} with quote {}".format(symbol, quote))
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
@@ -4869,23 +4884,23 @@ def export_list_of_trades(browser, default_filename=None):
         max_retries = max_download_wait_time / max(DELAY_DOWNLOAD_FILE, 0.1)
         retries = 0
         if default_filename:
+            # Click the export trades button
+            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+
             # The default filename changes when the clock strikes midnight
             current_date = datetime.datetime.now().strftime("%Y-%m-%d")
             default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
 
             while not os.path.exists(default_filename) and retries < max_retries:
-                retries += 1
-                # Click the export trades button
-                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
-                time.sleep(DELAY_DOWNLOAD_FILE)
+                retries += 1                
+                time.sleep(DELAY_DOWNLOAD_FILE) # Give the download time to finish
         else:
+            # Click the export trades button
+            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+            
             while default_filename is None and retries < max_retries:
-                retries += 1
-                # Open the list of trades tab
-                wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
-                # Click the export trades button
-                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
-                time.sleep(DELAY_DOWNLOAD_FILE)
+                retries += 1                
+                time.sleep(DELAY_DOWNLOAD_FILE) # Give the download time to finish
                 default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
 
     except Exception as e:
@@ -4899,21 +4914,15 @@ def get_latest_file_in_folder(path):
     Find the latest downloaded file in the specified folder
 
     :param path:
-    :return: The file with the latest modified time in the folder or None if there are no files in the folder
+    :return: The file with the latest creation time in the folder or None if there are no files in the folder
     """
-    result = None
-    # find the most recent subfolder in the path
-    # then find the most recent file in that subfolder
-    # then return the file
-    subfolders = [os.path.join(path, d) for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
-    if subfolders:
-        latest_subfolder = max(subfolders, key=os.path.getmtime)
-        # get all csv files in the sub folder
-        list_of_files = [os.path.join(latest_subfolder, f) for f in os.listdir(latest_subfolder) if f.endswith('.csv')]
-        if list_of_files:
-            result = max(list_of_files, key=os.path.getctime)
+    latest_file = None
 
-    return result
+    if os.path.exists(path):
+        files = [os.path.join(path, file) for file in os.listdir(path) if file.endswith('.csv')]
+        if len(files) > 0:
+            latest_file = max(files, key=os.path.getctime)
+    return latest_file
 
 
 def rename_exported_trades_file(file_path, new_file_name):
