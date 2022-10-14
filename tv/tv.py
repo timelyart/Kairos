@@ -813,7 +813,7 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
-    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]/span'.format(indicator['name'], index + 1)
+    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], index + 1)
     element = False
     value = ''
     while not (element and value):
@@ -826,6 +826,7 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
             # continue
         except Exception as e:
             log.exception(e)
+            log.exception(xpath_value)
             element = False
             if retry_number < max_retries * 10:
                 time.sleep(0.05)
@@ -3331,7 +3332,7 @@ def update_watchlist(browser, name, markets):
         time.sleep(DELAY_BREAK)
 
         # create new watchlist
-        wait_and_click_by_text(browser, 'div', 'Create new list')
+        wait_and_click_by_text(browser, 'span', 'Create new list')
 
         # set watchlist name
         input_watchlist_name = find_element(browser, 'div[data-name="rename-dialog"] input')
@@ -4261,16 +4262,15 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # quote = browser.find_element_by_xpath(xpath).text
                 # open the Strategy Tester tab and read the currency from 'Symbol info'
                 wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
-                time.sleep(DELAY_BREAK)
-                quote_element = browser.find_elements_by_xpath('//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span')
+                quote_elements = find_elements(browser, '//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span', By.XPATH)
 
                 # alternative on the List of trades tab
                 # Reads the quote from the first row of the list of trades
                 # wait_and_click_by_xpath(browser, '//button[contains(text(), "List of trades")]')
                 # we could remove the click to this list of trades tab in the export_list_of_trades() function
                 # //*[@id="bottom-area"]//*[@class="ka-tbody"]//tr[2]//td[5]//span
-                if quote_element and quote_element[0].text:
-                    quote = quote_element[0].text[:-1]
+                if quote_elements and quote_elements[0].text:
+                    quote = quote_elements[0].text[:-1]
 
                     exchange, base = symbol.split(':', 1)
                     match = re.search(exchange + ':(.*)' + quote + '$', symbol)
@@ -4892,15 +4892,15 @@ def export_list_of_trades(browser, default_filename=None):
             default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
 
             while not os.path.exists(default_filename) and retries < max_retries:
-                retries += 1                
-                time.sleep(DELAY_DOWNLOAD_FILE) # Give the download time to finish
+                retries += 1
+                time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
         else:
             # Click the export trades button
-            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
-            
+            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+
             while default_filename is None and retries < max_retries:
-                retries += 1                
-                time.sleep(DELAY_DOWNLOAD_FILE) # Give the download time to finish
+                retries += 1
+                time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
                 default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
 
     except Exception as e:
