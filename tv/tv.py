@@ -4876,7 +4876,7 @@ def export_list_of_trades(browser, default_filename=None):
             while not os.path.exists(default_filename) and retries < max_retries:
                 retries += 1
                 # Click the export trades button
-                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
                 time.sleep(DELAY_DOWNLOAD_FILE)
         else:
             while default_filename is None and retries < max_retries:
@@ -4884,7 +4884,7 @@ def export_list_of_trades(browser, default_filename=None):
                 # Open the list of trades tab
                 wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
                 # Click the export trades button
-                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
+                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
                 time.sleep(DELAY_DOWNLOAD_FILE)
                 default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
 
