@@ -2714,6 +2714,8 @@ def login(browser, uid='', pwd='', retry_login=False):
             snapshot(browser, True)
 
     # close cookie banner (if any)
+    # cookie popup only shows up on the landing page after scrolling down
+    browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     accept_cookies(browser)
 
     try:
