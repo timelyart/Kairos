@@ -4214,13 +4214,14 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 interval_averages[interval]['Avg # Bars In Trade'] = 0
                 interval_averages[interval]['Counter'] = 0
             interval = intervals[chart_index]
-
+                
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             wait_until_studies_are_loaded(browser)
 
             if is_study_error(browser):
                 log.warning("{}. Strategy resulted in a data error. Please make sure the strategy "
                             "runs for the selected timeframe {}".format(symbol, interval))
+                snapshot(browser)
                 break
 
             symbol_info = symbol
@@ -4239,7 +4240,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                 # check if the total closed trades is over the threshold
                 if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
-                    log.debug("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
+                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
                     over_the_threshold = False
                     values[key] = value
                     break
@@ -4257,10 +4258,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
                 timeframe = interval.replace("'", "").replace(" ", "_")
 
-                # unfortunately, we can't read the currency from the chart directly as it is not always populated on load (see issue #73)
-                # xpath = '(//div[contains(@class, "chart-container-border")])[{}]//span[contains(@class, "price-axis-currency-label-text-")][. !=""]'.format(chart_index + 1)
-                # quote = browser.find_element_by_xpath(xpath).text
-                # open the Strategy Tester tab and read the currency from 'Symbol info'
                 wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
                 quote_elements = find_elements(browser, '//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span', By.XPATH)
 
@@ -4296,6 +4293,10 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                     else:
                         log.error("could not determine base from {} with quote {}".format(symbol, quote))
+
+                else:
+                    # FIXME should we throw an exception here so that the it retries the symbol?
+                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
@@ -4904,6 +4905,7 @@ def export_list_of_trades(browser, default_filename=None):
                 default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
 
     except Exception as e:
+        snapshot(browser)
         log.exception(e)
     finally:
         return default_filename
