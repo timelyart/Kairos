@@ -4271,32 +4271,31 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                     exchange, base = symbol.split(':', 1)
                     match = re.search(exchange + ':(.*)' + quote + '$', symbol)
-
                     if match:
+                        # extract the base from the ticker, e.g. BTCUSD into BTC
                         base = match.group(1)
-
-                        export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
-                        if number_of_variants == 1:
-                            export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
-
-                        # export trades
-                        filename = export_list_of_trades(browser, export_trades_filename)
-                        time.sleep(DELAY_BREAK)
-                        if filename:
-                            export_file_name = rename_exported_trades_file(filename, export_file_name)
-                            log.debug("list of trades exported to {}".format(export_file_name))
-                            # make sure that no file exists with the original download filename
-                            if os.path.exists(filename):
-                                os.remove(filename)
-                        else:
-                            log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
-
                     else:
-                        log.error("could not determine base from {} with quote {}".format(symbol, quote))
+                        # if none found, use the base+quote, e.g. BTCPERP
+                        log.warning("unable to determine base from {} with quote {}. Using {} as base instead.".format(symbol, quote, base))
+
+                    export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
+                    if number_of_variants == 1:
+                        export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
+
+                    # export trades
+                    filename = export_list_of_trades(browser, export_trades_filename)
+                    time.sleep(DELAY_BREAK)
+                    if filename:
+                        export_file_name = rename_exported_trades_file(filename, export_file_name)
+                        log.debug("list of trades exported to {}".format(export_file_name))
+                        # make sure that no file exists with the original download filename
+                        if os.path.exists(filename):
+                            os.remove(filename)
+                    else:
+                        log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
 
                 else:
-                    # FIXME should we throw an exception here so that the it retries the symbol?
-                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
+                    raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
