@@ -250,7 +250,7 @@ css_selectors = dict(
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
-    invalid_symbol='div[title="Invalid Symbol"]',
+    price_axis='td.price-axis-container > div > div',
 )
 
 class_selectors = dict(
@@ -816,10 +816,19 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
     xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], index + 1)
     element = False
     value = ''
-    while not (element and value):
+    i = 0
+    # while not element and value == '':
+    # while not (element and value):
+    while i < max_retries and not (element and value):
+        i += 1
         try:
             element = find_element(browser, xpath_value, By.XPATH)
-            value = element.text
+            # handle unicode null character '∅'
+            value = str(element.text).translate({0x2205: 'NaN'})
+            # sometimes the element exists, holds no data and only gets populated after a scroll
+            if element and not value:
+                browser.execute_script("arguments[0].scrollIntoView(true);", element)
+
         except StaleElementReferenceException as e:
             element = False
             log.debug(e)
@@ -832,8 +841,7 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
                 time.sleep(0.05)
                 return get_data_window_indicator_value(browser, indicator, index, retry_number+1)
             else:
-                value = 'NAN'
-                log.info(value)
+                value = 'NaN'
     return value
 
 
@@ -1565,8 +1573,9 @@ def is_market_listed(browser):
     """
     listed = False
     try:
-        # listed = element_exists(browser, css_selectors['invalid_symbol'])
-        listed = find_element(browser, css_selectors['invalid_symbol'], By.CSS_SELECTOR, except_on_timeout=False) is None
+        price_axis = find_element(browser, css_selectors['price_axis'], visible=True, except_on_timeout=False)
+        if price_axis:
+            listed = True
     except StaleElementReferenceException as e:
         log.info(e)
         return is_market_listed(browser)
@@ -1807,7 +1816,6 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                             if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
                                 return retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number)
                             previous_values = values
-
                         # log.info(values)
                         indicator_triggered, previous_symbol_values = is_indicator_triggered(browser, indicator, values, previous_symbol_values)
                         bar += 1
@@ -2188,12 +2196,14 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
                 if window not in windows:
                     browser.switch_to.window(window)
             # extract the url
-            elem_image = find_element(browser, css_selectors['img_chart'])
-            screenshot_url = elem_image.get_attribute('src')
-            # close the newly opened tab
-            browser.close()
-            browser.switch_to_window(previous_window)
-            log.info(screenshot_url)
+            try:
+                elem_image = find_element(browser, css_selectors['img_chart'])
+                screenshot_url = elem_image.get_attribute('src')
+            finally:
+                # make sure to close the newly opened tab
+                browser.close()
+                browser.switch_to_window(previous_window)
+                log.info(screenshot_url)
 
         elif screenshot_dir != '':
             chart_dir = ''
