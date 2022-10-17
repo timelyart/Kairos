@@ -154,27 +154,26 @@ css_selectors = dict(
     selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
     checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
     # Notify on App
-    clickable_dlg_create_alert_send_push='input[type="checkbox"][name="send-push"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="send-push"])',
     # Show Popup
-    clickable_dlg_create_alert_show_popup='input[type="checkbox"][name="show-popup"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="show-popup"])',
     # Send Email
-    clickable_dlg_create_alert_send_email='input[type="checkbox"][name="send-email"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="send-email"])',
     # Webhook
-    clickable_dlg_create_alert_webhook='input[type="checkbox"][name="webhook-toggle"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_webhook='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="webhook-toggle"])',
     dlg_create_alert_webhook='input[type="url"][name="webhook-url"]',
     # Toggle more actions
     btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
     # Play Sound
-    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item.js-sound-switch label',
+    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="play-sound"])',
     # Sound options
     dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
-    options_dlg_create_alert_ringtone='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    options_dlg_create_alert_ringtone='div.js-sound-settings div.tv-alert-dialog__group-item--left span.tv-control-select__option',
     dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
-    options_dlg_create_alert_sound_duration='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    options_dlg_create_alert_sound_duration='div.js-sound-settings div.tv-alert-dialog__group-item--right span.tv-control-select__option',
     # Send Email-to-SMS
-    clickable_dlg_create_alert_send_email_to_sms='input[type="checkbox"][name="send-sms"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item:has(input[type="checkbox"][name="send-sms"])',
     # Send SMS
-    clickable_dlg_create_alert_send_sms='input[type="checkbox"][name="send-sms"] + span + span.tv-control-checkbox__ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
     # Set Alert name
     dlg_create_alert_name='input[type="text"][name="alert-name"]',
@@ -2429,14 +2428,14 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_ringtone'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_ringtone'])
             for option in el_options:
-                option_value = str(option.get_attribute("textContent")).strip()
+                option_value = str(option.text).strip()
                 if option_value == str(alert_config['sound']['ringtone']).strip():
                     option.click()
             # set duration
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_sound_duration'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_sound_duration'])
             for option in el_options:
-                option_value = str(option.get_attribute("textContent")).strip()
+                option_value = str(option.text).strip()
                 if option_value == str(alert_config['sound']['duration']).strip():
                     option.click()
 
