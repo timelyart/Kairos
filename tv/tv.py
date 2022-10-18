@@ -1443,8 +1443,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     # Exporting trades to .csv is only available for Premium members
                     if ACCOUNT_LEVEL == 'Premium':
                         export_trades_filename = export_list_of_trades(browser)
-                        log.info("default filename list of trades: {}".format(export_trades_filename))
-                        if os.path.exists(export_trades_filename):
+                        if export_trades_filename and os.path.exists(export_trades_filename):
+                            log.info("default filename list of trades: {}".format(export_trades_filename))
                             os.remove(export_trades_filename)
                     else:
                         log.warning('Unable to export trades. This is a Premium member feature and you are currently logged as a {} member'.format(ACCOUNT_LEVEL))
@@ -2879,6 +2879,8 @@ def check_driver(driver):
 
 def create_browser(run_in_background, resolution='1920,1080', download_path=None):
     global log
+    global DOWNLOAD_PATH
+
     capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
 
@@ -2937,6 +2939,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             try:
                 os.makedirs(download_path)
                 tools.set_permission(download_path)
+                DOWNLOAD_PATH = download_path
             except Exception as e:
                 log.warning('No download_path specified or unable to create it.')
                 log.exception(e)
@@ -4929,21 +4932,15 @@ def get_latest_file_in_folder(path):
     Find the latest downloaded file in the specified folder
 
     :param path:
-    :return: The file with the latest modified time in the folder or None if there are no files in the folder
+    :return: The file with the latest creation time in the folder or None if there are no files in the folder
     """
-    result = None
-    # find the most recent subfolder in the path
-    # then find the most recent file in that subfolder
-    # then return the file
-    subfolders = [os.path.join(path, d) for d in os.listdir(path) if os.path.isdir(os.path.join(path, d))]
-    if subfolders:
-        latest_subfolder = max(subfolders, key=os.path.getmtime)
-        # get all csv files in the sub folder
-        list_of_files = [os.path.join(latest_subfolder, f) for f in os.listdir(latest_subfolder) if f.endswith('.csv')]
-        if list_of_files:
-            result = max(list_of_files, key=os.path.getctime)
+    latest_file = None
 
-    return result
+    if os.path.exists(path):
+        files = [os.path.join(path, file) for file in os.listdir(path) if file.endswith('.csv')]
+        if len(files) > 0:
+            latest_file = max(files, key=os.path.getctime)
+    return latest_file
 
 
 def rename_exported_trades_file(file_path, new_file_name):
