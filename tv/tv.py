@@ -154,27 +154,26 @@ css_selectors = dict(
     selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
     checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
     # Notify on App
-    clickable_dlg_create_alert_send_push='input[type="checkbox"][name="send-push"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="send-push"])',
     # Show Popup
-    clickable_dlg_create_alert_show_popup='input[type="checkbox"][name="show-popup"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="show-popup"])',
     # Send Email
-    clickable_dlg_create_alert_send_email='input[type="checkbox"][name="send-email"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="send-email"])',
     # Webhook
-    clickable_dlg_create_alert_webhook='input[type="checkbox"][name="webhook-toggle"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_webhook='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="webhook-toggle"])',
     dlg_create_alert_webhook='input[type="url"][name="webhook-url"]',
     # Toggle more actions
     btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
     # Play Sound
-    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item.js-sound-switch label',
+    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="play-sound"])',
     # Sound options
     dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
-    options_dlg_create_alert_ringtone='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    options_dlg_create_alert_ringtone='div.js-sound-settings div.tv-alert-dialog__group-item--left span.tv-control-select__option',
     dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
-    options_dlg_create_alert_sound_duration='div.js-sound-settings span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
+    options_dlg_create_alert_sound_duration='div.js-sound-settings div.tv-alert-dialog__group-item--right span.tv-control-select__option',
     # Send Email-to-SMS
-    clickable_dlg_create_alert_send_email_to_sms='input[type="checkbox"][name="send-sms"] + span + span.tv-control-checkbox__ripple',
+    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item:has(input[type="checkbox"][name="send-sms"])',
     # Send SMS
-    clickable_dlg_create_alert_send_sms='input[type="checkbox"][name="send-sms"] + span + span.tv-control-checkbox__ripple',
     btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
     # Set Alert name
     dlg_create_alert_name='input[type="text"][name="alert-name"]',
@@ -250,7 +249,7 @@ css_selectors = dict(
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
-    invalid_symbol='div[title="Invalid Symbol"]',
+    price_axis='td.price-axis-container > div > div',
 )
 
 class_selectors = dict(
@@ -813,26 +812,35 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
-    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]/span'.format(indicator['name'], index + 1)
+    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], index + 1)
     element = False
     value = ''
-    while not (element and value):
+    i = 0
+    # while not element and value == '':
+    # while not (element and value):
+    while i < max_retries and not (element and value):
+        i += 1
         try:
             element = find_element(browser, xpath_value, By.XPATH)
-            value = element.text
+            # handle unicode null character '∅'
+            value = str(element.text).translate({0x2205: 'NaN'})
+            # sometimes the element exists, holds no data and only gets populated after a scroll
+            if element and not value:
+                browser.execute_script("arguments[0].scrollIntoView(true);", element)
+
         except StaleElementReferenceException as e:
             element = False
             log.debug(e)
             # continue
         except Exception as e:
             log.exception(e)
+            log.exception(xpath_value)
             element = False
             if retry_number < max_retries * 10:
                 time.sleep(0.05)
                 return get_data_window_indicator_value(browser, indicator, index, retry_number+1)
             else:
-                value = 'NAN'
-                log.info(value)
+                value = 'NaN'
     return value
 
 
@@ -1564,8 +1572,9 @@ def is_market_listed(browser):
     """
     listed = False
     try:
-        # listed = element_exists(browser, css_selectors['invalid_symbol'])
-        listed = find_element(browser, css_selectors['invalid_symbol'], By.CSS_SELECTOR, except_on_timeout=False) is None
+        price_axis = find_element(browser, css_selectors['price_axis'], visible=True, except_on_timeout=False)
+        if price_axis:
+            listed = True
     except StaleElementReferenceException as e:
         log.info(e)
         return is_market_listed(browser)
@@ -1806,7 +1815,6 @@ def process_symbol(browser, chart, symbol, timeframe, last_indicator_name, count
                             if (not values) and retry_number < config.getint('tradingview', 'create_alert_max_retries'):
                                 return retry_process_symbol(browser, chart, symbol, timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values, retry_number)
                             previous_values = values
-
                         # log.info(values)
                         indicator_triggered, previous_symbol_values = is_indicator_triggered(browser, indicator, values, previous_symbol_values)
                         bar += 1
@@ -2187,12 +2195,14 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
                 if window not in windows:
                     browser.switch_to.window(window)
             # extract the url
-            elem_image = find_element(browser, css_selectors['img_chart'])
-            screenshot_url = elem_image.get_attribute('src')
-            # close the newly opened tab
-            browser.close()
-            browser.switch_to_window(previous_window)
-            log.info(screenshot_url)
+            try:
+                elem_image = find_element(browser, css_selectors['img_chart'])
+                screenshot_url = elem_image.get_attribute('src')
+            finally:
+                # make sure to close the newly opened tab
+                browser.close()
+                browser.switch_to_window(previous_window)
+                log.info(screenshot_url)
 
         elif screenshot_dir != '':
             chart_dir = ''
@@ -2418,14 +2428,14 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_ringtone'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_ringtone'])
             for option in el_options:
-                option_value = str(option.get_attribute("textContent")).strip()
+                option_value = str(option.text).strip()
                 if option_value == str(alert_config['sound']['ringtone']).strip():
                     option.click()
             # set duration
             wait_and_click(alert_dialog, css_selectors['dlg_create_alert_sound_duration'])
             el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_sound_duration'])
             for option in el_options:
-                option_value = str(option.get_attribute("textContent")).strip()
+                option_value = str(option.text).strip()
                 if option_value == str(alert_config['sound']['duration']).strip():
                     option.click()
 
@@ -2713,6 +2723,8 @@ def login(browser, uid='', pwd='', retry_login=False):
             snapshot(browser, True)
 
     # close cookie banner (if any)
+    # cookie popup only shows up on the landing page after scrolling down
+    browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
     accept_cookies(browser)
 
     try:
@@ -3328,7 +3340,7 @@ def update_watchlist(browser, name, markets):
         time.sleep(DELAY_BREAK)
 
         # create new watchlist
-        wait_and_click_by_text(browser, 'div', 'Create new list')
+        wait_and_click_by_text(browser, 'span', 'Create new list')
 
         # set watchlist name
         input_watchlist_name = find_element(browser, 'div[data-name="rename-dialog"] input')
@@ -4210,13 +4222,14 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 interval_averages[interval]['Avg # Bars In Trade'] = 0
                 interval_averages[interval]['Counter'] = 0
             interval = intervals[chart_index]
-
+                
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             wait_until_studies_are_loaded(browser)
 
             if is_study_error(browser):
                 log.warning("{}. Strategy resulted in a data error. Please make sure the strategy "
                             "runs for the selected timeframe {}".format(symbol, interval))
+                snapshot(browser)
                 break
 
             symbol_info = symbol
@@ -4235,7 +4248,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                 # check if the total closed trades is over the threshold
                 if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
-                    log.debug("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
+                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
                     over_the_threshold = False
                     values[key] = value
                     break
@@ -4253,34 +4266,46 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
                 timeframe = interval.replace("'", "").replace(" ", "_")
 
-                # unfortunately, we can't read the currency from the chart directly as it is not always populated on load (see issue #73)
-                # xpath = '(//div[contains(@class, "chart-container-border")])[{}]//span[contains(@class, "price-axis-currency-label-text-")][. !=""]'.format(chart_index + 1)
-                # quote = browser.find_element_by_xpath(xpath).text
-                # open the Strategy Tester tab and read the currency from 'Symbol info'
-                wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
-                quote = browser.find_elements_by_xpath('//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span')[0].text[:-1]
+                # The "clean" way to the currency but it requires additional interaction
+                # wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
+                # quote_elements = find_elements(browser, '//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span', By.XPATH)
 
-                exchange, base = symbol.split(':', 1)
-                match = re.search(exchange + ':(.*)' + quote + '$', symbol)
-                if match:
-                    base = match.group(1)
-                else:
-                    log.debug("could not determine base from {} with quote {}".format(symbol, quote))
-                export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
-                if number_of_variants == 1:
-                    export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
-
-                # export trades
-                filename = export_list_of_trades(browser, export_trades_filename)
+                # Alternative way to read the currency directly from the List of Trades tab
+                wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
                 time.sleep(DELAY_BREAK)
-                if filename:
-                    export_file_name = rename_exported_trades_file(filename, export_file_name)
-                    log.debug("list of trades exported to {}".format(export_file_name))
-                    # make sure that no file exists with the original download filename
-                    if os.path.exists(filename):
-                        os.remove(filename)
+                # The second value (first value can be empty on an open trade) from the second row of the price column in the list of trades.
+                quote_elements = find_elements(browser, '(//*[@id="bottom-area"]//*[@class="ka-tbody"]//tr[2]//td[5]//span)[2]', By.XPATH)
+                if quote_elements and quote_elements[0].text:
+                    # quote = quote_elements[0].text[:-1]  # reading from the Properties tab
+                    quote = quote_elements[0].text.rsplit(' ', 1)[1] # reading from List of Trades tab - eg. "0.471 BUSD"
+
+                    exchange, base = symbol.split(':', 1)
+                    match = re.search(exchange + ':(.*)' + quote + '$', symbol)
+                    if match:
+                        # extract the base from the ticker, e.g. BTCUSD into BTC
+                        base = match.group(1)
+                    else:
+                        # if none found, use the base+quote, e.g. BTCPERP
+                        log.warning("unable to determine base from {} with quote {}. Using {} as base instead.".format(symbol, quote, base))
+
+                    export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
+                    if number_of_variants == 1:
+                        export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
+
+                    # export trades
+                    filename = export_list_of_trades(browser, export_trades_filename)
+                    time.sleep(DELAY_BREAK)
+                    if filename:
+                        export_file_name = rename_exported_trades_file(filename, export_file_name)
+                        log.debug("list of trades exported to {}".format(export_file_name))
+                        # make sure that no file exists with the original download filename
+                        if os.path.exists(filename):
+                            os.remove(filename)
+                    else:
+                        log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
+
                 else:
-                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
+                    raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
@@ -4862,33 +4887,38 @@ def export_list_of_trades(browser, default_filename=None):
     :return: The path to the exported file or None if the export failed.
     """
     try:
-        # Open the list of trades tab
-        wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
+        # FIXME validate that default_filename isn't empty and that it's a string
+        
+        # Check if the List of Trades is already open, if it isn't open it right now
+        active_tab = find_elements(browser, '//*[contains(@class, "activeTab")]', By.XPATH)        
+        if len(active_tab) > 0 and active_tab[0].text != "List of Trades":
+            wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
 
         max_download_wait_time = 10  # seconds
         max_retries = max_download_wait_time / max(DELAY_DOWNLOAD_FILE, 0.1)
         retries = 0
         if default_filename:
+            # Click the export trades button
+            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+
             # The default filename changes when the clock strikes midnight
             current_date = datetime.datetime.now().strftime("%Y-%m-%d")
             default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
 
             while not os.path.exists(default_filename) and retries < max_retries:
                 retries += 1
-                # Click the export trades button
-                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
-                time.sleep(DELAY_DOWNLOAD_FILE)
+                time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
         else:
+            # Click the export trades button
+            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+
             while default_filename is None and retries < max_retries:
                 retries += 1
-                # Open the list of trades tab
-                wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
-                # Click the export trades button
-                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[2]')
-                time.sleep(DELAY_DOWNLOAD_FILE)
+                time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
                 default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
 
     except Exception as e:
+        snapshot(browser)
         log.exception(e)
     finally:
         return default_filename
