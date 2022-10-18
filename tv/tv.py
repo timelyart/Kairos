@@ -1442,10 +1442,15 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 if 'export_trades' in strategy and strategy['export_trades']:
                     # Exporting trades to .csv is only available for Premium members
                     if ACCOUNT_LEVEL == 'Premium':
-                        export_trades_filename = export_list_of_trades(browser)
-                        if export_trades_filename and os.path.exists(export_trades_filename):
-                            log.info("default filename list of trades: {}".format(export_trades_filename))
-                            os.remove(export_trades_filename)
+                        if not is_study_error(browser):
+                            export_trades_filename = export_list_of_trades(browser)
+                            if export_trades_filename and os.path.exists(export_trades_filename):
+                                log.info("default filename list of trades: {}".format(export_trades_filename))
+                                os.remove(export_trades_filename)
+                        else:
+                            # FIXME we should probably exit Kairos in a clean way here?
+                            snapshot(browser)
+                            log.error("Unable to export trades for strategy {}: Study Error".format(strategy['name']))
                     else:
                         log.warning('Unable to export trades. This is a Premium member feature and you are currently logged as a {} member'.format(ACCOUNT_LEVEL))
 
@@ -4147,7 +4152,7 @@ def get_active_interval(browser):
 def is_study_error(browser):
     result = True
     try:
-        result = wait_and_visible(browser, css_selectors['study_error']) is WebElement
+        result = wait_and_visible(browser, css_selectors['study_error']) is not WebElement
     except TimeoutException:
         result = False
     except Exception as e:
@@ -4269,18 +4274,13 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
                 timeframe = interval.replace("'", "").replace(" ", "_")
 
-                # The "clean" way to the currency but it requires additional interaction
-                # wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
-                # quote_elements = find_elements(browser, '//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span', By.XPATH)
+                # Get the quote from the Properties tab. This is the only reliable way to get the quote.
+                wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
+                # Do NOT throw an exception if the element is not found, most likely we have an undetected error...
+                quote_elements = find_elements(browser, '//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span', By.XPATH, except_on_timeout=False)
 
-                # Alternative way to read the currency directly from the List of Trades tab
-                wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
-                time.sleep(DELAY_BREAK)
-                # The second value (first value can be empty on an open trade) from the second row of the price column in the list of trades.
-                quote_elements = find_elements(browser, '(//*[@id="bottom-area"]//*[@class="ka-tbody"]//tr[2]//td[5]//span)[2]', By.XPATH)
                 if quote_elements and quote_elements[0].text:
-                    # quote = quote_elements[0].text[:-1]  # reading from the Properties tab
-                    quote = quote_elements[0].text.rsplit(' ', 1)[1] # reading from List of Trades tab - eg. "0.471 BUSD"
+                    quote = quote_elements[0].text[:-1]  # remove the trailing comma
 
                     exchange, base = symbol.split(':', 1)
                     match = re.search(exchange + ':(.*)' + quote + '$', symbol)
@@ -4308,6 +4308,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                         log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
 
                 else:
+                    snapshot(browser)
                     raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
 
             ############################################################
@@ -4889,9 +4890,11 @@ def export_list_of_trades(browser, default_filename=None):
 
     :return: The path to the exported file or None if the export failed.
     """
-    try:
-        # FIXME validate that default_filename isn't empty and that it's a string
-        
+    # Validate that default_filename isn't empty and that it's a string
+    if default_filename and not isinstance(default_filename, str):
+        raise TypeError("default_filename must be a non-empty string")
+
+    try:        
         # Check if the List of Trades is already open, if it isn't open it right now
         active_tab = find_elements(browser, '//*[contains(@class, "activeTab")]', By.XPATH)        
         if len(active_tab) > 0 and active_tab[0].text != "List of Trades":
@@ -4923,8 +4926,13 @@ def export_list_of_trades(browser, default_filename=None):
     except Exception as e:
         snapshot(browser)
         log.exception(e)
+
     finally:
-        return default_filename
+        # Validate that the file was downloaded correctly
+        if retries >= max_retries:
+            raise Exception("Failed to export the list of trades for {}: download timed out.".format(default_filename))
+        else:
+            return default_filename
 
 
 def get_latest_file_in_folder(path):
