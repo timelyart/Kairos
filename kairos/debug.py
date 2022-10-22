@@ -5,6 +5,7 @@ import re
 import sys
 
 from datetime import datetime
+import coloredlogs as coloredlogs
 
 file_name = 'debug.log'
 log_path = os.path.join('.', 'log')
@@ -13,6 +14,7 @@ if not os.path.exists(log_path):
 
 
 def create_log(mode='a'):
+    coloredlogs.install(level='DEBUG')
     file = os.path.join(r"" + log_path, file_name)
     # noinspection PyArgumentList
     logging.basicConfig(
