@@ -1,6 +1,6 @@
 # This example creates alerts on TradingView in the same way as you would do normally by hand (just automated)
 # Use a url + other settings per type of alert you want to set
-# Note that all values are case sensitive
+# Note that all values are case-sensitive
 # Define one or more charts by providing the link(s) to your charts
 charts:
 - url: https://www.tradingview.com/chart/<my_chart>/
@@ -13,8 +13,10 @@ charts:
   # This particular example assumes you have the Golden Cross by Chuckytuh on your chart
   alerts:
     # The name is used to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts
+    # You can make use of the following keywords:
+    #   %SYMBOL which is of the format <exchange>:<ticker>
     # Make sure the name is unique
-  - name: "Golden Cross"
+  - name: "Golden Cross %SYMBOL"
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
@@ -50,9 +52,8 @@ charts:
       # Send an email?
       # Note that in order to create a watchlist or send a summary email this needs to be set to yes
       email: yes
-      email-to-sms: no
       # Send a server side sms (for Premium users only)
-      sms: no
+      email-to-sms: no
       # Get a push notification in TradingView's app
       notify-on-app: no
     message:
@@ -109,7 +110,7 @@ summary:
   # - set your API call limit in kairos.cfg
   google_sheets:
     # File name of the Google Spreadsheet
-    - name: "<my_goodle_spreadsheet>"
+    - name: "<my_google_spreadsheet>"
       # Sheet name (if left empty the first sheet will be used)
       sheet: "Diary"
       # Index, i.e. the row number where the data should be inserted. Use 1 for the top row, or 2 if the top row contains your column titles.

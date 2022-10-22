@@ -7,15 +7,17 @@ charts:
   delays: {change_symbol: 0.5, submit_alert: 3}
   # alert listed under alerts must be available from the chart which is loaded through the 'url' parameter
   alerts:
-    # the name is used to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts
-    # make sure the name is unique
-  - name: "Davo long. "
+    # The name is used to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts
+    # You can make use of the following keywords:
+    #   %SYMBOL which is of the format <exchange>:<ticker>
+    # Make sure the name is unique
+  - name: "Davo long. %SYMBOL"
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
     # list of charts (urls) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
     include_screenshots_of_charts: [https://www.tradingview.com/chart/<chart_id>/]
-    conditions: ["Davo v5", "Alert davo long"]
+    conditions: ["Davo"]
     options: "Only Once"
     expiration:
       # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
@@ -32,7 +34,6 @@ charts:
     send:
       email: yes
       email-to-sms: no
-      sms: no
       notify-on-app: no
     message:
       prepend: no

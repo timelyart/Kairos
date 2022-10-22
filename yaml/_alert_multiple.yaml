@@ -18,9 +18,11 @@ charts:
   delays: {change_symbol: 1, submit_alert: 2.5}
   # Alert listed under alerts must be available from the chart which is loaded through the 'url' parameter.
   alerts:
-  # The name is like to be used with a future update to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts.
-  # Make sure the name is unique.
-  - name: "Example 1"
+    # The name is used to identify already existing alerts on your alert list in TradingView and is used to purge/update previously added alerts
+    # You can make use of the following keywords:
+    #   %SYMBOL which is of the format <exchange>:<ticker>
+    # Make sure the name is unique
+  - name: "Example 1 %SYMBOL"
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
@@ -68,7 +70,7 @@ charts:
       # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
       # Recommended value: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
-  - name: "Example 2"
+  - name: "Example 2 %SYMBOL"
     conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
     options: "Once Per Bar Close"
     expiration: 86400
@@ -80,7 +82,6 @@ charts:
     send:
       email: yes
       email-to-sms: no
-      sms: no
       notify-on-app: no
     message:
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
@@ -89,7 +90,7 @@ charts:
   timeframes: [2 minutes]
   watchlists: [<your_watchlist-name>]
   alerts:
-  - name: "BTCUSD"
+  - name: "Example 3 %SYMBOL"
     conditions: ["BTCUSD", "Crossing", "MA (200, close)"]
     options: "Once Per Bar Close"
     expiration: 86400
@@ -101,7 +102,6 @@ charts:
     send:
       email: yes
       email-to-sms: no
-      sms: no
       notify-on-app: no
     message:
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
