@@ -2633,7 +2633,9 @@ def select(browser, alert_config, current_condition, el_options, ticker_id):
 
 
 def clear(element):
-    element.clear()
+    # calling .clear() for 'input' elements may result in a StaleElementReferenceError (e.g. date pickers)
+    if element.tag_name != 'input':
+        element.clear()
     element.send_keys(SELECT_ALL)
     element.send_keys(Keys.DELETE)
     time.sleep(DELAY_BREAK_MINI * 0.5)
@@ -2649,16 +2651,6 @@ def send_keys(element, string, interval=DELAY_KEYSTROKE):
 
 
 def set_value(browser, element, string, use_clipboard=False, use_send_keys=False, interval=DELAY_KEYSTROKE):
-    """
-    element.parent.execute_script("
-        var elm = arguments[0], text = arguments[1];
-        if (!('value' in elm))
-          throw new Error('Expected an <input> or <textarea>');
-        elm.focus();
-        elm.value = text;
-        elm.dispatchEvent(new Event('change'));
-        ", element, string)
-    """
     if use_send_keys:
         send_keys(element, string, interval)
     elif use_clipboard and config.getboolean('webdriver', 'clipboard'):
@@ -4673,10 +4665,12 @@ def set_indicator_dialog_element(browser, element, value, tries=0):
                         select_options[i].click()
                         pass
                     break
-    except StaleElementReferenceException:
+    except StaleElementReferenceException as e:
         max_retries = config.getint('tradingview', 'create_alert_max_retries')
         if tries < max_retries:
             set_indicator_dialog_element(browser, element, value, tries+1)
+        else:
+            log.exception(e)
     except Exception as e:
         log.exception(e)
 
