@@ -1,5 +1,6 @@
 # File: tools.py
 import contextlib
+import logging
 import os
 import re
 import stat
@@ -23,8 +24,8 @@ float_precision = 8
 
 
 # noinspection PyShadowingNames
-def create_log(mode='a'):
-    return debug.create_log(mode)
+def create_log(mode='a', level=logging.DEBUG):
+    return debug.create_log(mode, level)
 
 
 def write_console_log(browser, mode='a'):

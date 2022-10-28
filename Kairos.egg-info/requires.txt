@@ -17,6 +17,7 @@ psutil
 Cython
 tqdm
 soupsieve
+coloredlogs
 
 [platform_system == "Darwin"]
 pyobjc-core

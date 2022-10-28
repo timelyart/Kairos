@@ -110,11 +110,12 @@ def main():
 def test_mongodb():
     # set log name before importing... the import creates the log whatever it's file name
     debug.file_name = 'test_mongodb.log'
-    log = debug.create_log()
-    log.setLevel(20)
     from kairos import tools
     config = tools.get_config()
-    log.setLevel(config.getint('logging', 'level'))
+    level = 20
+    if config.has_option('logging', 'level'):
+        level = config.getint('logging', 'level')
+    log, coloredlogs = debug.create_log(level=level)
 
     connection_string = config.get('mongodb', 'connection_string')
     collection = config.get('mongodb', 'collection')
@@ -126,11 +127,12 @@ def test_mongodb():
 
 def clean_browser_data():
     debug.file_name = 'clean_browser_data.log'
-    log = debug.create_log()
-    log.setLevel(20)
     from kairos import tools
     config = tools.get_config()
-    log.setLevel(config.getint('logging', 'level'))
+    level = 20
+    if config.has_option('logging', 'level'):
+        level = config.getint('logging', 'level')
+    log, coloredlogs = debug.create_log(level=level)
     driver_type = config.get('webdriver', 'name', fallback='chrome').lower()
     driver_count = 0
     try:
@@ -169,10 +171,11 @@ def sort_back_test_data(filename, sort_by, reverse=True):
     from tv import tv
 
     debug.file_name = 'sort_back_test_data.log'
-    log = debug.create_log()
-    log.setLevel(20)
     config = tools.get_config()
-    log.setLevel(config.getint('logging', 'level'))
+    level = 20
+    if config.has_option('logging', 'level'):
+        level = config.getint('logging', 'level')
+    log, coloredlogs = debug.create_log(level=level)
     # log.info("{} {} {}".format(filename, sort_by, reverse))
 
     path = os.path.join(os.path.curdir, filename)

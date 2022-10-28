@@ -277,11 +277,11 @@ config = tools.get_config()
 mode = 'a'  # append
 if config.getboolean('logging', 'clear_on_start_up'):
     mode = 'w'  # overwrite
-log = tools.create_log(mode)
-log.setLevel(INFO_LEVEL)
+level = INFO_LEVEL
 # WARNING: debug level will log all HTTP requests
 if config.has_option('logging', 'level'):
-    log.setLevel(config.getint('logging', 'level'))
+    level = config.getint('logging', 'level')
+log, colourlogs = tools.create_log(mode=mode, level=level)
 
 path_to_chromedriver = r"" + config.get('webdriver', 'path')
 if os.path.exists(path_to_chromedriver):
@@ -2948,7 +2948,7 @@ def check_driver(driver):
 
 
 def create_browser(run_in_background, resolution='1920,1080', download_path=None):
-    global log
+    global log, colourlogs
     global DOWNLOAD_PATH
 
     capabilities = DesiredCapabilities.CHROME.copy()
@@ -2970,7 +2970,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
                 fn = fn.replace(match.group(1), "_{}{}".format(instance, match.group(1)))
             tools.shutdown_logging()
             tools.debug.file_name = fn
-            log = tools.create_log()
+            log, coloredlogs = tools.create_log(level=log.level)
 
         options.add_argument('--user-data-dir=' + kairos_data_directory)
         match = re.search(r".*(\d+)", kairos_data_directory)
@@ -4592,8 +4592,9 @@ def get_indicator_dialog_elements(browser, key):
     return value_cells
 
 
-def set_indicator_dialog_values(browser, inputs):
-    tries = 0
+def set_indicator_dialog_values(browser, inputs, tries=0):
+    tries += 1
+
     try:
         for key in inputs:
             value = inputs[key]
@@ -4610,8 +4611,7 @@ def set_indicator_dialog_values(browser, inputs):
                             except StaleElementReferenceException as e:
                                 if tries < 3:
                                     value_cells = get_indicator_dialog_elements(browser, key)
-                                    set_indicator_dialog_element(browser, value_cells[i], value[value_key])
-                                    tries += 1
+                                    set_indicator_dialog_element(browser, value_cells[i], value[value_key], tries)
                                 else:
                                     log.exception(e)
                             except Exception as e:
@@ -4955,6 +4955,11 @@ def export_list_of_trades(browser, default_filename=None):
 
     :return: The path to the exported file or None if the export failed.
     """
+
+    max_download_wait_time = 10  # seconds
+    max_retries = max_download_wait_time / max(DELAY_DOWNLOAD_FILE, 0.1)
+    retries = 0
+
     # Validate that default_filename isn't empty and that it's a string
     if default_filename and not isinstance(default_filename, str):
         raise TypeError("default_filename must be a non-empty string")
@@ -4965,9 +4970,6 @@ def export_list_of_trades(browser, default_filename=None):
         if len(active_tab) > 0 and active_tab[0].text != "List of Trades":
             wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
 
-        max_download_wait_time = 10  # seconds
-        max_retries = max_download_wait_time / max(DELAY_DOWNLOAD_FILE, 0.1)
-        retries = 0
         if default_filename:
             # Click the export trades button
             wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')

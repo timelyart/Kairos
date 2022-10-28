@@ -20,7 +20,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 import requests
 import yaml
 from bs4 import BeautifulSoup
-
 from kairos import tools
 from kairos import mongodb
 import tv.tv as tv
@@ -36,9 +35,10 @@ BASE_DIR = r"" + os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CURRENT_DIR = os.path.curdir
 
 config = tools.get_config()
-log = tools.create_log()
-log.setLevel(20)
-log.setLevel(config.getint('logging', 'level'))
+level = 20
+if config.has_option('logging', 'level'):
+    level = config.getint('logging', 'level')
+log, coloredlogs = tools.create_log(level=level)
 
 uid = str(config.get('mail', 'uid'))
 pwd = str(config.get('mail', 'pwd'))
@@ -191,7 +191,7 @@ def process_body(msg, browser):
                 for handle in browser.window_handles[1:]:
                     browser.switch_to.window(handle)
 
-                # page is loaded when we are done waiting for an clickable element
+                # page is loaded when we are done waiting for a clickable element
                 tv.wait_and_click(browser, tv.css_selectors['btn_calendar'])
                 tv.wait_and_click(browser, tv.css_selectors['btn_watchlist'])
                 [screenshot_url, filename] = take_screenshot(browser, symbol, interval)

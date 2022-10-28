@@ -5,7 +5,8 @@ import re
 import sys
 
 from datetime import datetime
-import coloredlogs as coloredlogs
+
+import coloredlogs
 
 file_name = 'debug.log'
 log_path = os.path.join('.', 'log')
@@ -13,19 +14,20 @@ if not os.path.exists(log_path):
     os.mkdir(log_path)
 
 
-def create_log(mode='a'):
-    coloredlogs.install(level='DEBUG')
+def create_log(mode='a', level=logging.DEBUG):
     file = os.path.join(r"" + log_path, file_name)
     # noinspection PyArgumentList
     logging.basicConfig(
-        level=logging.DEBUG,
+        level=level,
         format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
             logging.FileHandler(file, mode=mode),
             logging.StreamHandler(sys.stdout)
         ])
-    return logging.getLogger()
+    logger = logging.getLogger()
+    coloredlogs.install(level=level, logger=logger)
+    return logger, coloredlogs
 
 
 def shutdown_logging():
