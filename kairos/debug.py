@@ -17,16 +17,18 @@ if not os.path.exists(log_path):
 def create_log(mode='a', level=logging.DEBUG):
     file = os.path.join(r"" + log_path, file_name)
     # noinspection PyArgumentList
+    log_format = '%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s'
+    date_format = "%Y-%m-%d %H:%M:%S"
     logging.basicConfig(
         level=level,
-        format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
-        datefmt="%Y-%m-%d %H:%M:%S",
+        format=log_format,
+        datefmt=date_format,
         handlers=[
             logging.FileHandler(file, mode=mode),
             logging.StreamHandler(sys.stdout)
         ])
     logger = logging.getLogger()
-    coloredlogs.install(level=level, logger=logger)
+    coloredlogs.install(level=level, logger=logger, fmt=log_format, datefmt=date_format)
     return logger, coloredlogs
 
 
