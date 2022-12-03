@@ -352,14 +352,17 @@ if config.has_option('webdriver', 'resolution'):
 
 
 def close_all_popups(browser):
-    for h in browser.window_handles[1:]:
+    n = 1
+    if len(browser.window_handles) >= 2:
+        n = 2
+    for h in browser.window_handles[n:]:
         browser.switch_to.window(h)
         close_alerts(browser)
         close_oops_dialog(browser)
         close_alert_popup(browser)
         close_banner(browser)
         browser.close()
-    browser.switch_to.window(browser.window_handles[0])
+    browser.switch_to.window(browser.window_handles[n-1])
 
 
 def close_banner(browser):
@@ -404,10 +407,10 @@ def close_oops_dialog(browser):
 
 
 def refresh(browser):
-    log.debug('refreshing browser')
-    url = browser.current_url
-    log.info(url)
+    url = unquote(browser.current_url)
+    log.debug(url)
     browser.refresh()
+    close_alerts(browser)
     time.sleep(DELAY_CHANGE_SYMBOL)
     # Close alerts, banners and pop-ups
     close_all_popups(browser)
