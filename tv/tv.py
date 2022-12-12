@@ -1447,17 +1447,60 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     # ensure fall back to default inputs and properties
                     refresh(browser)
 
+                # eg. BB_Cross_List_of_Trades_2022-12-01.csv
                 export_trades_filename = None
                 if 'export_trades' in strategy and strategy['export_trades']:
                     # Exporting trades to .csv is only available for Premium members
                     if ACCOUNT_LEVEL == 'Premium':
                         if not is_study_error(browser):
-                            export_trades_filename = export_list_of_trades(browser)
-                            if export_trades_filename and os.path.exists(export_trades_filename):
-                                log.info("default filename list of trades: {}".format(export_trades_filename))
-                                os.remove(export_trades_filename)
+
+                            # Get the default filename by exporting the data on the properties tab.
+                            # We can't use the List of Trades tab because when a strategy has
+                            # no trades the export button is disabled so we need this workaround.
+
+                            # Note: We can't get the strategy name from summaries[strategy['name']]['id']
+                            # because when a strategy is using short title it doesn't match the strategy.
+                            # strategy_id = summaries[strategy['name']]['id'].replace(' ', '_')
+
+                            try:
+                                # Check if the Performance Summary is already open, if it isn't open it right now
+                                active_tab = find_elements(browser, '//*[contains(@class, "activeTab")]', By.XPATH)        
+                                if len(active_tab) > 0 and active_tab[0].text != "Performance Summary":
+                                    open_performance_summary_tab(browser)
+    
+                                # Click the export trades button
+                                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+                                
+                                max_retries = 10
+                                retries = 0
+                                
+                                export_performance_summary_filename = None
+                                while export_performance_summary_filename is None and retries < max_retries:
+                                    retries += 1
+                                    time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
+                                    export_performance_summary_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
+
+                                if export_performance_summary_filename and os.path.exists(export_performance_summary_filename):
+                                    # Rename the file to match the strategy name
+                                    export_trades_filename = export_performance_summary_filename.replace("Performance_Summary", "List_of_Trades")
+                                    log.info("default filename list of trades: {}".format(export_trades_filename))
+                                    os.remove(export_performance_summary_filename)
+
+                            except Exception as e:
+                                snapshot(browser)
+                                log.exception(e)
+
+                            # This is how we used to do it when TV was still downloading an export file
+                            # even if there were no trades :-/
+                            # export_trades_filename = export_list_of_trades(browser)
+                            # if export_trades_filename and os.path.exists(export_trades_filename):
+                            #     log.info("default filename list of trades: {}".format(export_trades_filename))
+                            #     os.remove(export_trades_filename)
                         else:
-                            # FIXME we should probably exit Kairos in a clean way here?
+                            # FIXME 
+                            # We should exit Kairos in a clean way here instead of just logging an error
+                            # because when we don't know the default filename at the start we will get 
+                            # other errors down the line
                             snapshot(browser)
                             log.error("Unable to export trades for strategy {}: Study Error".format(strategy['name']))
                     else:
@@ -4369,7 +4412,11 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                 else:
                     snapshot(browser)
-                    raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
+                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
+                    # raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
+                    # if raise an exception we might end up in an infinite loop of trying to export the trades for the same symbol
+                    # so just skip the export and continue with the next symbol
+                    break
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
@@ -4967,25 +5014,33 @@ def export_list_of_trades(browser, default_filename=None):
         if len(active_tab) > 0 and active_tab[0].text != "List of Trades":
             wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
 
-        if default_filename:
-            # Click the export trades button
-            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+        # Check if there are trades to export (otherwise the export button will be disabled)
+        # The first row is the header row is identified by the class "ka"
+        has_trades = element_exists(browser, '//*[contains(@class, "ka")]', CHECK_IF_EXISTS_TIMEOUT, By.XPATH)
 
-            # The default filename changes when the clock strikes midnight
-            current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-            default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
+        if has_trades:
+            if default_filename:
+                # Click the export trades button
+                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
 
-            while not os.path.exists(default_filename) and retries < max_retries:
-                retries += 1
-                time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
+                # The default filename changes when the clock strikes midnight
+                current_date = datetime.datetime.now().strftime("%Y-%m-%d")
+                default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
+
+                while not os.path.exists(default_filename) and retries < max_retries:
+                    retries += 1
+                    time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
+            # This is on the very first run when we need to detect the default filename.
+            else:
+                wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
+
+                while default_filename is None and retries < max_retries:
+                    retries += 1
+                    time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
+                    default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
         else:
-            # Click the export trades button
-            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
-
-            while default_filename is None and retries < max_retries:
-                retries += 1
-                time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
-                default_filename = get_latest_file_in_folder(DOWNLOAD_PATH)
+            log.debug("No trades to export.")
+            default_filename = None
 
     except Exception as e:
         snapshot(browser)
