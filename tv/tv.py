@@ -254,7 +254,6 @@ css_selectors = dict(
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
-    price_axis='td.price-axis-container > div > div',
 )
 
 class_selectors = dict(
@@ -1593,8 +1592,8 @@ def is_market_listed(browser):
     """
     listed = False
     try:
-        price_axis = find_element(browser, css_selectors['price_axis'], visible=True, except_on_timeout=False)
-        if price_axis:
+        invalid_symbol = find_element(browser, "//*[contains(@class, 'invalidSymbol-')]", By.XPATH, visible=True, except_on_timeout=False)
+        if not invalid_symbol:
             listed = True
     except StaleElementReferenceException as e:
         log.info(e)
