@@ -4305,14 +4305,18 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             wait_and_click_by_xpath(browser, '//button[contains(text(), "Performance Summary")]')
             # Extract results
             over_the_threshold = True
+            threshold = 1
+            if config.has_option('backtesting', 'threshold'):
+                threshold = max(1, config.getint('backtesting', 'threshold'))
+
             for i, key in enumerate(values):
                 value = get_strategy_statistic(browser, key, previous_elements)
                 if isinstance(value, Exception):
                     raise value
 
                 # check if the total closed trades is over the threshold
-                if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
-                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
+                if key == 'performance_summary_total_closed_trades' and float(threshold) > float(value):
+                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, threshold))
                     over_the_threshold = False
                     values[key] = value
                     break
