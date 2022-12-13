@@ -212,32 +212,30 @@ css_selectors = dict(
     tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
     btn_strategy_dialog='.deep-history > div > div > div > div > button',
     strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-qa-strategy-title]',
-    performance_overview_net_profit='div.report-data > div:nth-child(1) > strong',  # FIXME when the value is negative this element is wrapped in an addition span tag
-    performance_overview_net_profit_percentage='div.report-data > div:nth-child(1) > p > span',
-    performance_overview_total_closed_trades='div.report-data > div:nth-child(2) > strong',
-    performance_overview_percent_profitable='div.report-data > div:nth-child(3) > strong',
-    performance_overview_profit_factor='div.report-data > div:nth-child(4) > strong',
-    performance_overview_max_drawdown='div.report-data > div:nth-child(5) > strong',
-    performance_overview_max_drawdown_percentage='div.report-data > div:nth-child(5) > p > span',
-    performance_overview_avg_trade='div.report-data > div:nth-child(6) > strong',
-    performance_overview_avg_trade_percentage='div.report-data > div:nth-child(6) > p > span',
-    performance_overview_avg_bars_in_trade='div.report-data > div:nth-child(7) > strong',
-    performance_summary_net_profit='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(1)',
-    performance_summary_net_profit_percentage='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(2)',
-    performance_summary_total_closed_trades='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(13) > td:nth-child(2) > div > div',
-    performance_summary_percent_profitable='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div > div',
-    performance_summary_profit_factor='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(9) > td:nth-child(2) > div > div',
-    performance_summary_max_drawdown='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(1)',
-    performance_summary_max_drawdown_percentage='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(2)',
-    performance_summary_avg_trade='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(1)',
-    performance_summary_avg_trade_percentage='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(2)',
-    performance_summary_avg_bars_in_trade='div.report-content.performance-new > div > div > table > tbody > tr:nth-child(24) > td:nth-child(2) > div > div',
+    performance_overview_net_profit='div[class^="container-"] > div:nth-child(1) > div:nth-child(2) > div:nth-child(1)',
+    performance_overview_net_profit_percentage='div[class^="container-"] > div:nth-child(1) > div:nth-child(2) > div:nth-child(2)',
+    performance_overview_total_closed_trades='div[class^="container-"] > div:nth-child(2) > div:nth-child(2) > div:nth-child(1)',
+    performance_overview_percent_profitable='div[class^="container-"] > div:nth-child(3) > div:nth-child(2) > div:nth-child(1)',
+    performance_overview_profit_factor='div[class^="container-"] > div:nth-child(4) > div:nth-child(2) > div:nth-child(1)',
+    performance_overview_max_drawdown='div[class^="container-"] > div:nth-child(5) > div:nth-child(2) > div:nth-child(1)',
+    performance_overview_max_drawdown_percentage='div[class^="container-"] > div:nth-child(5) > div:nth-child(2) > div:nth-child(2)',
+    performance_overview_avg_trade='div[class^="container-"] > div:nth-child(6) > div:nth-child(2) > div:nth-child(1)',
+    performance_overview_avg_trade_percentage='div[class^="container-"] > div:nth-child(6) > div:nth-child(2) > div:nth-child(2)',
+    performance_overview_avg_bars_in_trade='div[class^="container-"] > div:nth-child(7) > div:nth-child(2) > div:nth-child(1)',
+    performance_summary_net_profit='div[class^="report"] > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_net_profit_percentage='div[class^="report"] > div > div > table > tbody > tr:nth-child(1) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_total_closed_trades='div[class^="report"] > div > div > table > tbody > tr:nth-child(13) > td:nth-child(2) > div > div',
+    performance_summary_percent_profitable='div[class^="report"] > div > div > table > tbody > tr:nth-child(17) > td:nth-child(2) > div > div',
+    performance_summary_profit_factor='div[class^="report"] > div > div > table > tbody > tr:nth-child(9) > td:nth-child(2) > div > div',
+    performance_summary_max_drawdown='div[class^="report"] > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_max_drawdown_percentage='div[class^="report"] > div > div > table > tbody > tr:nth-child(5) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_avg_trade='div[class^="report"] > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(1)',
+    performance_summary_avg_trade_percentage='div[class^="report"] > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(2)',
+    performance_summary_avg_bars_in_trade='div[class^="report"] > div > div > table > tbody > tr:nth-child(24) > td:nth-child(2) > div > div',
     # Indicator dialog
     indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
     indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
-    # indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"] > div',
     indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"]',
-    # indicator_dialog_tab_cells='div[data-name="indicator-properties-dialog"] input, div[data-name="indicator-properties-dialog"] span[role="button"]',
     indicator_dialog_tab_cell='#overlap-manager-root div[class^="content"] div[class^="cell-"]:nth-child({})',
     indicator_dialog_titles='#overlap-manager-root div[class^="content"] div[class*="first"] > div',
     indicator_dialog_checkbox_titles='#overlap-manager-root label[class^="checkbox"] span > span',
@@ -245,7 +243,6 @@ css_selectors = dict(
     indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
     indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
     indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
-    # indicator_dialog_select_options='#overlap-manager-root div[role="listbox"] div[role="option"]',
     btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
     active_chart_interval='div[id="header-toolbar-intervals"] div[class*="isActive"] > div > div',
@@ -268,7 +265,6 @@ name_selectors = dict(
     checkbox_dlg_create_alert_send_email='send-email',
     checkbox_dlg_create_alert_email_to_sms='send-sms',
     checkbox_dlg_create_alert_webhook='webhook-toggle',
-    # checkbox_dlg_create_alert_send_sms='send-true-sms',  # option removed by TradingView
     checkbox_dlg_create_alert_send_push='send-push'
 )
 
@@ -4313,6 +4309,7 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 value = get_strategy_statistic(browser, key, previous_elements)
                 if isinstance(value, Exception):
                     raise value
+
 
                 # check if the total closed trades is over the threshold
                 if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
