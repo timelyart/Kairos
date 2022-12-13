@@ -2144,7 +2144,7 @@ def wait_until_chart_is_loaded(browser):
         # Wait until the chart is loaded.
         # NOTE: indicators are also checked if they are loaded before reading their values
         #########################################################################################################
-        xpath_loading = "//*[matches(text(),'(loading|compiling)','i')]"
+        xpath_loading = "//*[contains(text(),'loading') or contains(text(),'compiling')]"
         elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, True, DELAY_BREAK_MINI)
         while elem_loading and len(elem_loading) > 0:
             elem_loading = find_elements(browser, xpath_loading, By.XPATH, False, DELAY_BREAK_MINI)
