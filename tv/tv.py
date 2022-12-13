@@ -246,12 +246,13 @@ css_selectors = dict(
     btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
     active_chart_interval='div[id="header-toolbar-intervals"] div[class*="isActive"] > div > div',
-    chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
+    # chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
+    chart_container='table.chart-markup-table',
     # User Menu
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
-    price_axis='td.price-axis-container > div > div',
+    price_axis='div[class^="price-axis-currency-label-wrapper"] > div:nth-child(1) > div:nth-child(1) >  span[class^="price-axis-currency-label-text"]',
 )
 
 class_selectors = dict(
@@ -1589,9 +1590,11 @@ def is_market_listed(browser):
     """
     listed = False
     try:
-        price_axis = find_element(browser, css_selectors['price_axis'], visible=True, except_on_timeout=False)
-        if price_axis:
-            listed = True
+        elements = find_elements(browser, css_selectors['price_axis'], except_on_timeout=False)
+        for element in elements:
+            if element.text != '':
+                listed = True
+                break
     except StaleElementReferenceException as e:
         log.info(e)
         return is_market_listed(browser)
@@ -4241,7 +4244,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
         for chart_index in range(number_of_charts):
             # move to the correct chart
-            # charts = find_elements(browser, "div.chart-container")
             charts = find_elements(browser, css_selectors["chart_container"])
             next_chart_clicked = False
             while not next_chart_clicked:
@@ -4496,7 +4498,11 @@ def get_strategy_statistic(browser, key, previous_elements):
                     log.debug(e)
                     pass
                 except Exception as e:
-                    log.exception(e)
+                    if e.args[0] == 'Timeout waiting for has_gone_stale':
+                        log.debug(e)
+                        pass
+                    else:
+                        log.exception(e)
 
             el = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
             if not el:
