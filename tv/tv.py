@@ -4310,7 +4310,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 if isinstance(value, Exception):
                     raise value
 
-
                 # check if the total closed trades is over the threshold
                 if key == 'performance_summary_total_closed_trades' and config.has_option('backtesting', 'threshold') and float(config.getint('backtesting', 'threshold')) > float(value):
                     log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, config.getint('backtesting', 'threshold')))
