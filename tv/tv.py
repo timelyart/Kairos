@@ -40,7 +40,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 from multiprocessing import Pool
 from kairos import timing
 from kairos import tools
-from kairos.tools import format_number, wait_for_element_is_stale, unicode_to_float_int, strip_to_ascii
+from kairos.tools import format_number, unicode_to_float_int, strip_to_ascii
 from fastnumbers import fast_real
 
 TEST = False
@@ -50,6 +50,7 @@ processing_errors = []
 
 triggered_signals = []
 invalid = set()
+export_trades_filename = None
 
 EXECUTOR = 'http://192.168.0.140:4444/wd/hub'
 FILENAME = 'webdriver.instance'
@@ -466,9 +467,9 @@ def wait_and_get(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
     return element
 
 
-def wait_and_visible(browser, css, delay=CHECK_IF_EXISTS_TIMEOUT):
+def wait_and_visible(browser, locator, delay=CHECK_IF_EXISTS_TIMEOUT, locator_strategy=By.CSS_SELECTOR):
     element = WebDriverWait(browser, delay).until(
-        ec.visibility_of_element_located((By.CSS_SELECTOR, css)))
+        ec.visibility_of_element_located((locator_strategy, locator)))
     return element
 
 
@@ -1444,22 +1445,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                     # ensure fall back to default inputs and properties
                     refresh(browser)
 
-                export_trades_filename = None
-                if 'export_trades' in strategy and strategy['export_trades']:
-                    # Exporting trades to .csv is only available for Premium members
-                    if ACCOUNT_LEVEL == 'Premium':
-                        if not is_study_error(browser):
-                            export_trades_filename = export_list_of_trades(browser)
-                            if export_trades_filename and os.path.exists(export_trades_filename):
-                                log.info("default filename list of trades: {}".format(export_trades_filename))
-                                os.remove(export_trades_filename)
-                        else:
-                            # FIXME we should probably exit Kairos in a clean way here?
-                            snapshot(browser)
-                            log.error("Unable to export trades for strategy {}: Study Error".format(strategy['name']))
-                    else:
-                        log.warning('Unable to export trades. This is a Premium member feature and you are currently logged as a {} member'.format(ACCOUNT_LEVEL))
-
                 # generate input/property sets
                 atomic_inputs = []
                 atomic_properties = []
@@ -1485,7 +1470,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         time.sleep(DELAY_TIMEFRAME)
                         for watchlist in chart['watchlists']:
                             symbols = dict_watchlist[watchlist]
-                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties, export_trades_filename)
+                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
                             # sort if the user defined one for the strategy
                             if sort_by:
                                 test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1497,7 +1482,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 else:
                     for watchlist in chart['watchlists']:
                         symbols = dict_watchlist[watchlist]
-                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties, export_trades_filename)
+                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
                         # sort if the user defined one for the strategy
                         if sort_by:
                             test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -3570,80 +3555,12 @@ def retry_get_strategy_default_values(browser, e, retry_number=0):
         return {}, {}
 
 
-def get_indicator_dialog_values_old(browser):
-    # get input titles
-    result = dict()
-    try:
-        cells = find_elements(browser, css_selectors['indicator_dialog_tab_cells'])
-        title = ''
-        for i, cell in enumerate(cells):
-            css_class = str(cell.get_attribute("class"))
-            # if str(css_class).find('first') > 0:
-            #     title = re.sub(r"[\W]", '', cells[i - 1].text.replace(' ', '_')).lower()
-            #     value = cell.text
-            #     log.info(value)
-            if css_class.find('separator') >= 0:
-                continue
-            elif css_class.find('first') >= 0:
-                # title = re.sub(r"[\W]", '', cells[i - 1].text.replace(' ', '_')).lower()
-                title = cell.text
-                log.info(title)
-                result[title] = {}
-            elif css_class.find('fill') > 0:
-                # all elements that have class '...fill...' are checkboxes
-                title = re.sub(r"[\W]", '', cell.text.replace(' ', '_')).lower()
-                css = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
-                input_element = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
-                if input_element:
-                    if input_element.get_attribute('type') == "checkbox":
-                        if is_checkbox_checked(input_element):
-                            value = 'yes'
-                        else:
-                            value = 'no'
-                    else:
-                        value = input_element.get_attribute("value")
-                else:
-                    value = cell.text
-                if value:
-                    result[title] = value.strip()
-            else:
-                values = {}
-                css_inputs = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' input'
-                log.info(css_inputs)
-                css_labels = css_selectors['indicator_dialog_tab_cell'].format(i + 1) + ' label > span > span'
-                inputs = find_elements(browser, css_inputs, By.CSS_SELECTOR, False, False, 1)
-                labels = find_elements(browser, css_labels, By.CSS_SELECTOR, False, False, 1)
-                # one or more checkboxes
-                if labels and inputs:
-                    for j, label in enumerate(labels):
-                        subtitle = re.sub(r"[\W]", '', label.text.replace(' ', '_')).lower()
-                        if inputs[j].get_attribute('type') == "checkbox":
-                            if is_checkbox_checked(inputs[j]):
-                                value = 'yes'
-                            else:
-                                value = 'no'
-                            values[subtitle] = value
-                elif inputs:
-                    for input_element in inputs:
-                        values[len(values)] = input_element.get_attribute("value").strip()
-                result[title] = values
-                #
-    except StaleElementReferenceException:
-        pass
-    except Exception as e:
-        log.exception(e)
-    return result
-
-
 def get_dialog_input_title(element):
-    # return strip_to_ascii(element.text).replace('>', '').replace('<', '').strip()
     result = ""
     try:
         if element.text:
             result = element.text
         else:
-            # checkbox_label = find_element(element, 'span[class^="label"] > span[class^="label"]')
-            # result = checkbox_label.text
             # Prevent that Kairos crashes when a title is empty. Simply ignore these elements and show a warning
             log.warning('Element {} has no title. It will be ignored.'.format(element.id))
     except Exception as e:
@@ -3976,7 +3893,7 @@ def post_process_data_points(data, values):
             del values[key]
 
 
-def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties, export_trades_filename):
+def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
     try:
 
         summaries = list()
@@ -4002,7 +3919,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                     strategy_summary['inputs'] = inputs
                     strategy_summary['properties'] = properties
                     strategy_summary['summary'] = dict()
-                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies, export_trades_filename)
+                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies)
                     summaries.append(strategy_summary)
 
         # Inputs have been defined. Run back test for each input with default properties
@@ -4014,7 +3931,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                 strategy_summary['inputs'] = inputs
                 strategy_summary['properties'] = []
                 strategy_summary['summary'] = dict()
-                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies, export_trades_filename)
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies)
                 summaries.append(strategy_summary)
         # Properties have been defined. Run back test for property with default inputs
         elif len(atomic_properties) > 0:
@@ -4025,7 +3942,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                 strategy_summary['inputs'] = []
                 strategy_summary['properties'] = properties
                 strategy_summary['summary'] = dict()
-                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies, export_trades_filename)
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies)
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs and properties
         else:
@@ -4034,7 +3951,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
             strategy_summary['inputs'] = []
             strategy_summary['properties'] = []
             strategy_summary['summary'] = dict()
-            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1, export_trades_filename)
+            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1)
             summaries.append(strategy_summary)
 
         # close strategy tab
@@ -4048,7 +3965,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
         log.exception(e)
 
 
-def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants, export_trades_filename):
+def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants):
     global tv_start
 
     raw = []
@@ -4087,7 +4004,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants, export_trades_filename)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -4095,7 +4012,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants, export_trades_filename)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants)
 
     total_average = dict()
     total_average['Net Profit'] = 0
@@ -4219,7 +4136,8 @@ def is_study_error(browser):
     return result
 
 
-def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, variant_number, number_of_variants, export_trades_filename, tries=0):
+def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, variant_number, number_of_variants, tries=0):
+    global export_trades_filename
     try:
         if first_symbol:
             open_performance_summary_tab(browser)
@@ -4293,46 +4211,43 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             wait_until_studies_are_loaded(browser)
 
             if is_study_error(browser):
-                log.warning("{}. Strategy resulted in a data error. Please make sure the strategy "
-                            "runs for the selected timeframe {}".format(symbol, interval))
+                log.warning("{}, {} strategy resulted in a data error. Please make sure the strategy "
+                            "runs for the selected timeframe.".format(symbol, interval))
                 snapshot(browser)
-                break
+                continue
+
+            # Make sure the Performance Summary tab is open
+            wait_and_click_by_xpath(browser, '//button[contains(text(), "Performance Summary")]')
+            # Check if the total closed trades is over the threshold
+            threshold = 1
+            if config.has_option('backtesting', 'threshold'):
+                threshold = max(1, config.getint('backtesting', 'threshold'))
+            closed_trades = get_strategy_statistic(browser, 'performance_summary_total_closed_trades', previous_elements)
+            if isinstance(closed_trades, Exception):
+                raise closed_trades
+            elif closed_trades < threshold:
+                log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, closed_trades, threshold))
+                continue
 
             symbol_info = symbol
             if number_of_charts > 1:
                 symbol_info = "{}, {}".format(symbol, interval)
             log.info(symbol_info)
 
-            # Make sure the Performance Summary tab is open
-            wait_and_click_by_xpath(browser, '//button[contains(text(), "Performance Summary")]')
             # Extract results
-            over_the_threshold = True
-            threshold = 1
-            if config.has_option('backtesting', 'threshold'):
-                threshold = max(1, config.getint('backtesting', 'threshold'))
-
-            for i, key in enumerate(values):
+            for key in values:
                 value = get_strategy_statistic(browser, key, previous_elements)
                 if isinstance(value, Exception):
                     raise value
-
-                # check if the total closed trades is over the threshold
-                if key == 'performance_summary_total_closed_trades' and float(threshold) > float(value):
-                    log.info("{}: {} data has been excluded due to the number of closed trades ({}) not reaching the threshold ({})".format(symbol, interval, value, threshold))
-                    over_the_threshold = False
-                    values[key] = value
-                    break
                 # Update previous values with the current ones
                 values[key] = value
 
             if 'screenshot' in strategy_config and strategy_config['screenshot']:
                 take_screenshot(browser, symbol, interval)
-            if not over_the_threshold:
-                continue
 
             # Export the list of trades for the current symbol
             export_file_name = None
-            if 'export_trades' in strategy_config and strategy_config['export_trades'] and ACCOUNT_LEVEL == 'Premium' and export_trades_filename:
+            if 'export_trades' in strategy_config and strategy_config['export_trades'] and ACCOUNT_LEVEL == 'Premium':
                 # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
                 timeframe = interval.replace("'", "").replace(" ", "_")
 
@@ -4359,6 +4274,9 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
                     # export trades
                     filename = export_list_of_trades(browser, export_trades_filename)
+                    if not export_trades_filename:
+                        export_trades_filename = filename
+                        log.info('default export filename = {}'.format(export_trades_filename))
                     time.sleep(DELAY_BREAK)
                     if filename:
                         export_file_name = rename_exported_trades_file(filename, export_file_name)
@@ -4440,10 +4358,10 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_averages[symbol] = symbol_average
 
     except Exception as e:
-        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, export_trades_filename, tries, e)
+        retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, tries, e)
 
 
-def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, export_trades_filename, tries, e):
+def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, number_of_variants, tries, e):
     if e:
         log.exception(e)
     max_tries = config.getint('tradingview', 'create_alert_max_retries')
@@ -4491,19 +4409,6 @@ def get_strategy_statistic(browser, key, previous_elements):
     css = css_selectors[key]
     while tries < config.getint('tradingview', 'create_alert_max_retries'):
         try:
-            if isinstance(previous_elements[key], WebElement):
-                try:
-                    wait_for_element_is_stale(previous_elements[key])
-                except TimeoutException as e:
-                    log.debug(e)
-                    pass
-                except Exception as e:
-                    if e.args[0] == 'Timeout waiting for has_gone_stale':
-                        log.debug(e)
-                        pass
-                    else:
-                        log.exception(e)
-
             el = find_element(browser, css, By.CSS_SELECTOR, False, False, 1)
             if not el:
                 log.debug("unable to find {} (css = {})".format(key, css))
