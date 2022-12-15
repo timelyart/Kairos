@@ -254,6 +254,7 @@ css_selectors = dict(
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
     price_axis='div[class^="price-axis-currency-label-wrapper"] > div:nth-child(1) > div:nth-child(1) >  span[class^="price-axis-currency-label-text"]',
+    chart_error_message='div.active > div.chart-container-border div[class^=errorCard__message]',
 )
 
 class_selectors = dict(
@@ -1251,8 +1252,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 dict_watchlist[chart['watchlists'][i]] = symbols
                 if len(delisted) == 0:
                     log.info("{}: {} markets found".format(watchlist, len(symbols)))
-                else:
-                    log.info("{}: {} markets found of which {} have been delisted: {}".format(watchlist, (len(symbols) + len(delisted)), len(delisted), tools.array_to_string(delisted)))
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
@@ -1566,23 +1565,38 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def is_market_listed(browser):
+def is_market_listed(browser, first_loaded=False):
     """
     Checks if a market is listed
     NOTE: requires the chart to be open
     :param browser:
+    :param first_loaded: whether this is the first time the chart loaded
     :return: bool, whether the market is listed
     """
     listed = False
     try:
-        elements = find_elements(browser, css_selectors['price_axis'], except_on_timeout=False)
-        for element in elements:
-            if element.text != '':
-                listed = True
-                break
+        if first_loaded:
+            log.info("first_loaded - start")
+            elements = find_elements(browser, css_selectors['chart_error_message'], except_on_timeout=False, delay=DELAY_BREAK*2)
+            listed = True
+            if elements:
+                for element in elements:
+                    if str(element.text).lower() == 'invalid symbol':
+                        listed = False
+                        break
+            log.info("first_loaded - end")
+        else:
+            log.info("start")
+            elements = find_elements(browser, css_selectors['price_axis'], except_on_timeout=False)
+            if elements:
+                for element in elements:
+                    if element.text != '':
+                        listed = True
+                        break
+            log.info("end")
     except StaleElementReferenceException as e:
         log.info(e)
-        return is_market_listed(browser)
+        return is_market_listed(browser, first_loaded)
     except Exception as e:
         log.exception(e)
         snapshot(browser)
@@ -1598,12 +1612,13 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
     last_indicator_name = ''
     delisted_markets = []
     previous_symbol_values = [None, None]
+    first = True
     for k, symbol in enumerate(symbols):
         # change symbol
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
         wait_until_chart_is_loaded(browser)
         # check if market is listed
-        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser):
+        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser, first):
             # process market
             result = process_symbol(browser, chart, symbols[k], timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values)
             if result:
@@ -1612,7 +1627,7 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
                 break
         else:
             delisted_markets.append(symbol)
-
+        first = False
     # close data window
     if element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
         wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
@@ -3750,7 +3765,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
     try:
         max_tries = config.getint('tradingview', 'create_alert_max_retries')
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
-        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser):
+        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser, first_symbol):
             log.info(symbol)
         else:
             log.warning("{} isn't listed".format(symbol))
@@ -4143,9 +4158,11 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
             open_performance_summary_tab(browser)
 
         change_symbol(browser, symbol)
-        if not is_market_listed(browser):
+        if not is_market_listed(browser, first_symbol):
             log.warning("{} has been delisted".format(symbol))
             return
+        else:
+            log.info("{} is listed".format(symbol))
 
         symbol_average = dict()
         symbol_average['Net Profit'] = 0
