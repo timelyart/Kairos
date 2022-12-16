@@ -18,7 +18,7 @@ charts:
     # list of charts (urls) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
     include_screenshots_of_charts: [https://www.tradingview.com/chart/<chart_id>/]
     conditions: ["Davo"]
-    options: "Only Once"
+    trigger: "Only Once"
     expiration:
       # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
       # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).

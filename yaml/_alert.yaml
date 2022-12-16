@@ -28,7 +28,7 @@ charts:
     conditions: ["Golden", "Plot", "Crossing Up", "Golden", "Plot"]
     # The options below correspond with the options on the Alert dialog, as are the available values for each option.
     # How often is the alert allowed to triggers?
-    options: "Only Once"
+    trigger: "Only Once"
     # When should the alert expire?
     expiration:
       # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).

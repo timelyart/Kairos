@@ -145,44 +145,46 @@ css_selectors = dict(
     input_search_alert='input[data-role="search"]',
     btn_delete_alert='div.widgetbar-widgetbody div[class^=body] div[class^=itemBody] div[class^=overlay] div[role=button]:nth-child(3)',
     btn_create_alert='#header-toolbar-alerts',
+    dlg_alert='div[data-name="alerts-create-edit-dialog"]',
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
-    dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1)',
-    options_dlg_create_alert_first_row_first_item='fieldset > div:nth-child(1) > span > div:nth-child(1) span.tv-control-select__option-wrap',
-    exists_dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span > span',
-    dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right > span',
-    options_dlg_create_alert_first_row_second_item='div.js-condition-first-operand-placeholder div.tv-alert-dialog__group-item--right span.tv-control-select__option-wrap',
-    dlg_create_alert_second_row='fieldset > div:nth-child(2) > span',
-    options_dlg_create_alert_second_row='fieldset > div:nth-child(2) > span span.tv-control-select__option-wrap',
-    inputs_and_selects_create_alert_3rd_row_and_above='div.js-condition-second-operand-placeholder select, div.js-condition-second-operand-placeholder input',
-    dlg_create_alert_3rd_row_group_item='div.js-condition-second-operand-placeholder div.tv-alert-dialog__group-item',
-    options_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened span.tv-control-select__option-wrap',
-    selected_dlg_create_alert_3rd_row_group_item='span.tv-control-select__dropdown.tv-dropdown-behavior__body.i-opened > span > span > span:nth-child({0}) > span',
-    checkbox_dlg_create_alert_frequency='div[data-title="{0}"]',
-    # Notify on App
-    clickable_dlg_create_alert_send_push='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="send-push"])',
-    # Show Popup
-    clickable_dlg_create_alert_show_popup='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="show-popup"])',
-    # Send Email
-    clickable_dlg_create_alert_send_email='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="send-email"])',
-    # Webhook
-    clickable_dlg_create_alert_webhook='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="webhook-toggle"])',
-    dlg_create_alert_webhook='input[type="url"][name="webhook-url"]',
-    # Toggle more actions
-    btn_toggle_more_actions='div.tv-alert-dialog__fieldset-wrapper-toggle.js-fieldset-wrapper-toggle',
-    # Play Sound
-    clickable_dlg_create_alert_play_sound='div.tv-alert-dialog__fieldset-value-item > label:has(input[type="checkbox"][name="play-sound"])',
-    # Sound options
-    dlg_create_alert_ringtone='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--left > span',
-    options_dlg_create_alert_ringtone='div.js-sound-settings div.tv-alert-dialog__group-item--left span.tv-control-select__option',
-    dlg_create_alert_sound_duration='div.js-sound-settings > div.tv-alert-dialog__group-item.tv-alert-dialog__group-item--right > span',
-    options_dlg_create_alert_sound_duration='div.js-sound-settings div.tv-alert-dialog__group-item--right span.tv-control-select__option',
-    # Send Email-to-SMS
-    clickable_dlg_create_alert_send_email_to_sms='div.tv-alert-dialog__fieldset-value-item:has(input[type="checkbox"][name="send-sms"])',
-    # Send SMS
-    btn_dlg_create_alert_submit='div[data-name="submit"] > span.tv-button__loader',
-    # Set Alert name
-    dlg_create_alert_name='input[type="text"][name="alert-name"]',
+    dlg_create_alert_first_row_first_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) div[class^="select"] span[role="button"]',
+    dlg_create_alert_options='div[data-name="popup-menu-container"] div[role="option"] span[class^="select"]',
+    exists_dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2)',
+    dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
+    dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
+    inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
+    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
+    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] div[class^="wrap"]:nth-child(4) button',
+    dlg_create_alert_open_ended_checkbox='#unexpired-date',
+    # dlg_create_alert_open_ended_checkbox_clickable='div[data-name="popup-menu-container"] div[class^="row"]:nth-child(1) input',
+    dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
+    dlg_create_alert_expiration_date='div[data-name^="popup-menu-container"] div[class^="picker"] input',
+    dlg_create_alert_expiration_time='div[data-name^="popup-menu-container"] div[class^="time"] input',
+    dlg_create_alert_notifications_button='button[data-name="notifications"]',
+    # Alert Notifications
+    dlg_create_alert_notifications_notify_on_app_checkbox='span[data-name="notify-on-app"] input',
+    dlg_create_alert_notifications_show_popup_checkbox='span[data-name="show-popup"] input',
+    dlg_create_alert_notifications_send_email_checkbox='span[data-name="send-email"] input',
+    dlg_create_alert_notifications_webhook_checkbox='span[data-name="webhook"] input',
+    dlg_create_alert_notifications_play_sound_checkbox='span[data-name="play-sound"] input',
+    dlg_create_alert_notifications_email_to_sms_checkbox='span[data-name="send-email-to-sms"] input',
+    dlg_create_alert_notifications_notify_on_app_checkbox_clickable='span[data-name="notify-on-app"]',
+    dlg_create_alert_notifications_show_popup_checkbox_clickable='span[data-name="show-popup"]',
+    dlg_create_alert_notifications_send_email_checkbox_clickable='span[data-name="send-email"]',
+    dlg_create_alert_notifications_webhook_checkbox_clickable='span[data-name="webhook"]',
+    dlg_create_alert_notifications_play_sound_checkbox_clickable='span[data-name="play-sound"]',
+    dlg_create_alert_notifications_email_to_sms_checkbox_clickable='span[data-name="send-email-to-sms"]',
+    dlg_create_alert_notifications_webhook_text='div[data-name="alerts-create-edit-dialog"] div[class^="section"]:nth-child(4) > div:nth-child(2) input',
+    dlg_create_alert_notifications_sound_ringtone_button='div[data-name="alerts-create-edit-dialog"] div[class^="section"]:nth-child(5) div[class^="soundSelect"] span[role="button"]:nth-child(1)',
+    dlg_create_alert_notifications_sound_ringtone_options='div[data-name="popup-menu-container"] div[role="option"] div[class^="title"]',
+    dlg_create_alert_notifications_sound_duration_button='div[data-name="alerts-create-edit-dialog"] div[class^="section"]:nth-child(5) div[class^="soundSelect"] span[role="button"]:nth-child(2)',
+    dlg_create_alert_notifications_sound_duration_options='div[data-name="popup-menu-container"] div[role="option"] > span >span',
+    # Alert Name and Message
+    dlg_create_alert_name='#alert-name',
+    dlg_create_alert_message='#alert-message',
+    # Alert Submit button
+    btn_dlg_create_alert_submit='div[data-name="alerts-create-edit-dialog"] button[data-name="submit"]',
     # Acknowledge repainting
     btn_create_alert_warning_continue_anyway_got_it='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] label[class^="checkbox"]',
     btn_create_alert_warning_continue_anyway='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] button[name="continue"]',
@@ -193,8 +195,6 @@ css_selectors = dict(
     div_watchlist_item='div[data-symbol-full]',
     div_watchlist_item_by_symbol='div[data-symbol-full="{}"]',
     signout='div[data-name="header-user-menu-sign-out"]',
-    checkbox_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended input',
-    clickable_dlg_create_alert_open_ended='div.tv-alert-dialog__fieldset-value-item--open-ended span.tv-control-checkbox__label',
     btn_screenshot='#header-toolbar-screenshot',
     btn_twitter_url='div[data-name="tweet-chart-image"]',
     btn_image_url='div[data-name="open-image-in-new-tab"]',
@@ -262,14 +262,6 @@ class_selectors = dict(
     rows_screener_result='tv-screener-table__result-row',
 )
 
-name_selectors = dict(
-    checkbox_dlg_create_alert_show_popup='show-popup',
-    checkbox_dlg_create_alert_play_sound='play-sound',
-    checkbox_dlg_create_alert_send_email='send-email',
-    checkbox_dlg_create_alert_email_to_sms='send-sms',
-    checkbox_dlg_create_alert_webhook='webhook-toggle',
-    checkbox_dlg_create_alert_send_push='send-push'
-)
 
 tv_start = timing.time()
 config = tools.get_config()
@@ -1576,7 +1568,6 @@ def is_market_listed(browser, first_loaded=False):
     listed = False
     try:
         if first_loaded:
-            log.info("first_loaded - start")
             elements = find_elements(browser, css_selectors['chart_error_message'], except_on_timeout=False, delay=DELAY_BREAK*2)
             listed = True
             if elements:
@@ -1584,16 +1575,13 @@ def is_market_listed(browser, first_loaded=False):
                     if str(element.text).lower() == 'invalid symbol':
                         listed = False
                         break
-            log.info("first_loaded - end")
         else:
-            log.info("start")
             elements = find_elements(browser, css_selectors['price_axis'], except_on_timeout=False)
             if elements:
                 for element in elements:
                     if element.text != '':
                         listed = True
                         break
-            log.info("end")
     except StaleElementReferenceException as e:
         log.info(e)
         return is_market_listed(browser, first_loaded)
@@ -2312,8 +2300,6 @@ def delete_alerts(browser, alert_name):
 
     try:
         if get_number_of_alerts_on_alerts_tab(browser) > 0:
-            # if not find_element(browser, css_selectors['btn_search_alert'], visible=True, except_on_timeout=False):
-            #     wait_and_click(browser, css_selectors['btn_alerts'])
             if not find_element(browser, css_selectors['input_search_alert'], visible=True, except_on_timeout=False):
                 wait_and_click(browser, css_selectors['btn_search_alert'])
             clear(find_element(browser, css_selectors['input_search_alert']))
@@ -2350,33 +2336,34 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
     global alert_dialog
     global SEARCH_FOR_WARNING
     try:
-        indicators_present = False
-        i = 0
-        while not indicators_present and i < 20:
-            html = find_element(browser, 'html')
-            html.send_keys(Keys.ALT + "a")
-            el_options = find_elements(browser, css_selectors['options_dlg_create_alert_first_row_first_item'], By.CSS_SELECTOR, False, False, 0.5)
-            indicators_present = el_options is not None
-            if not indicators_present:
-                try:
-                    wait_and_click(browser, css_selectors['btn_alert_cancel'], 0.1)
-                except TimeoutException as e:
-                    log.debug(e)
-                time.sleep(1)
-            i += 1
-
-        if not indicators_present:
-            log.error("Alert Dialog not loaded")
+        # indicators_present = False
+        # i = 0
+        # while not indicators_present and i < 20:
+        #     html = find_element(browser, 'html')
+        #     html.send_keys(Keys.ALT + "a")
+        #
+        #     el_options = find_elements(browser, css_selectors['options_dlg_create_alert_first_row_first_item'], By.CSS_SELECTOR, False, False, 0.5)
+        #     indicators_present = el_options is not None
+        #     if not indicators_present:
+        #         try:
+        #             wait_and_click(browser, css_selectors['btn_alert_cancel'], 0.1)
+        #         except TimeoutException as e:
+        #             log.debug(e)
+        #         time.sleep(1)
+        #     i += 1
+        #
+        # if not indicators_present:
+        #     log.error("Alert Dialog not loaded")
 
         # get the alert dialog element
         try:
-            alert_dialog = find_element(browser, 'form.js-alert-form', By.CSS_SELECTOR, True, True, 2)
+            alert_dialog = find_element(browser, css_selectors['dlg_alert'], By.CSS_SELECTOR, True, True, 2)
             log.debug(str(len(alert_config['conditions'])) + ' yaml conditions found')
         except TimeoutException:
             # open the alert dialog
             wait_and_click(browser, css_selectors['btn_create_alert'], 2)
             # time.sleep(1)
-            alert_dialog = find_element(browser, 'form.js-alert-form', By.CSS_SELECTOR, True, True, 4)
+            alert_dialog = find_element(browser, css_selectors['dlg_alert'], By.CSS_SELECTOR, True, True, 4)
         except Exception as e:
             log.exception(e)
             snapshot(browser)
@@ -2392,7 +2379,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
-        el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_first_item'])
+        el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
         if not select(browser, alert_config, current_condition, el_options, symbol):
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
@@ -2402,7 +2389,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             if element_exists(alert_dialog, css_1st_row_right, 0.5):
                 current_condition += 1
                 wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
-                el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_first_row_second_item'])
+                el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
                 if not select(browser, alert_config, current_condition, el_options, symbol):
                     return False
 
@@ -2410,7 +2397,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             current_condition += 1
             css_2nd_row = css_selectors['dlg_create_alert_second_row']
             wait_and_click(alert_dialog, css_2nd_row)
-            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_second_row'])
+            el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
             if not select(browser, alert_config, current_condition, el_options, symbol):
                 return False
 
@@ -2428,150 +2415,153 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                     else:
                         break
 
-                if inputs[i].tag_name == 'select':
-                    elements = find_elements(alert_dialog, css_selectors['dlg_create_alert_3rd_row_group_item'])
-                    if not ((elements[i].text == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and elements[i].text.startswith(alert_config['conditions'][current_condition]))):
-                        elements[i].click()
-                        time.sleep(DELAY_BREAK_MINI)
-
-                        el_options = find_elements(elements[i], css_selectors['options_dlg_create_alert_3rd_row_group_item'])
-                        condition_yaml = str(alert_config['conditions'][current_condition])
-                        found = False
-                        for j, option in enumerate(el_options):
-                            option = el_options[j]
-                            option_tv = str(option.get_attribute("innerHTML")).strip()
-                            if (option_tv == condition_yaml) or ((not EXACT_CONDITIONS) and option_tv.startswith(condition_yaml)):
-                                wait_and_click(alert_dialog, css_selectors['selected_dlg_create_alert_3rd_row_group_item'].format(j + 1))
-                                found = True
-                                break
-                        if not found:
-                            log.error("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change?".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
+                if inputs[i].get_attribute("role") == "button":
+                    current_value = find_element(inputs[i], 'span[class^="select"]').text
+                    if not ((current_value == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and current_value.startswith(alert_config['conditions'][current_condition]))):
+                        inputs[i].click()  # click the select box button to open it
+                        el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
+                        if not select(browser, alert_config, current_condition, el_options, symbol):
                             return False
                 elif inputs[i].tag_name == 'input':
+                    inputs[i].send_keys(SELECT_ALL)
                     set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
 
                 # give some time
                 current_condition += 1
                 i += 1
 
-        # Options (i.e. frequency)
-        if 'options' in alert_config and alert_config['options']:
-            button_name = 'N/A'
+        # Trigger
+        if 'trigger' in alert_config and alert_config['trigger'] or \
+                'options' in alert_config and alert_config['options']:  # deprecated
+            if 'trigger' in alert_config and alert_config['trigger']:
+                trigger = str(alert_config['trigger']).strip()
+            else:
+                trigger = str(alert_config['options']).strip()  # deprecated
             try:
-                button_name = str(alert_config['options']).strip()
-                wait_and_click(alert_dialog, css_selectors['checkbox_dlg_create_alert_frequency'].format(button_name))
+                if trigger == "Only Once":
+                    wait_and_click(browser, 'button[data-name="only-once"]')
+                elif trigger == "Every Time" or trigger == "Once Per Bar":
+                    wait_and_click(browser, 'button[data-name="every-time"]')
+                elif trigger == "Once Per Bar Close":
+                    wait_and_click(browser, 'button[data-name="once-per-bar-close"]')
+                elif trigger == "Once Per Minuter":
+                    wait_and_click(browser, 'button[data-name="once-per-minute"]')
+                else:
+                    log.warning('Trigger "{}" unsupported'.format(trigger))
             except TimeoutException as e:
-                log.exception("Unable to find button called '{}'.\nPlease, check if the value provided in your yaml (still) exists on TV.".format(button_name))
                 log.exception(e)
                 snapshot(browser, True)
 
         # Expiration
-        if 'expiration' in alert_config and alert_config['expiration']:
-            set_expiration(browser, alert_dialog, alert_config)
-
-        # Toggle 'more actions'
-        wait_and_click(alert_dialog, css_selectors['btn_toggle_more_actions'])
-
-        # Show popup
-        show_popup = 'show_popup' in alert_config and alert_config['show_popup']
-        checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_show_popup'], By.NAME)
-        if is_checkbox_checked(checkbox) != show_popup:
-            wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_show_popup'])
-
-        # Sound
-        play_sound = 'sound' in alert_config and 'play' in alert_config['sound'] and alert_config['sound']['play']
-        checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_play_sound'], By.NAME)
-        if is_checkbox_checked(checkbox) != play_sound:
-            wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_play_sound'])
-        if is_checkbox_checked(checkbox):
-            # set ringtone
-            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_ringtone'])
-            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_ringtone'])
-            for option in el_options:
-                option_value = str(option.text).strip()
-                if option_value == str(alert_config['sound']['ringtone']).strip():
-                    option.click()
-            # set duration
-            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_sound_duration'])
-            el_options = find_elements(alert_dialog, css_selectors['options_dlg_create_alert_sound_duration'])
-            for option in el_options:
-                option_value = str(option.text).strip()
-                if option_value == str(alert_config['sound']['duration']).strip():
-                    option.click()
-
-        # Communication options
-        # Send Email
         try:
-            send_email = 'send' in alert_config and 'email' in alert_config['send'] and alert_config['send']['email']
-            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_email'], By.NAME)
-            if is_checkbox_checked(checkbox) != send_email:
-                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email'])
-            # Send Email-to-SMS (the checkbox is indeed called 'send-sms'!)
-            send_email_to_sms = 'send' in alert_config and 'email-to-sms' in alert_config['send'] and alert_config['send']['email-to-sms']
-            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_email_to_sms'], By.NAME)
-            if is_checkbox_checked(checkbox) != send_email_to_sms:
-                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_email_to_sms'])
-            # Notify on App
-            notify_on_app = 'send' in alert_config and 'notify-on-app' in alert_config['send'] and alert_config['send']['notify-on-app']
-            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_send_push'], By.NAME)
-            if is_checkbox_checked(checkbox) != notify_on_app:
-                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_send_push'])
+            if 'expiration' in alert_config and alert_config['expiration']:
+                set_expiration(browser, alert_config)
+        except Exception as e:
+            log.exception(e)
+            time.sleep(60000)
 
+        # Alert name
+        name = ''
+        if 'name' in alert_config:
+            name = str(alert_config['name']).replace('%SYMBOL', '')
+            element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
+            set_value(browser, element, name)
+
+        # Message
+        if 'message' in alert_config and alert_config['message'] != '':
+            chart = browser.current_url + '?symbol=' + symbol
+            show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
+            if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
+                chart += '&interval=' + str(interval)
+            textarea = find_element(alert_dialog, css_selectors['dlg_create_alert_message'])
+            generated = ''
+            text = str(alert_config['message']['text']).replace('/r', '')
+            text = text.replace('%NAME', name)
+            text = text.replace('%TIMEFRAME', timeframe)
+            text = text.replace('%SYMBOL', symbol)
+            text = text.replace('%CHART', chart)
+            text = text.replace('%SCREENSHOT', screenshot_url)
+            text = text.replace('%GENERATED', generated)
+            try:
+                screenshot_urls = []
+                for screenshot_chart in alert_config['include_screenshots_of_charts']:
+                    screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
+                if len(screenshot_urls) > 0:
+                    text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
+            except ValueError as value_error:
+                log.exception(value_error)
+                snapshot(browser)
+            except KeyError:
+                log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+
+            try:
+                set_value(browser, textarea, text, True)
+            except ElementNotInteractableException:
+                # ignore ElementNotInteractableException when the 'Message' box is hidden due to
+                # "Any alert() function call" being set as a condition
+                pass
+            except Exception as e:
+                log.exception(e)
+
+        # Notifications
+        try:
+            wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_button'])
+            # Notify on App
+            notify_on_app = 'send' in alert_config and 'notify-on-app' in alert_config['send'] and alert_config['send'][
+                'notify-on-app']
+            checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_notify_on_app_checkbox'])
+            if is_checkbox_checked(checkbox) != notify_on_app:
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_notify_on_app_checkbox_clickable'])
+            # Show popup
+            show_popup = 'show_popup' in alert_config and alert_config['show_popup']
+            checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_show_popup_checkbox'])
+            if is_checkbox_checked(checkbox) != show_popup:
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_show_popup_checkbox_clickable'])
+            # Sound
+            play_sound = 'sound' in alert_config and 'play' in alert_config['sound'] and alert_config['sound']['play']
+            checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_play_sound_checkbox'])
+            if is_checkbox_checked(checkbox) != play_sound:
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_play_sound_checkbox_clickable'])
+            if play_sound:
+                # set ringtone
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_sound_ringtone_button'])
+                value = str(alert_config['sound']['duration']).strip()
+                el_options = find_elements(browser, css_selectors['dlg_create_alert_notifications_sound_ringtone_options'])
+                for option in el_options:
+                    option_tv = str(option.get_attribute("innerHTML")).strip()
+                    if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
+                        hover(browser, option, True)
+                        break
+
+                # set duration
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_sound_duration_button'])
+                value = str(alert_config['sound']['duration']).strip()
+                el_options = find_elements(browser, css_selectors['dlg_create_alert_notifications_sound_duration_options'])
+                for option in el_options:
+                    option_tv = str(option.get_attribute("innerHTML")).strip()
+                    if (option_tv == value) or ((not EXACT_CONDITIONS) and option_tv.startswith(value)):
+                        hover(browser, option, True)
+                        break
+
+            # Send Email
+            send_email = 'send' in alert_config and 'email' in alert_config['send'] and alert_config['send']['email']
+            checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_send_email_checkbox'])
+            if is_checkbox_checked(checkbox) != send_email:
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_send_email_checkbox_clickable'])
+            # Send Email-to-SMS
+            send_email_to_sms = 'send' in alert_config and 'email-to-sms' in alert_config['send'] and alert_config['send']['email-to-sms']
+            checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_email_to_sms_checkbox'])
+            if is_checkbox_checked(checkbox) != send_email_to_sms:
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_email_to_sms_checkbox_clickable'])
             # Webhook
             webhook = 'webhook' in alert_config and alert_config['webhook'] != ''
-            checkbox = find_element(alert_dialog, name_selectors['checkbox_dlg_create_alert_webhook'], By.NAME)
+            checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_checkbox'])
             if is_checkbox_checked(checkbox) != webhook:
-                wait_and_click(alert_dialog, css_selectors['clickable_dlg_create_alert_webhook'])
+                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_checkbox_clickable'])
             if webhook:
-                element = find_element(alert_dialog, css_selectors['dlg_create_alert_webhook'])
-                set_value(browser, element, alert_config['webhook'], True)
-
-            # Alert name
-            name = ''
-            if 'name' in alert_config:
-                name = str(alert_config['name']).replace('%SYMBOL', '')
-                element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
-                set_value(browser, element, name, True)
-
-            # Construct message
-            if 'message' in alert_config and alert_config['message'] != '':
-                chart = browser.current_url + '?symbol=' + symbol
-                show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
-                if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
-                    chart += '&interval=' + str(interval)
-                textarea = find_element(alert_dialog, 'description', By.NAME)
-                """
-                # This has stopped working. :( The text is visible but not set.           
-                generated = textarea.text
-                """
-                generated = ''
-                text = str(alert_config['message']['text']).replace('/r', '')
-                text = text.replace('%NAME', name)
-                text = text.replace('%TIMEFRAME', timeframe)
-                text = text.replace('%SYMBOL', symbol)
-                text = text.replace('%CHART', chart)
-                text = text.replace('%SCREENSHOT', screenshot_url)
-                text = text.replace('%GENERATED', generated)
-                try:
-                    screenshot_urls = []
-                    for screenshot_chart in alert_config['include_screenshots_of_charts']:
-                        screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
-                    if len(screenshot_urls) > 0:
-                        text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
-                except ValueError as value_error:
-                    log.exception(value_error)
-                    snapshot(browser)
-                except KeyError:
-                    log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
-
-                try:
-                    set_value(browser, textarea, text, True)
-                except ElementNotInteractableException:
-                    # ignore ElementNotInteractableException when the 'Message' box is hidden due to
-                    # "Any alert() function call" being set as a condition
-                    pass
-                except Exception as e:
-                    log.exception(e)
+                element = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_text'])
+                element.send_keys(SELECT_ALL)
+                set_value(browser, element, alert_config['webhook'])
 
         except ElementClickInterceptedException as e:
             # close dialogs
@@ -2579,6 +2569,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             close_all_popups(browser)
         except Exception as e:
             log.exception(e)
+            time.sleep(60000)
             snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
@@ -2689,9 +2680,10 @@ def is_checkbox_checked(checkbox):
         return checked
 
 
-def set_expiration(browser, _alert_dialog, alert_config):
+def set_expiration(browser, alert_config):
     max_minutes = 86400
     datetime_format = '%Y-%m-%d %H:%M'
+    target_date = ''
 
     exp = alert_config['expiration']
     if type(exp) is int:
@@ -2704,36 +2696,54 @@ def set_expiration(browser, _alert_dialog, alert_config):
         if 'open-ended' not in alert_config['expiration']:
             alert_config['expiration']['open-ended'] = False
 
-    checkbox = find_element(_alert_dialog, css_selectors['checkbox_dlg_create_alert_open_ended'])
-    if is_checkbox_checked(checkbox) != alert_config['expiration']['open-ended']:
-        wait_and_click(_alert_dialog, css_selectors['clickable_dlg_create_alert_open_ended'])
-
-    if alert_config['expiration']['open-ended'] or str(alert_config['expiration']['time']).strip() == '' or str(alert_config['expiration']['time']).strip().lower().startswith('n') or type(alert_config['expiration']['time']) is None:
+    # open-ended
+    open_ended = alert_config['expiration']['open-ended'] or str(alert_config['expiration']['time']).strip() == '' or str(alert_config['expiration']['time']).strip().lower().startswith('n') or type(alert_config['expiration']['time']) is None
+    current_value = find_element(browser, css_selectors['dlg_create_alert_expiration_value']).text
+    if current_value == 'Open-ended alert' and open_ended:
         return
-    elif type(alert_config['expiration']['time']) is int:
-        target_date = datetime.datetime.now() + datetime.timedelta(minutes=float(alert_config['expiration']['time']))
-    elif type(alert_config['expiration']['time']) is str and len(str(alert_config['expiration']['time']).strip()) > 0:
-        target_date = datetime.datetime.strptime(str(alert_config['expiration']['time']).strip(), datetime_format)
-    else:
-        return
+    elif current_value == 'Open-ended alert' and not open_ended:
+        # change from open-ended to fixed date & time
+        element = find_element(browser, css_selectors['dlg_create_alert_open_ended_checkbox'])  # wait_and_click does not work for some reason
+        element.click()
+        # open the expiration dialog
+        wait_and_click(browser, css_selectors['dlg_create_alert_expiration_button'])
+    elif current_value != 'Open-ended alert' and open_ended:
+        # open the expiration dialog
+        wait_and_click(browser, css_selectors['dlg_create_alert_expiration_button'])
+        # change from fixed date & time to open-ended
+        element = find_element(browser, css_selectors['dlg_create_alert_open_ended_checkbox'])  # wait_and_click does not work for some reason
+        element.click()
+    elif current_value != 'Open-ended alert' and not open_ended:
+        # open the expiration dialog
+        wait_and_click(browser, css_selectors['dlg_create_alert_expiration_button'])
 
-    max_expiration = datetime.datetime.now() + datetime.timedelta(minutes=float(max_minutes - 1440))
-    if target_date > max_expiration:
-        target_date = max_expiration
-    date_value = target_date.strftime('%Y-%m-%d')
-    time_value = target_date.strftime('%H:%M')
+    if not open_ended:
+        max_expiration = datetime.datetime.now() + datetime.timedelta(minutes=float(max_minutes - 1440))
+        if type(alert_config['expiration']['time']) is int:
+            target_date = datetime.datetime.now() + datetime.timedelta(
+                minutes=float(alert_config['expiration']['time']))
+        elif type(alert_config['expiration']['time']) is str and len(
+                str(alert_config['expiration']['time']).strip()) > 0:
+            target_date = datetime.datetime.strptime(str(alert_config['expiration']['time']).strip(), datetime_format)
+        if target_date > max_expiration:
+            target_date = max_expiration
+        date_value = target_date.strftime('%Y-%m-%d')
+        time_value = target_date.strftime('%H:%M')
 
-    # For some reason TV does not register setting the date value directly.
-    # Furthermore, we need to make sure that the date and time inputs are cleared beforehand.
-    input_date = find_element(alert_dialog, 'alert_exp_date', By.NAME)
-    clear(input_date)
-    set_value(browser, input_date, date_value, False, True)
-    input_time = find_element(_alert_dialog, 'alert_exp_time', By.NAME)
-    time.sleep(DELAY_BREAK_MINI)
-    clear(input_time)
-    set_value(browser, input_time, time_value, False, True)
-    send_keys(input_time, Keys.TAB)
-    time.sleep(DELAY_BREAK_MINI)
+        # For some reason TV does not register setting the date value directly.
+        # Furthermore, we need to make sure that the date and time inputs are cleared beforehand.
+        input_date = find_element(browser, css_selectors['dlg_create_alert_expiration_date'])
+        input_date.send_keys(SELECT_ALL)
+        set_value(browser, input_date, date_value, False, True)
+        time.sleep(DELAY_BREAK_MINI)
+        input_time = find_element(browser, css_selectors['dlg_create_alert_expiration_time'])
+        input_time.send_keys(SELECT_ALL)
+        set_value(browser, input_time, time_value, False, True)
+        send_keys(input_time, Keys.TAB)
+        time.sleep(DELAY_BREAK_MINI)
+
+    # press the 'Set' button
+    wait_and_click(browser, css_selectors['dlg_create_alert_expiration_confirmation_button'])
 
 
 def login(browser, uid='', pwd='', retry_login=False):

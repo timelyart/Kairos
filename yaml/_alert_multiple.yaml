@@ -32,7 +32,7 @@ charts:
     # Conditions need to be listed in order of TV's Create Alert dialog form, i.e. from left to right and from top to bottom.
     # Values need to be EXACT (unless specified differently in your kairos.cfg under section TradingView, setting exact_conditions) and are CASE SENSITIVE.
     conditions: ["BTCUSD", "Outside channel", "Value", "6826.28", "Value", "5880.00"]
-    options: "Only Once"
+    trigger: "Only Once"
     expiration:
       # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
       # Format it in yyyy-mm-dd hh:mm, or n where n is the number of days (note that trading view has a maximum of 60).
@@ -72,7 +72,7 @@ charts:
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
   - name: "Example 2 %SYMBOL"
     conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
-    options: "Once Per Bar Close"
+    trigger: "Once Per Bar Close"
     expiration: 86400
     show_popup: no
     sound:
@@ -92,7 +92,7 @@ charts:
   alerts:
   - name: "Example 3 %SYMBOL"
     conditions: ["BTCUSD", "Crossing", "MA (200, close)"]
-    options: "Once Per Bar Close"
+    trigger: "Once Per Bar Close"
     expiration: 86400
     show_popup: no
     sound:

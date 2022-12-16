@@ -159,7 +159,7 @@ If you find yourself copying and pasting a lot, you might want to consider to pu
 
 The files needed to run **root.yaml** can be found in the folder [yaml](yaml) and I highly encourage to look into them to figure out how they work.
 
-When creating/editing [YAML](https://en.wikipedia.org/wiki/YAML) files you have to be careful with indentation and you might want to use a website like [https://yamlchecker.com](https://yamlchecker.com) to check your YAML before running it with Kairos. Also, note that values are **case sensitive**.
+When creating/editing [YAML](https://en.wikipedia.org/wiki/YAML) files you have to be careful with indentation, and you might want to use a website like [https://yamlchecker.com](https://yamlchecker.com) to check your YAML before running it with Kairos. Also, note that values are **case-sensitive**.
 
 #### Troubleshooting YAML
 When Kairos runs, it will create a temporary copy of your [YAML](https://en.wikipedia.org/wiki/YAML) file called **my_file.yaml.tmp**. This temporary file includes your [YAML](https://en.wikipedia.org/wiki/YAML) file (obviously) but also any [YAML](https://en.wikipedia.org/wiki/YAML) file that gets referenced from your [YAML](https://en.wikipedia.org/wiki/YAML) files.<br>
@@ -167,7 +167,7 @@ In case of an error, a **my_file.yaml.err** will be created. Kairos error messag
 
 #### Examples
 The rest of this chapter will elaborate on setting up various use cases with [YAML](https://en.wikipedia.org/wiki/YAML) files.<br>
-Signals are the core of Kairos and strategies are really useful for automatic backtesting. Although Alerts have largely become obsolete with Signals, they are still expanded upon here. They were the core of version 1 after all, and may still be provide to be useful to some.
+Signals are the core of Kairos and strategies are really useful for automatic backtesting. Although Alerts have largely become obsolete with Signals, they are still expanded upon here. They were the core of version 1 after all, and may still prove to be useful to some.
 
 ### Alerts
 Please read [Editing YAML files](https://github.com/timelyart/Kairos#editing-yaml-files) if you haven't done so already.
@@ -182,7 +182,7 @@ Steps:
   alerts:
   - name:
     conditions: []
-    options: "Once Per Bar Close"
+    trigger: "Once Per Bar Close"
     expiration: 86400
     show_popup: no
     sound:
@@ -199,7 +199,7 @@ Steps:
       text:
 ```      
 * Fill in the timeframe(s) and watchlist(s) you want to use
-* Create a mock up alert and write down the options (case sensitive!) you select in order (going from left to right and from top to bottom)
+* Create a mock-up alert and write down the options (case-sensitive!) you select in order (going from left to right and from top to bottom)
 * Fill in the rest of the template with your written down values
 
 You can define in one file multiple charts with each chart having multiple alerts, like this:
@@ -211,7 +211,7 @@ charts:
   alerts:
   - name:
     conditions: []
-    options: "Once Per Bar Close"
+    trigger: "Once Per Bar Close"
     expiration: 86400
     show_popup: no
     sound:
@@ -228,7 +228,7 @@ charts:
       text:
   - name:
     conditions: []
-    options: "Only Once"
+    trigger: "Only Once"
     expiration: 2
     show_popup: no
     sound:
@@ -249,7 +249,7 @@ charts:
   alerts:
   - name:
     conditions: []
-    options: "Once Per Bar Close"
+    trigger: "Once Per Bar Close"
     expiration: 86400
     show_popup: no
     sound:
@@ -310,7 +310,7 @@ Steps:
 ```
 python main.py signal.yaml
 ```
-All the settings within the [YAML](https://en.wikipedia.org/wiki/YAML) file are explained. If you miss an explanation, or if an explanation isn't clear. Please, open an [issue](https://github.com/timelyart/Kairos/issues) so it may get addressed.   
+All the settings within the [YAML](https://en.wikipedia.org/wiki/YAML) file are explained. If you miss an explanation, or if an explanation isn't clear. Please, open an [issue](https://github.com/timelyart/Kairos/issues), so it may get addressed.   
 
 #### Golden Cross Template
 Use the [_signal_golden_cross.yaml](yaml/_signal_golden_cross.yaml) as a base for your own [yaml](https://en.wikipedia.org/wiki/YAML) file. 
@@ -323,7 +323,7 @@ Steps:
 ```
 python main.py signal_golden_cross.yaml
 ```
-All the settings within the template files are explained. If you miss an explanation, or if an explanation isn't clear. Please, open an issue so it may get addressed.
+All the settings within the template files are explained. If you miss an explanation, or if an explanation isn't clear. Please, open an issue, so it may get addressed.
 
 ### Strategies
 You can use strategies to backtest TradingView strategies, much in the same way as signals or alerts. Kairos will run your TradingView strategy for each symbol on your watchlist(s) and save the results for you in a [JSON](https://en.wikipedia.org/wiki/JSON) file. 
@@ -354,7 +354,7 @@ Steps:
 ```
 python main.py strategies.yaml
 ```
-All the settings within the [YAML](https://en.wikipedia.org/wiki/YAML) file are explained. If you miss an explanation, or if an explanation isn't clear. Please, open an [issue](https://github.com/timelyart/Kairos/issues) so it may get addressed.  
+All the settings within the [YAML](https://en.wikipedia.org/wiki/YAML) file are explained. If you miss an explanation, or if an explanation isn't clear. Please, open an [issue](https://github.com/timelyart/Kairos/issues), so it may get addressed.  
 ## Command line examples
 * Refresh your existing alerts (depends on the settings in your kairos.cfg so proceed with caution).
 ```
@@ -375,7 +375,7 @@ python main.py -s
 A lot can go wrong running web automation tools like Kairos. These are the most common ones:
 * The web page / server hasn't handled the interaction (a click or some input) yet before the next interaction is tried   
 * A popup is displayed over the point that Kairos wants to interact with, e.g. a tooltip or TradingView's 'too many devices message'.
-* A form (e.g. an alert)was submitted but you don't see results.
+* A form (e.g. an alert) was submitted, but you don't see results.
 * The markup of the web page has changed thereby breaking the flow of Kairos.
 
 These issues are all related and amount to Kairos unable to either find an element or to interact with an element. You will get errors (see debug.log) like:
@@ -412,7 +412,7 @@ Feedback is invaluable. Please, take the time to give constructive feedback by o
 [timelyart](https://github.com/timelyart)
 
 ## Donate
-If you find value in this project and you would like to donate, please do so [here](DONATE.md)  
+If you find value in this project, and you would like to donate, please do so [here](DONATE.md)  
 
 ## License
 This project is licensed under the GNU GPLv3 License - see the [LICENSE.md](LICENSE.md) file for details. 
