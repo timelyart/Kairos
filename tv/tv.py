@@ -1125,6 +1125,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         # load the chart
         close_all_popups(browser)
         log.info("opening chart " + chart['url'])
+        handle_incomplete_loading_bug = 'handle_incomplete_loading_bug' in chart and chart['handle_incomplete_loading_bug']
 
         # set wait times defined in chart
         set_delays(chart)
@@ -1367,11 +1368,10 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 open_data_window_tab(browser)
                 move_to_data_window_indicator(browser, indicator)
 
-                is_custom = 'is_custom' in indicator and indicator['is_custom']
                 # test the strategy and sort the results
                 for watchlist in chart['watchlists']:
                     symbols = dict_watchlist[watchlist]
-                    test_data = test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom)
+                    test_data = test_indicators(browser, indicator, symbols, data, atomic_inputs, handle_incomplete_loading_bug)
                     # sort if the user defined one for the indicator
                     if sort_by:
                         test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1461,7 +1461,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                         time.sleep(DELAY_TIMEFRAME)
                         for watchlist in chart['watchlists']:
                             symbols = dict_watchlist[watchlist]
-                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                            test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties, handle_incomplete_loading_bug)
                             # sort if the user defined one for the strategy
                             if sort_by:
                                 test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1473,7 +1473,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 else:
                     for watchlist in chart['watchlists']:
                         symbols = dict_watchlist[watchlist]
-                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties)
+                        test_data = back_test(browser, strategy, symbols, atomic_inputs, atomic_properties, handle_incomplete_loading_bug)
                         # sort if the user defined one for the strategy
                         if sort_by:
                             test_data = back_test_sort_watchlist(test_data, sort_by, reverse)
@@ -1532,14 +1532,14 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                                         browsers[k] = browser
                                     else:
                                         browsers[k] = get_browser_instance()
-                                    result = pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts,))
+                                    result = pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe, counter_alerts, total_alerts, handle_incomplete_loading_bug,))
                                     log.info(result)
                                     # [counter_alerts, total_alerts]
                                     # pool.apply_async(process_symbols, args=(browser, chart, batch, timeframe))
                                 pool.close()
                                 pool.join()
                         else:
-                            result = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
+                            result = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts, handle_incomplete_loading_bug)
                             counter_alerts = result[0]
                             total_alerts = result[1]
                             # if len(result) == 4:
@@ -1557,17 +1557,18 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
     return [counter_alerts, total_alerts]
 
 
-def is_market_listed(browser, first_loaded=False):
+def is_market_listed(browser, handle_incomplete_loading_bug):
     """
     Checks if a market is listed
     NOTE: requires the chart to be open
     :param browser:
-    :param first_loaded: whether this is the first time the chart loaded
+    :param handle_incomplete_loading_bug: handle incomplete loading of strategy bug (TV bug)
     :return: bool, whether the market is listed
     """
     listed = False
     try:
-        if first_loaded:
+        if handle_incomplete_loading_bug:
+            log.info("top")
             elements = find_elements(browser, css_selectors['chart_error_message'], except_on_timeout=False, delay=DELAY_BREAK*2)
             listed = True
             if elements:
@@ -1584,14 +1585,14 @@ def is_market_listed(browser, first_loaded=False):
                         break
     except StaleElementReferenceException as e:
         log.info(e)
-        return is_market_listed(browser, first_loaded)
+        return is_market_listed(browser, handle_incomplete_loading_bug)
     except Exception as e:
         log.exception(e)
         snapshot(browser)
     return listed
 
 
-def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts):
+def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts, handle_incomplete_loading_bug):
     # open data window when necessary
     open_data_window_tab(browser)
     symbols = list(sorted(set(symbols)))
@@ -1600,13 +1601,12 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
     last_indicator_name = ''
     delisted_markets = []
     previous_symbol_values = [None, None]
-    first = True
     for k, symbol in enumerate(symbols):
         # change symbol
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
         wait_until_chart_is_loaded(browser)
         # check if market is listed
-        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser, first):
+        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser, handle_incomplete_loading_bug):
             # process market
             result = process_symbol(browser, chart, symbols[k], timeframe, last_indicator_name, counter_alerts, total_alerts, previous_symbol_values)
             if result:
@@ -1615,7 +1615,6 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
                 break
         else:
             delisted_markets.append(symbol)
-        first = False
     # close data window
     if element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
         wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
@@ -3677,7 +3676,7 @@ def get_indicator_dialog_values(browser, tries=0):
     return result
 
 
-def test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom):
+def test_indicators(browser, indicator, symbols, data, atomic_inputs, handle_incomplete_loading_bug):
     try:
         summaries = list()
         name = indicator['full_name']
@@ -3699,7 +3698,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom)
                 strategy_summary['inputs'] = inputs
                 strategy_summary['summary'] = dict()
                 strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
-                    test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, i + 1, len(atomic_inputs), is_custom)
+                    test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, i + 1, len(atomic_inputs), handle_incomplete_loading_bug)
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs
         else:
@@ -3708,7 +3707,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom)
             strategy_summary['inputs'] = []
             strategy_summary['summary'] = dict()
             strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = \
-                test_indicator(browser, [], symbols, indicator, data, number_of_charts, 1, 1, is_custom)
+                test_indicator(browser, [], symbols, indicator, data, number_of_charts, 1, 1, handle_incomplete_loading_bug)
             summaries.append(strategy_summary)
 
         return summaries
@@ -3717,7 +3716,7 @@ def test_indicators(browser, indicator, symbols, data, atomic_inputs, is_custom)
         log.exception(e)
 
 
-def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants, is_custom):
+def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, strategy_number, number_of_variants, handle_incomplete_loading_bug):
     global tv_start
 
     raw = []
@@ -3735,7 +3734,7 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, i == 0, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, handle_incomplete_loading_bug)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -3743,7 +3742,7 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom)
+        test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, raw, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, handle_incomplete_loading_bug)
 
     # Aggregate all the data to get totals
     totals = dict()
@@ -3770,12 +3769,12 @@ def test_indicator(browser, inputs, symbols, indicator, data, number_of_charts, 
     return [totals, interval_totals, symbol_totals, raw]
 
 
-def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom, tries=0):
+def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol: bool, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, handle_incomplete_loading_bug, tries=0):
     max_tries = 5
     try:
         max_tries = config.getint('tradingview', 'create_alert_max_retries')
         change_symbol(browser, symbol, CHANGE_SYMBOL_WITH_SPACE)
-        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser, first_symbol):
+        if (not VERIFY_MARKET_LISTING) or is_market_listed(browser, handle_incomplete_loading_bug):
             log.info(symbol)
         else:
             log.warning("{} isn't listed".format(symbol))
@@ -3868,7 +3867,7 @@ def test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_ch
     except Exception as e:
         log.exception(e)
         if tries < max_tries:
-            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, is_custom, tries)
+            test_indicator_symbol(browser, inputs, symbol, indicator, data, number_of_charts, first_symbol, results, input_locations, interval_totals, symbol_totals, intervals, values, previous_elements, tries)
 
 
 def calculate_indicator_data_points(data, values, interval=False):
@@ -3918,7 +3917,7 @@ def post_process_data_points(data, values):
             del values[key]
 
 
-def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties):
+def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_properties, handle_incomplete_loading_bug):
     try:
 
         summaries = list()
@@ -3944,7 +3943,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                     strategy_summary['inputs'] = inputs
                     strategy_summary['properties'] = properties
                     strategy_summary['summary'] = dict()
-                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies)
+                    strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_strategies, handle_incomplete_loading_bug)
                     summaries.append(strategy_summary)
 
         # Inputs have been defined. Run back test for each input with default properties
@@ -3956,7 +3955,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                 strategy_summary['inputs'] = inputs
                 strategy_summary['properties'] = []
                 strategy_summary['summary'] = dict()
-                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies)
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, inputs, [], symbols, strategy_config, number_of_charts, i, number_of_strategies, handle_incomplete_loading_bug)
                 summaries.append(strategy_summary)
         # Properties have been defined. Run back test for property with default inputs
         elif len(atomic_properties) > 0:
@@ -3967,7 +3966,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
                 strategy_summary['inputs'] = []
                 strategy_summary['properties'] = properties
                 strategy_summary['summary'] = dict()
-                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies)
+                strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], properties, symbols, strategy_config, number_of_charts, i, number_of_strategies, handle_incomplete_loading_bug)
                 summaries.append(strategy_summary)
         # Run just one back test with default inputs and properties
         else:
@@ -3976,7 +3975,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
             strategy_summary['inputs'] = []
             strategy_summary['properties'] = []
             strategy_summary['summary'] = dict()
-            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1)
+            strategy_summary['summary']['total'], strategy_summary['summary']['interval'], strategy_summary['summary']['symbol'], strategy_summary['raw'] = back_test_strategy(browser, [], [], symbols, strategy_config, number_of_charts, 1, 1, handle_incomplete_loading_bug)
             summaries.append(strategy_summary)
 
         # close strategy tab
@@ -3990,7 +3989,7 @@ def back_test(browser, strategy_config, symbols, atomic_inputs, atomic_propertie
         log.exception(e)
 
 
-def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants):
+def back_test_strategy(browser, inputs, properties, symbols, strategy_config, number_of_charts, strategy_number, number_of_variants, handle_incomplete_loading_bug):
     global tv_start
 
     raw = []
@@ -4029,7 +4028,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
 
     for i, symbol in enumerate(symbols[0:2]):
         timer_symbol = time.time()
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, i == 0, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants, handle_incomplete_loading_bug)
         if i == 0:
             duration += (time.time() - timer_symbol) * (number_of_variants + 1 - strategy_number)
         else:
@@ -4037,7 +4036,7 @@ def back_test_strategy(browser, inputs, properties, symbols, strategy_config, nu
     log.info("expecting to finish in {}.".format(tools.display_time(duration)))
     for symbol in symbols[2::]:
         first_symbol = refresh_session(browser)
-        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants)
+        back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, raw, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, strategy_number, number_of_variants, handle_incomplete_loading_bug)
 
     total_average = dict()
     total_average['Net Profit'] = 0
@@ -4161,14 +4160,14 @@ def is_study_error(browser):
     return result
 
 
-def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, variant_number, number_of_variants, tries=0):
+def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_config, number_of_charts, first_symbol, results, input_locations, property_locations, interval_averages, symbol_averages, intervals, values, previous_elements, variant_number, number_of_variants, handle_incomplete_loading_bug, tries=0):
     global export_trades_filename
     try:
         if first_symbol:
             open_performance_summary_tab(browser)
 
         change_symbol(browser, symbol)
-        if not is_market_listed(browser, first_symbol):
+        if not is_market_listed(browser, handle_incomplete_loading_bug):
             log.warning("{} has been delisted".format(symbol))
             return
         else:

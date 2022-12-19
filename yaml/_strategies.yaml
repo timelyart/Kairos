@@ -49,5 +49,7 @@ charts:
     # The file will be named as 'exchange-quote_base-strategyname_strategyvariant.csv' and a reference to the file's
     # location will be saved with the results of the strategy (.json file).
     export_trades: yes
+  # Handle TV bug where a strategy doesn't load properly when there is a indicator that is connected to the strategy.
+  handle_incomplete_loading_bug: no
 webdriver:
   run-in-background: no
