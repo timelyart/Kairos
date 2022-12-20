@@ -1568,7 +1568,6 @@ def is_market_listed(browser, handle_incomplete_loading_bug):
     listed = False
     try:
         if handle_incomplete_loading_bug:
-            log.info("top")
             elements = find_elements(browser, css_selectors['chart_error_message'], except_on_timeout=False, delay=DELAY_BREAK*2)
             listed = True
             if elements:
