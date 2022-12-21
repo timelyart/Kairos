@@ -2295,7 +2295,6 @@ def retry_take_screenshot(browser, symbol, interval, chart_only, tpl_strftime, r
 
 
 def delete_alerts(browser, alert_name):
-
     try:
         if get_number_of_alerts_on_alerts_tab(browser) > 0:
             if not find_element(browser, css_selectors['input_search_alert'], visible=True, except_on_timeout=False):
@@ -2304,12 +2303,13 @@ def delete_alerts(browser, alert_name):
             set_value(browser, find_element(browser, css_selectors['input_search_alert']), alert_name)
 
             elements = find_elements(browser, css_selectors['btn_delete_alert'], except_on_timeout=False)
-            if elements:
+            while elements:
                 for element in elements:
                     ActionChains(browser).move_to_element(element).perform()
                     hover(browser, element, click=True)
                     wait_and_click(browser, css_selectors['btn_confirm'])
-                log.debug("{} alert(s) deleted".format(alert_name))
+                elements = find_elements(browser, css_selectors['btn_delete_alert'], except_on_timeout=False)
+            log.debug("{} alert(s) deleted".format(alert_name))
 
     except StaleElementReferenceException:
         log.debug('element gone stale')
