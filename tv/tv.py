@@ -1245,6 +1245,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 dict_watchlist[chart['watchlists'][i]] = symbols
                 if len(delisted) == 0:
                     log.info("{}: {} markets found".format(watchlist, len(symbols)))
+                else:
+                    log.info("{}: {} markets found (and {} delisted)".format(watchlist, len(symbols), len(delisted)))
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
