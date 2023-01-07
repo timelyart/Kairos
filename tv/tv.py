@@ -149,7 +149,7 @@ css_selectors = dict(
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
     dlg_create_alert_first_row_first_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) div[class^="select"] span[role="button"]',
-    dlg_create_alert_options='div[data-name="popup-menu-container"] div[role="option"] span[class^="select"]',
+    dlg_create_alert_options='div[data-name="popup-menu-container"] div[role="option"] span>span>span',
     exists_dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2)',
     dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
     dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
@@ -161,7 +161,7 @@ css_selectors = dict(
     dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
     dlg_create_alert_expiration_date='div[data-name^="popup-menu-container"] div[class^="picker"] input',
     dlg_create_alert_expiration_time='div[data-name^="popup-menu-container"] div[class^="time"] input',
-    dlg_create_alert_notifications_button='button[data-name="notifications"]',
+    dlg_create_alert_notifications_button='button[id="alert-dialog-tabs__notifications"]',
     # Alert Notifications
     dlg_create_alert_notifications_notify_on_app_checkbox='span[data-name="notify-on-app"] input',
     dlg_create_alert_notifications_show_popup_checkbox='span[data-name="show-popup"] input',
