@@ -1245,6 +1245,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 dict_watchlist[chart['watchlists'][i]] = symbols
                 if len(delisted) == 0:
                     log.info("{}: {} markets found".format(watchlist, len(symbols)))
+                else:
+                    log.info("{}: {} markets found (and {} delisted)".format(watchlist, len(symbols), len(delisted)))
 
         # close the watchlist menu to save some loading time
         wait_and_click(browser, css_selectors['btn_watchlist'])
@@ -2461,45 +2463,49 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # Alert name
         name = ''
         if 'name' in alert_config:
-            name = str(alert_config['name']).replace('%SYMBOL', '')
+            # Truncate name to max 300 chars
+            name = str(alert_config['name']).replace('%SYMBOL', symbol)[:300]
             element = find_element(alert_dialog, css_selectors['dlg_create_alert_name'])
+            element.send_keys(SELECT_ALL)
             set_value(browser, element, name)
 
         # Message
         if 'message' in alert_config and alert_config['message'] != '':
-            chart = browser.current_url + '?symbol=' + symbol
-            show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
-            if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
-                chart += '&interval=' + str(interval)
-            textarea = find_element(alert_dialog, css_selectors['dlg_create_alert_message'])
-            generated = ''
-            text = str(alert_config['message']['text']).replace('/r', '')
-            text = text.replace('%NAME', name)
-            text = text.replace('%TIMEFRAME', timeframe)
-            text = text.replace('%SYMBOL', symbol)
-            text = text.replace('%CHART', chart)
-            text = text.replace('%SCREENSHOT', screenshot_url)
-            text = text.replace('%GENERATED', generated)
-            try:
-                screenshot_urls = []
-                for screenshot_chart in alert_config['include_screenshots_of_charts']:
-                    screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
-                if len(screenshot_urls) > 0:
-                    text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
-            except ValueError as value_error:
-                log.exception(value_error)
-                snapshot(browser)
-            except KeyError:
-                log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
+            textarea = find_element(alert_dialog, css_selectors['dlg_create_alert_message'], except_on_timeout=False)
+            # Textarea doesn't exist when "Any alert()" is selected
+            if textarea:
+                chart = browser.current_url + '?symbol=' + symbol
+                show_multi_chart_layout = 'show_multi_chart_layout' in alert_config and alert_config['show_multi_chart_layout']
+                if type(interval) is str and len(interval) > 0 and not show_multi_chart_layout:
+                    chart += '&interval=' + str(interval)
+                generated = ''
+                text = str(alert_config['message']['text']).replace('/r', '')
+                text = text.replace('%NAME', name)
+                text = text.replace('%TIMEFRAME', timeframe)
+                text = text.replace('%SYMBOL', symbol)
+                text = text.replace('%CHART', chart)
+                text = text.replace('%SCREENSHOT', screenshot_url)
+                text = text.replace('%GENERATED', generated)
+                try:
+                    screenshot_urls = []
+                    for screenshot_chart in alert_config['include_screenshots_of_charts']:
+                        screenshot_urls.append(str(screenshot_chart) + '?symbol=' + symbol)
+                    if len(screenshot_urls) > 0:
+                        text += ' screenshots_to_include: ' + str(screenshot_urls).replace("'", "")
+                except ValueError as value_error:
+                    log.exception(value_error)
+                    snapshot(browser)
+                except KeyError:
+                    log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
 
-            try:
-                set_value(browser, textarea, text, True)
-            except ElementNotInteractableException:
-                # ignore ElementNotInteractableException when the 'Message' box is hidden due to
-                # "Any alert() function call" being set as a condition
-                pass
-            except Exception as e:
-                log.exception(e)
+                try:
+                    set_value(browser, textarea, text, True)
+                except ElementNotInteractableException:
+                    # ignore ElementNotInteractableException when the 'Message' box is hidden due to
+                    # "Any alert() function call" being set as a condition
+                    pass
+                except Exception as e:
+                    log.exception(e)
 
         # Notifications
         try:
@@ -2697,7 +2703,7 @@ def set_expiration(browser, alert_config):
     # open-ended
     open_ended = alert_config['expiration']['open-ended'] or str(alert_config['expiration']['time']).strip() == '' or str(alert_config['expiration']['time']).strip().lower().startswith('n') or type(alert_config['expiration']['time']) is None
     current_value = find_element(browser, css_selectors['dlg_create_alert_expiration_value']).text
-    if current_value == 'Open-ended alert' and open_ended:
+    if current_value == 'Open-ended alert' and open_ended:  
         return
     elif current_value == 'Open-ended alert' and not open_ended:
         # change from open-ended to fixed date & time
