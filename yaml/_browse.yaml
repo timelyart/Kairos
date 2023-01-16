@@ -5,5 +5,8 @@ charts:
 - url: https://www.tradingview.com/chart/<your_chart>/
   timeframes: [1 week, 1 day]
   watchlists: [<your_watchlist_name>, <your_second_watchlist_name>]
+  # What is the minimum amount of seconds that the market should be in view for?
   delays: {change_symbol: 5}
+  # Override default behaviour of waiting until the chart is loaded, so it waits at least 5 seconds for each market.
+  performance: {wait_until_chart_is_loaded: no}
   alerts: {}
