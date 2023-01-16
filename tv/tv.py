@@ -148,12 +148,12 @@ css_selectors = dict(
     dlg_alert='div[data-name="alerts-create-edit-dialog"]',
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
-    dlg_create_alert_first_row_first_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) div[class^="select"] span[role="button"]',
-    dlg_create_alert_options='div[data-name="popup-menu-container"] div[role="option"] span>span>span',
-    exists_dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2)',
-    dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
-    dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
-    inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] > div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
+    dlg_create_alert_first_row_first_item='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) div[class^="select"] span[role="button"]',
+    dlg_create_alert_options='div[data-name="popup-menu-container"] div[role="option"] div > span',
+    exists_dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2)',
+    dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
+    dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
+    inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
     dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
     dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] div[class^="wrap"]:nth-child(4) button',
     dlg_create_alert_open_ended_checkbox='#unexpired-date',
@@ -2409,22 +2409,23 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 log.debug('setting condition {0} to {1}'.format(str(current_condition + 1), alert_config['conditions'][current_condition]))
                 # we need to get the inputs again for every iteration as the number may change
                 inputs = find_elements(alert_dialog, css_selectors['inputs_and_selects_create_alert_3rd_row_and_above'])
-                while True:
+                while inputs and i < len(inputs):
                     if inputs[i].get_attribute('type') == 'hidden':
                         i += 1
                     else:
                         break
 
-                if inputs[i].get_attribute("role") == "button":
-                    current_value = find_element(inputs[i], 'span[class^="select"]').text
-                    if not ((current_value == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and current_value.startswith(alert_config['conditions'][current_condition]))):
-                        inputs[i].click()  # click the select box button to open it
-                        el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
-                        if not select(browser, alert_config, current_condition, el_options, symbol):
-                            return False
-                elif inputs[i].tag_name == 'input':
-                    inputs[i].send_keys(SELECT_ALL)
-                    set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
+                if inputs and i < len(inputs):
+                    if inputs[i].get_attribute("role") == "button":
+                        current_value = find_element(inputs[i], 'div[class^="item"] > span').get_attribute('textContent').strip()
+                        if not ((current_value == alert_config['conditions'][current_condition]) or ((not EXACT_CONDITIONS) and current_value.startswith(alert_config['conditions'][current_condition]))):
+                            inputs[i].click()  # click the select box button to open it
+                            el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
+                            if not select(browser, alert_config, current_condition, el_options, symbol):
+                                return False
+                    elif inputs[i].tag_name == 'input':
+                        inputs[i].send_keys(SELECT_ALL)
+                        set_value(browser, inputs[i], str(alert_config['conditions'][current_condition]).strip())
 
                 # give some time
                 current_condition += 1
@@ -2702,24 +2703,16 @@ def set_expiration(browser, alert_config):
 
     # open-ended
     open_ended = alert_config['expiration']['open-ended'] or str(alert_config['expiration']['time']).strip() == '' or str(alert_config['expiration']['time']).strip().lower().startswith('n') or type(alert_config['expiration']['time']) is None
-    current_value = find_element(browser, css_selectors['dlg_create_alert_expiration_value']).text
-    if current_value == 'Open-ended alert' and open_ended:  
+    current_value = find_element(browser, css_selectors['dlg_create_alert_expiration_value']).get_attribute('textContent')
+    if current_value == 'Open-ended alert' and open_ended:
         return
-    elif current_value == 'Open-ended alert' and not open_ended:
-        # change from open-ended to fixed date & time
-        element = find_element(browser, css_selectors['dlg_create_alert_open_ended_checkbox'])  # wait_and_click does not work for some reason
-        element.click()
+    else:
         # open the expiration dialog
         wait_and_click(browser, css_selectors['dlg_create_alert_expiration_button'])
-    elif current_value != 'Open-ended alert' and open_ended:
-        # open the expiration dialog
-        wait_and_click(browser, css_selectors['dlg_create_alert_expiration_button'])
-        # change from fixed date & time to open-ended
-        element = find_element(browser, css_selectors['dlg_create_alert_open_ended_checkbox'])  # wait_and_click does not work for some reason
-        element.click()
-    elif current_value != 'Open-ended alert' and not open_ended:
-        # open the expiration dialog
-        wait_and_click(browser, css_selectors['dlg_create_alert_expiration_button'])
+        # (un)check checkbox
+        if (current_value == 'Open-ended alert' and not open_ended) or (current_value != 'Open-ended alert' and open_ended):
+            element = find_element(browser, css_selectors['dlg_create_alert_open_ended_checkbox'])  # wait_and_click does not work for some reason
+            hover(browser, element, click=True)
 
     if not open_ended:
         max_expiration = datetime.datetime.now() + datetime.timedelta(minutes=float(max_minutes - 1440))
