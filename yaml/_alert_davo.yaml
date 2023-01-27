@@ -15,9 +15,14 @@ charts:
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
-    # list of charts (urls) to include in the alert (these will be picked up by the summary mail as well) instead of the default one
+    # List of charts (urls) to include in the alert (these will be picked up by the summary mail as well) instead of the default one.
     include_screenshots_of_charts: [https://www.tradingview.com/chart/<chart_id>/]
+    # Kairos tries to find conditions based upon the values you provide below.
+    # Set the conditions as you would do manually in order from left to right and from top to bottom
+    # It is sufficient to only set the first word for each condition.
     conditions: ["Davo"]
+    # The options below correspond with the options on the Alert dialog, as are the available values for each option.
+    # How often is the alert allowed to triggers?
     trigger: "Only Once"
     expiration:
       # Future date time (note TradingView uses local time to set expiration and Kairos will check the computer's time against TV expiration).
@@ -26,15 +31,27 @@ charts:
       time: 5
       # Note that open-ended is for premium users only and - when set - will ignore the value for 'time'
       open-ended: no
+    # Show a popup in TradingView when this alert triggers
     show_popup: no
+    # Sound options
     sound:
+      # Play a sound?
       play: no
+      # Define the ringtone
       ringtone: Chirpy
+      # For how long should the sound play?
       duration: Once
+    # Communication options
     send:
+      # Send an email?
+      # Note that in order to create a watchlist or send a summary email this needs to be set to yes
       email: yes
+      # Send a server side sms (for Premium users only)
       email-to-sms: no
+      # Get a push notification in TradingView's app
       notify-on-app: no
+    # Send to a webhook. Optional. Leave the value empty or remove the line if you don't want to define a webhook.
+    webhook: https://test
     message:
       prepend: no
       # Use `\n` to add and an ENTER
@@ -48,6 +65,7 @@ charts:
       # NOTE: TradingView's default link is incomplete. I recommend including %CHART at all times.
       # NOTE: If you want to create summary mails and generate a watchlist don't change this.
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
+# The options provided here are only available if you have set up the [mail] section in your kairos.cfgs
 summary:
   # Create email
   email:

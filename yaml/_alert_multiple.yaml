@@ -13,7 +13,7 @@ charts:
   wait_time_implicit: 30
   # Optional. Defines how long the script should wait finding elements (seconds).
   check_if_exists_timeout: 30
-  # Optional. Defines delays in seconds. If a particular delay isn't set, it will fall back to that particular delay in the config file
+  # Optional. Define delays in seconds. If a particular delay isn't set, it will fall back to that particular delay in the config file
   # Options are: change_symbol, submit_alert, break, break_mini and clear_inactive_alerts
   delays: {change_symbol: 1, submit_alert: 2.5}
   # Alert listed under alerts must be available from the chart which is loaded through the 'url' parameter.
@@ -26,7 +26,7 @@ charts:
     # Optional. When set, the interval will be omitted from links in the alert. This is useful if you want to link to a multiple chart layout. Default is no.
     # Please, note that Kairos will only process and set an alert on the first chart (top/left) in a multi chart layout.
     show_multi_chart_layout: no
-    # list of charts (url's) to include in the alert (these will be picked up by the summary mail as well)
+    # list of charts (urls) to include in the alert (these will be picked up by the summary mail as well)
     # if you want to include additional screenshot then the option screenshot_timing must be set to 'summary' (without quotation marks) in your kairos.cfg (section [tradingview])
     include_screenshots_of_charts: [https://www.tradingview.com/chart/<your_chart>/, https://www.tradingview.com/chart/<your_chart>/]
     # Conditions need to be listed in order of TV's Create Alert dialog form, i.e. from left to right and from top to bottom.
@@ -40,26 +40,25 @@ charts:
       time: 2
       # Note that open-ended is for premium users only and - when set - will ignore the value for 'time'
       open-ended: no
-    # Note: pop-ups may hinder Kairos to continue it's process faultless.
-    # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete it's run.
+    # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete its run.
     show_popup: no
     sound:
-      # Note: as with pop-ups, sounds may hinder Kairos to continue it's process faultless.
-      # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete it's run.
+      # Recommended to turn this off if the 'expiration' is likely to be smaller than the time Kairos needs on your machine to complete its run.
       play: yes
       # For a full list of options please open the alert dialog manually.
       ringtone: "Chirpy"
       # Possible values for duration are "Once", "5 seconds", "10 seconds", "30 seconds", "Minute".
       duration: "10 seconds"
     send:
+      # Send an email?
+      # Note that in order to create a watchlist or send a summary email this needs to be set to yes.
       email: yes
+      # Send a server side sms (for Premium users only)
       email-to-sms: no
-      # SMS is only for premium members.
-      # If you set this to yes and don't have a premium subscription this will break the script as it will produce a pop-up denying the script from accessing the Create Alert dialog underneath.
-      sms: no
-      # You'll need to have the iOS app installed and enabled push notifications for it on your iOS device.
-      # Also, make sure to have manually set this checkbox first in TradingView and check the 'Do not show this message again' checkbox when it generates a popup (if there is no popup you are all good).
+      # Get a push notification in TradingView's app
       notify-on-app: no
+    # Send to a webhook. Optional. Leave the value empty or remove the line if you don't want to define a webhook.
+    webhook: https://test
     message:
       # Use `\n` to add an ENTER
       # Use keywords to add dynamic information in your text.
@@ -67,7 +66,7 @@ charts:
       # %SYMBOL is <exchange>:<ticker symbol>
       # %NAME is the name of the alert
       # %GENERATED is the text that TradingView generates
-      # %SCREENSHOT add a url to a screenshot (only available when config option tradingview_screenshot is set to true)
+      # %SCREENSHOT add an url to a screenshot (only available when config option tradingview_screenshot is set to true)
       # Recommended value: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
   - name: "Example 2 %SYMBOL"
@@ -119,7 +118,7 @@ summary:
     subject: 'TradingView Alert Summary'
     # Use keyword %SUMMARY in your text and/or html to include the Kairos generated summary
     text: 'my prepended text %SUMMARY my appended text'
-    # Note: you may include <html> and <body> tags but it is not necessary (Kairos will include them if they aren't found)
+    # Note: you may include <html> and <body> tags, but it is not necessary (Kairos will include them if they aren't found)
     html: '<p>my prepended text</p>%SUMMARY<p>my appended text</p>'
     # If you just want to send the signals to webhooks (see your config file) or import them as a watchlist, set this to no
     send: yes
