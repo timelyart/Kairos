@@ -3,8 +3,8 @@
 setuptools
 pyyaml
 beautifulsoup4
-urllib3
-selenium>=3.141.0,<4
+urllib3>=1.26,<3
+selenium
 configparser
 pip
 Pillow

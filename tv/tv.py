@@ -2226,7 +2226,7 @@ def take_screenshot(browser, symbol, interval, chart_only=True, tpl_strftime="%Y
             finally:
                 # make sure to close the newly opened tab
                 browser.close()
-                browser.switch_to_window(previous_window)
+                browser.switch_to.window(previous_window)
                 log.info(screenshot_url)
 
         elif screenshot_dir != '':
@@ -3233,17 +3233,7 @@ def run(file, export_signals_immediately, multi_threading=False):
                     for screener_yaml in screeners_yaml:
                         if (not ('enabled' in screener_yaml)) or screener_yaml['enabled']:
                             log.info("create/update watchlist '{}' from screener. Please be patient, this may take several minutes ...".format(screener_yaml['name']))
-                            max_runs = 3
-                            counter = 0
-                            markets = []
-                            while counter < max_runs:
-                                try:
-                                    counter += 1
-                                    markets = get_screener_markets(browser, screener_yaml)
-                                except Exception as e:
-                                    if counter == max_runs:
-                                        log.exception(e)
-                                    pass
+                            markets = get_screener_markets(browser, screener_yaml)
                             if markets:
                                 if update_watchlist(browser, screener_yaml['name'], markets):
                                     log.info('watchlist {} updated ({} markets)'.format(screener_yaml['name'], str(len(markets))))
@@ -3333,21 +3323,14 @@ def clean_alerts(browser, selector=css_selectors['item_clear_alerts']):
 
 
 def get_screener_markets(browser, screener_yaml):
+    max_tries = 5
     markets = []
 
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
-    time.sleep(DELAY_BREAK*2)
-    loaded = False
-    max_runs = 100
-    counter = 0
-    while not loaded and counter < max_runs:
-        time.sleep(0.1)
-        el_select = find_element(browser, css_selectors['select_screener'])
-        hover(browser, el_select, True)
-        loaded = element_exists(browser, css_selectors['options_screeners'])
-        counter += 1
+    el_select = find_element(browser, css_selectors['select_screener'])
+    hover(browser, el_select, True)
 
     el_options = find_elements(browser, css_selectors['options_screeners'])
     found = False
@@ -3379,16 +3362,17 @@ def get_screener_markets(browser, screener_yaml):
         total_found = int(match.group(1))
     except StaleElementReferenceException:
         pass
-    log.debug("found {} markets for screener '{}'".format(total_found, screener_yaml['name']))
+    log.debug("found {} markets".format(total_found, screener_yaml['name']))
 
-    while len(markets) < total_found:
+    i = 0
+    while len(markets) < total_found and i < max_tries:
         rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME, True, False, 30)
-        i = 0
-        while i < len(rows):
+        j = 0
+        while j < len(rows):
             try:
-                market = rows[i].get_attribute('data-symbol')
+                market = rows[j].get_attribute('data-symbol')
                 action = ActionChains(browser)
-                action.move_to_element_with_offset(rows[i], 5, 5)
+                action.move_to_element_with_offset(rows[j], 5, 5)
                 action.perform()
             except StaleElementReferenceException:
                 WebDriverWait(browser, 5).until(
@@ -3396,16 +3380,18 @@ def get_screener_markets(browser, screener_yaml):
                 # try again
                 browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
                 rows = find_elements(browser, class_selectors['rows_screener_result'], By.CLASS_NAME)
-                market = rows[i].get_attribute('data-symbol')
+                market = rows[j].get_attribute('data-symbol')
             markets.append(market)
-            i += 1
+            j += 1
         markets = list(sorted(set(markets)))
+        i += 1
 
-    log.debug('extracted {} markets'.format(str(len(markets))))
+    log.info('extracted {} markets'.format(str(len(markets))))
     return markets
 
 
 def update_watchlist(browser, name, markets):
+    log.info("creating/updating watchlist ...".format(name))
     try:
         if not find_element(browser, css_selectors['btn_watchlist_submenu'], except_on_timeout=False):
             wait_and_click(browser, css_selectors['btn_watchlist'])
