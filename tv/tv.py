@@ -2500,6 +2500,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                     log.debug('charts: include_screenshots_of_charts not set in yaml, defaulting to default screenshot')
 
                 try:
+                    clear(textarea)
                     set_value(browser, textarea, text, True)
                 except ElementNotInteractableException:
                     # ignore ElementNotInteractableException when the 'Message' box is hidden due to
