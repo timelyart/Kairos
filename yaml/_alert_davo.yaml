@@ -65,6 +65,8 @@ charts:
       # NOTE: TradingView's default link is incomplete. I recommend including %CHART at all times.
       # NOTE: If you want to create summary mails and generate a watchlist don't change this.
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
+      # If you want to add JSON, put the whole JSON statement between apostrophes ('), like this:
+      # text: '{"content": "Buy 1 min {{exchange}}:{{ticker}}, price = {{close}} Time ={{time}}"}'
 # The options provided here are only available if you have set up the [mail] section in your kairos.cfgs
 summary:
   # Create email

@@ -69,6 +69,8 @@ charts:
       # %SCREENSHOT add an url to a screenshot (only available when config option tradingview_screenshot is set to true)
       # Recommended value: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED"
       text: "%NAME %TIMEFRAME: %SYMBOL\n%CHART\n%SCREENSHOT\n%GENERATED\n lorem ipsum"
+      # If you want to add JSON, put the whole JSON statement between apostrophes ('), like this:
+      # text: '{"content": "Buy 1 min {{exchange}}:{{ticker}}, price = {{close}} Time ={{time}}"}'
   - name: "Example 2 %SYMBOL"
     conditions: ["BTCUSD", "Moving Up %", "5.00", "1"]
     trigger: "Once Per Bar Close"
