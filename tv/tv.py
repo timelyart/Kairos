@@ -2999,7 +2999,9 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             options.add_argument("--disable-dev-shm-usage")
         # run chrome in the background
         if run_in_background:
-            options.add_argument('--headless')
+            # swiching to the new headless mode
+            # https://developer.chrome.com/articles/new-headless/
+            options.add_argument('--headless=new')
         # fix for https://stackoverflow.com/questions/40514022/chrome-webdriver-produces-timeout-in-selenium
         # options.add_argument("--dns-prefetch-disable")
 
