@@ -212,7 +212,7 @@ css_selectors = dict(
     tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
     tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
     btn_strategy_dialog='.deep-history > div > div > div > div > button',
-    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-qa-strategy-title]',
+    strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-strategy-title]',
     performance_overview_net_profit='div[class^="container-"] > div:nth-child(1) > div:nth-child(2) > div:nth-child(1)',
     performance_overview_net_profit_percentage='div[class^="container-"] > div:nth-child(1) > div:nth-child(2) > div:nth-child(2)',
     performance_overview_total_closed_trades='div[class^="container-"] > div:nth-child(2) > div:nth-child(2) > div:nth-child(1)',
