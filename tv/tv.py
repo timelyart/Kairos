@@ -122,14 +122,14 @@ css_selectors = dict(
     # Study loading
     study_loading='span[class^="loaderItem"]',
     # Timeframe
-    btn_timeframe='#header-toolbar-intervals > div:last-child',
+    btn_timeframe='#header-toolbar-intervals > button > div',
     options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     # Watchlist / ticker
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
     options_watchlist='div[class^="watchlistMenu"] span[class^="title"]',
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
-    btn_input_symbol='div[id="header-toolbar-symbol-search"]',
+    btn_input_symbol='button[id="header-toolbar-symbol-search"]',
     dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
     input_symbol='div[id="header-toolbar-symbol-search"] div',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
@@ -2069,7 +2069,7 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
 
         # open dialog
         # css = 'div.layout__area--topleft div[data-role="button"]'
-        css = 'div[data-name="save-load-menu"]'
+        css = 'button[data-name="save-load-menu"]'
         wait_and_click(browser, css)
         # css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
         wait_and_click_by_text(browser, 'span', 'Export chart data…')
@@ -2999,7 +2999,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             options.add_argument("--disable-dev-shm-usage")
         # run chrome in the background
         if run_in_background:
-            options.add_argument('--headless')
+            options.add_argument('--headless=new')
         # fix for https://stackoverflow.com/questions/40514022/chrome-webdriver-produces-timeout-in-selenium
         # options.add_argument("--dns-prefetch-disable")
 
@@ -4128,7 +4128,7 @@ def get_active_interval(browser):
     try:
         elem_interval = find_element(browser, css_selectors['active_chart_interval'], except_on_timeout=False)
         if not elem_interval:
-            elem_interval = find_element(browser, 'div[id="header-toolbar-intervals"]  > div > div > div')
+            elem_interval = find_element(browser, 'div[id="header-toolbar-intervals"] > div > button[aria-checked="true"] > div > div')
         return repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
     except Exception as e:
         log.exception(e)
