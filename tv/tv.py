@@ -2999,6 +2999,8 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             options.add_argument("--disable-dev-shm-usage")
         # run chrome in the background
         if run_in_background:
+            # swiching to the new headless mode
+            # https://developer.chrome.com/articles/new-headless/
             options.add_argument('--headless=new')
         # fix for https://stackoverflow.com/questions/40514022/chrome-webdriver-produces-timeout-in-selenium
         # options.add_argument("--dns-prefetch-disable")
@@ -4128,7 +4130,7 @@ def get_active_interval(browser):
     try:
         elem_interval = find_element(browser, css_selectors['active_chart_interval'], except_on_timeout=False)
         if not elem_interval:
-            elem_interval = find_element(browser, 'div[id="header-toolbar-intervals"] > div > button[aria-checked="true"] > div > div')
+            elem_interval = find_element(browser, 'div[id="header-toolbar-intervals"]  > div > div > div')
         return repr(elem_interval.get_attribute('innerHTML')).replace(', ', '')
     except Exception as e:
         log.exception(e)
