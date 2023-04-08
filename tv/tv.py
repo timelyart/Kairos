@@ -246,7 +246,7 @@ css_selectors = dict(
     indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
     btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
-    active_chart_interval='div[id="header-toolbar-intervals"] div[class*="isActive"] > div > div',
+    active_chart_interval='div[id="header-toolbar-intervals"] button[class*="isActive"] > div > div',
     # chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
     chart_container='table.chart-markup-table',
     # User Menu
@@ -532,7 +532,7 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 def accept_cookies(browser):
     global ACCEPT_COOKIES
     if ACCEPT_COOKIES:
-        xpath = '//h2[contains(text(), "cookies")]/following-sibling::div/div/button[contains(@class, "accept")]'
+        xpath = '//p[contains(text(), "cookies")]/following-sibling::div/div/button[contains(@class, "acceptAll")]'
         try:
             wait_and_click_by_xpath(browser, xpath, 2)
             log.info("cookies accepted")
