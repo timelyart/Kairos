@@ -148,14 +148,14 @@ css_selectors = dict(
     dlg_alert='div[data-name="alerts-create-edit-dialog"]',
     btn_create_alert_from_alert_menu='div[data-name="set-alert-button"]',
     btn_alert_cancel='div.tv-dialog__close.js-dialog__close',
-    dlg_create_alert_first_row_first_item='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) div[class^="select"] span[role="button"]',
+    dlg_create_alert_first_row_first_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) div[class^="select"] span[role="button"]',
     dlg_create_alert_options='div[data-name="popup-menu-container"] div[role="option"] div > span',
-    exists_dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2)',
-    dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
-    dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
-    inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
-    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
-    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="wrapContent"] div[class^="wrap"]:nth-child(4) button',
+    exists_dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2)',
+    dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
+    dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
+    inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
+    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
+    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) button',
     dlg_create_alert_open_ended_checkbox='#unexpired-date',
     # dlg_create_alert_open_ended_checkbox_clickable='div[data-name="popup-menu-container"] div[class^="row"]:nth-child(1) input',
     dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
@@ -188,10 +188,11 @@ css_selectors = dict(
     # Acknowledge repainting
     btn_create_alert_warning_continue_anyway_got_it='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] label[class^="checkbox"]',
     btn_create_alert_warning_continue_anyway='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] button[name="continue"]',
-    btn_alerts='div[data-name="alerts"]',
-    btn_calendar='div[data-name="calendar"]',
-    btn_watchlist='div[data-name="base"]',
-    btn_watchlist_submenu='div.widgetbar-page.active div[data-name="watchlists-button"',
+    btn_alerts='button[data-name="alerts"]',
+    btn_calendar='button[data-name="calendar"]',
+    btn_data_window='button[data-name="data-window"]',
+    btn_watchlist='button[data-name="base"]',
+    btn_watchlist_submenu='div.widgetbar-page.active div[data-name="watchlists-button"]',
     div_watchlist_item='div[data-symbol-full]',
     div_watchlist_item_by_symbol='div[data-symbol-full="{}"]',
     signout='div[data-name="header-user-menu-sign-out"]',
@@ -234,20 +235,15 @@ css_selectors = dict(
     performance_summary_avg_trade_percentage='div[class^="report"] > div > div > table > tbody > tr:nth-child(18) > td:nth-child(2) > div > div:nth-child(2)',
     performance_summary_avg_bars_in_trade='div[class^="report"] > div > div > table > tbody > tr:nth-child(24) > td:nth-child(2) > div > div',
     # Indicator dialog
-    indicator_dialog_tab_inputs='#overlap-manager-root div[class^="tab-"]:nth-child(1)',
-    indicator_dialog_tab_properties='#overlap-manager-root div[class^="tab-"]:nth-child(2)',
-    indicator_dialog_tab_cells='#overlap-manager-root div[class^="content"] div[class^="cell-"]',
-    indicator_dialog_tab_cell='#overlap-manager-root div[class^="content"] div[class^="cell-"]:nth-child({})',
-    indicator_dialog_titles='#overlap-manager-root div[class^="content"] div[class*="first"] > div',
-    indicator_dialog_checkbox_titles='#overlap-manager-root label[class^="checkbox"] span > span',
-    indicator_dialog_checkbox='#overlap-manager-root label[class^="checkbox"] input:nth-child({})',
-    indicator_dialog_value='#overlap-manager-root div[class^="content"] div[class*="last"] > div:nth-child({})',
-    indicator_dialog_container='#overlap-manager-root div[class^="content"] div[class*="last"] div[class^="inputGroup"]',
-    indicator_dialog_select_options='#overlap-manager-root div[class^="dropdown"] div[class^="item"]',
-    btn_indicator_dialog_ok='#overlap-manager-root button[name="submit"]',
+    indicator_dialog_tab_inputs='div[data-name="indicator-properties-dialog"] #inputs',
+    indicator_dialog_tab_properties='div[data-name="indicator-properties-dialog"] #properties',
+    indicator_dialog_tab_cells='div[data-name="indicator-properties-dialog"] div[class^="cell-"]',
+    indicator_dialog_tab_cell='div[data-name="indicator-properties-dialog"] div[class^="cell-"]:nth-child({})',
+    indicator_dialog_titles='div[data-name="indicator-properties-dialog"] div[class*="first"] > div',
+    indicator_dialog_select_options='div[role="listbox"] div[role="option"] span span',
+    btn_indicator_dialog_ok='div[data-name="indicator-properties-dialog"] button[name="submit"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
     active_chart_interval='div[id="header-toolbar-intervals"] button[class*="isActive"] > div > div',
-    # chart_container='div.chart-container div.chart-gui-wrapper canvas:nth-child(2)',
     chart_container='table.chart-markup-table',
     # User Menu
     btn_user_menu='button.tv-header__user-menu-button--logged',
@@ -1618,7 +1614,7 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
             delisted_markets.append(symbol)
     # close data window
     if element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
-        wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
+        wait_and_click(browser, css_selectors['btn_data_window'])
 
     if len(delisted_markets) > 0:
         verb = 's are'
@@ -3480,7 +3476,7 @@ def remove_watchlists(browser, name):
         try:
             element = find_element(el_options[i], 'span[class^="title"]', except_on_timeout=False)
             if element and element.get_attribute('textContent').strip() == name:
-                hover(browser, el_options[i])
+                hover(browser, el_options[i], delay=1)
                 wait_and_click(el_options[i], 'span[data-name="remove-button"]')
                 # handle confirmation dialog
                 wait_and_click(browser, 'div[data-name="confirm-dialog"] button[name="yes"]')
@@ -3527,7 +3523,7 @@ def open_performance_summary_tab(browser):
 def open_data_window_tab(browser):
     try:
         if not element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
-            wait_and_click_by_xpath(browser, '//div[@data-name="data-window"]')
+            wait_and_click(browser, css_selectors['btn_data_window'])
     except Exception as e:
         log.exception(e)
         snapshot(browser, True)
@@ -4218,7 +4214,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
                 interval_averages[interval]['Avg Trade %'] = 0
                 interval_averages[interval]['Avg # Bars In Trade'] = 0
                 interval_averages[interval]['Counter'] = 0
-            interval = intervals[chart_index]
                 
             wait_until_indicator_is_loaded(browser, strategy_config['name'], strategy_config['pane_index'])
             wait_until_studies_are_loaded(browser)
