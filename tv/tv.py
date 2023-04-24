@@ -3099,6 +3099,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             log.error("Please update Geckodriver. {}".format(error))
 
         # Send email
+        # noinspection PyUnresolvedReferences
         from tv import mail
         # TODO: make sure to send it only once per day
         mail.send_admin_message(subject, text)
