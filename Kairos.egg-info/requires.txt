@@ -1,9 +1,9 @@
+pip
 pyyaml
 beautifulsoup4
-urllib3<3,>=1.26
+urllib3<3.0,>=1.26
 selenium
 configparser
-pip
 Pillow
 requests
 gspread
@@ -19,12 +19,10 @@ tqdm
 soupsieve
 coloredlogs
 
-[platform_system == "Darwin"]
+[:platform_system == "Darwin"]
 pyobjc-core
 pyobjc
 
-[platform_system == "Linux"]
+[:platform_system == "Linux"]
 python3-Xlib
 pyvirtualdisplay
-
-[platform_system == "Windows"]

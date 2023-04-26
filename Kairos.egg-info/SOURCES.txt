@@ -1,9 +1,12 @@
 .gitignore
 DONATE.md
 LICENSE.md
+PRODUCTION.md
 README.md
 _kairos.cfg
 main.py
+pyproject.toml
+setup.cfg
 setup.py
 .github/ISSUE_TEMPLATE/bug_report.md
 .github/ISSUE_TEMPLATE/document-improvement-proposal.md

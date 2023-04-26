@@ -1,5 +1,4 @@
 *.log
-*.cfg
 *.pyc
 *.bat
 *.zip
@@ -10,6 +9,8 @@
 *.json
 *.instance
 *deb.py
+*old*
+kairos.cfg
 desktop.ini
 dist/*
 *.egg-info/
