@@ -563,6 +563,8 @@ def accept_cookies(browser):
     except TimeoutException as e:
         log.debug(e)
         log.info("cookies already accepted")
+    except ElementClickInterceptedException as e:
+        log.debug(e)
     except Exception as e:
         log.exception(e)
 
