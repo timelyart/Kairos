@@ -80,7 +80,9 @@ REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 ALREADY_LOGGED_IN = False
 ACCOUNT_LEVEL = False
 VERIFY_MARKET_LISTING = True
-ACCEPT_COOKIES = False
+ACCEPT_COOKIES = False  # TODO removed DEPRECATED SETTING accept_cookies from kairos.cfg
+ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = False
+ACCEPT_ADVERTISING_COOKIES = False
 
 # performance
 READ_FROM_DATA_WINDOW = True
@@ -107,6 +109,12 @@ WEBDRIVER_INSTANCE = 0
 css_selectors = dict(
     # General
     btn_confirm='div[data-name=confirm-dialog] button[name=yes]',
+    # Cookies
+    btn_accept_all_cookies='button[class^="acceptAll"]',
+    btn_manage_cookies='button[class^="managePreferences"]',
+    input_accept_performance_analytics_cookies='label[for="id_Performance/Analytics-cookies"]',
+    input_accept_advertising_cookies='label[for="id_Advertising-cookies"]',
+    btn_save_preferences='button[class^="savePreferences"]',
     # Account
     account='button.tv-header__user-menu-button--logged',
     username='a[data-name="header-user-menu-profile"] span[class^="username"]',
@@ -123,7 +131,8 @@ css_selectors = dict(
     study_loading='span[class^="loaderItem"]',
     # Timeframe
     btn_timeframe='#header-toolbar-intervals > button > div',
-    options_timeframe='div[class^="dropdown-"] div[class^="item"]',
+    # options_timeframe='div[class^="dropdown-"] div[class^="item"]',
+    options_timeframe='div[data-role="menuitem"] > span > span',
     # Watchlist / ticker
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
@@ -332,6 +341,14 @@ if config.has_option('tradingview', 'verify_market_listing'):
     VERIFY_MARKET_LISTING = config.getboolean('tradingview', 'verify_market_listing')
 if config.has_option('tradingview', 'accept_cookies'):
     ACCEPT_COOKIES = config.getboolean('tradingview', 'accept_cookies')
+    if ACCEPT_COOKIES:
+        log.warning("DEPRECATED SETTING 'accept_cookies' in your kairos.cfg. \n"
+                    "Use `accept_performance_analytics_cookies` and `accept_advertising_cookies` instead. \n"
+                    "See latest example _kairos.cfg file at https://github.com/timelyart/Kairos/blob/master/_kairos.cfg.")
+if config.has_option('tradingview', 'accept_performance_analytics_cookies'):
+    ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = config.getboolean('tradingview', 'accept_performance_analytics_cookies')
+if config.has_option('tradingview', 'accept_advertising_cookies'):
+    ACCEPT_ADVERTISING_COOKIES = config.getboolean('tradingview', 'accept_advertising_cookies')
 
 RESOLUTION = '1920,1080'
 if config.has_option('webdriver', 'resolution'):
@@ -526,16 +543,29 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 
 
 def accept_cookies(browser):
-    global ACCEPT_COOKIES
-    if ACCEPT_COOKIES:
-        xpath = '//p[contains(text(), "cookies")]/following-sibling::div/div/button[contains(@class, "acceptAll")]'
-        try:
-            wait_and_click_by_xpath(browser, xpath, 2)
-            log.info("cookies accepted")
-            ACCEPT_COOKIES = False
-        except TimeoutException as e:
-            log.debug(e)
-            log.info("cookies already accepted")
+    global ACCEPT_COOKIES, ACCEPT_ADVERTISING_COOKIES, ACCEPT_PERFORMANCE_ANALYTICS_COOKIES
+    accept_all_cookies = ACCEPT_COOKIES or (ACCEPT_ADVERTISING_COOKIES and ACCEPT_PERFORMANCE_ANALYTICS_COOKIES)
+    try:
+        if accept_all_cookies:
+            wait_and_click(browser, css_selectors['btn_accept_all_cookies'], 2)
+            log.info("all cookies accepted")
+        else:
+            wait_and_click(browser, css_selectors['btn_manage_cookies'], 2)
+            if ACCEPT_PERFORMANCE_ANALYTICS_COOKIES:
+                # assume Performance/Analytics cookies is unchecked
+                wait_and_click(browser, css_selectors['input_accept_performance_analytics_cookies'])
+                log.info("performance analytics cookies accepted")
+            elif ACCEPT_ADVERTISING_COOKIES:
+                # assume Advertising cookies is unchecked
+                wait_and_click(browser, css_selectors['input_accept_advertising_cookies'])
+                log.info("advertising cookies accepted")
+            wait_and_click(browser, css_selectors['btn_save_preferences'])
+            log.info("cookie preferences saved")
+    except TimeoutException as e:
+        log.debug(e)
+        log.info("cookies already accepted")
+    except Exception as e:
+        log.exception(e)
 
 
 def set_timeframe(browser, timeframe):
