@@ -1170,7 +1170,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         log.info("READ_ALL_VALUES_AT_ONCE = " + str(READ_ALL_VALUES_AT_ONCE))
         log.info("CHANGE_SYMBOL_WITH_SPACE = " + str(CHANGE_SYMBOL_WITH_SPACE))
         log.info("VERIFY_MARKET_LISTING = " + str(VERIFY_MARKET_LISTING))
-        log.info("ACCEPT_COOKIES = " + str(ACCEPT_COOKIES))
+        log.info("ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = " + str(ACCEPT_PERFORMANCE_ANALYTICS_COOKIES))
+        log.info("ACCEPT_ADVERTISING_COOKIES = " + str(ACCEPT_ADVERTISING_COOKIES))
         print('')
 
         url = unquote(chart['url'])
