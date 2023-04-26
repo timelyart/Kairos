@@ -80,7 +80,7 @@ REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 ALREADY_LOGGED_IN = False
 ACCOUNT_LEVEL = False
 VERIFY_MARKET_LISTING = True
-ACCEPT_COOKIES = False  # TODO removed DEPRECATED SETTING accept_cookies from kairos.cfg
+ACCEPT_COOKIES = False  # TODO remove DEPRECATED SETTING accept_cookies from kairos.cfg
 ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = False
 ACCEPT_ADVERTISING_COOKIES = False
 
@@ -563,8 +563,6 @@ def accept_cookies(browser):
     except TimeoutException as e:
         log.debug(e)
         log.info("cookies already accepted")
-    except ElementClickInterceptedException as e:
-        log.debug(e)
     except Exception as e:
         log.exception(e)
 
@@ -2825,6 +2823,7 @@ def login(browser, uid='', pwd='', retry_login=False):
     # close cookie banner (if any)
     # cookie popup only shows up on the landing page after scrolling down
     browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+    time.sleep(DELAY_BREAK*8)
     accept_cookies(browser)
 
     try:
