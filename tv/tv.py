@@ -131,7 +131,6 @@ css_selectors = dict(
     study_loading='span[class^="loaderItem"]',
     # Timeframe
     btn_timeframe='#header-toolbar-intervals > button > div',
-    # options_timeframe='div[class^="dropdown-"] div[class^="item"]',
     options_timeframe='div[data-role="menuitem"] > span > span',
     # Watchlist / ticker
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
