@@ -122,9 +122,9 @@ css_selectors = dict(
     anonymous_account='button.tv-header__user-menu-button--anonymous',
     anonymous_signin='button[data-name="header-user-menu-sign-in"]',
     show_email_and_username='span.js-show-email',
-    input_username='input[name="username"]',
-    input_password='input[name="password"]',
-    btn_login_by_email='span.tv-signin-dialog__toggle-email',
+    input_username='input[id="id_username"]',
+    input_password='input[id="id_password"]',
+    btn_login_by_email='button[name="Email"]',
     # Study error
     study_error='div[class*="dataProblemLow"]',
     # Study loading
@@ -2863,7 +2863,7 @@ def login(browser, uid='', pwd='', retry_login=False):
 
         send_keys(input_password, Keys.ENTER)
     except Exception as e:
-        log.error(e)
+        log.exception(e)
         snapshot(browser, True)
 
     # close the widget pane if it is open
@@ -2897,7 +2897,7 @@ def login(browser, uid='', pwd='', retry_login=False):
                 print(error.get_attribute('innerText'))
                 login(browser, '', '', True)
     except Exception as e:
-        log.error(e)
+        log.exception(e)
         snapshot(browser, True)
 
 
