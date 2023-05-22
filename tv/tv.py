@@ -2074,21 +2074,22 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
 
             if starting_date or ending_date:
                 # oped period dialog
-                css = 'div[data-name="go-to-date"]'
+                css = 'button[data-name="go-to-date"]'
                 wait_and_click(browser, css)
                 # make sure that we are on the 'Custom Range' tab within the dialog
-                css = 'div[data-name="go-to-date-dialog"] div[data-value="CustomRange"]'
+                css = 'div[data-name="go-to-date-dialog"] button[id="CustomRange"]'
                 wait_and_click(browser, css)
                 # set period
-                css = 'div[data-name="go-to-date-dialog"] div[class^="pickerInput"] input'
-                el_inputs = find_elements(browser, css)
-                if len(el_inputs) == 2:
-                    if starting_date:
-                        el_inputs[0].send_keys(SELECT_ALL)
-                        el_inputs[0].send_keys(starting_date)
-                    if ending_date:
-                        el_inputs[1].send_keys(SELECT_ALL)
-                        el_inputs[1].send_keys(ending_date)
+                if starting_date:
+                    css = 'div[data-name="go-to-date-dialog"] input[data-name="start-date-range"]'
+                    el_start_date = find_element(browser, css)
+                    el_start_date.send_keys(SELECT_ALL)
+                    el_start_date.send_keys(starting_date)
+                if ending_date:
+                    css = 'div[data-name="go-to-date-dialog"] input[data-name="end-date-range"]'
+                    el_end_date = find_element(browser, css)
+                    el_end_date.send_keys(SELECT_ALL)
+                    el_end_date.send_keys(starting_date)
                 # save the go-to date / period
                 css = 'div[data-name="go-to-date-dialog"] button[name="submit"]'
                 wait_and_click(browser, css)
