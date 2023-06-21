@@ -171,22 +171,16 @@ css_selectors = dict(
     dlg_create_alert_expiration_time='div[data-name^="popup-menu-container"] div[class^="time"] input',
     dlg_create_alert_notifications_button='button[id="alert-dialog-tabs__notifications"]',
     # Alert Notifications
-    dlg_create_alert_notifications_notify_on_app_checkbox='span[data-name="notify-on-app"] input',
-    dlg_create_alert_notifications_show_popup_checkbox='span[data-name="show-popup"] input',
-    dlg_create_alert_notifications_send_email_checkbox='span[data-name="send-email"] input',
-    dlg_create_alert_notifications_webhook_checkbox='span[data-name="webhook"] input',
-    dlg_create_alert_notifications_play_sound_checkbox='span[data-name="play-sound"] input',
-    dlg_create_alert_notifications_email_to_sms_checkbox='span[data-name="send-email-to-sms"] input',
-    dlg_create_alert_notifications_notify_on_app_checkbox_clickable='span[data-name="notify-on-app"]',
-    dlg_create_alert_notifications_show_popup_checkbox_clickable='span[data-name="show-popup"]',
-    dlg_create_alert_notifications_send_email_checkbox_clickable='span[data-name="send-email"]',
-    dlg_create_alert_notifications_webhook_checkbox_clickable='span[data-name="webhook"]',
-    dlg_create_alert_notifications_play_sound_checkbox_clickable='span[data-name="play-sound"]',
-    dlg_create_alert_notifications_email_to_sms_checkbox_clickable='span[data-name="send-email-to-sms"]',
-    dlg_create_alert_notifications_webhook_text='div[data-name="alerts-create-edit-dialog"] div[class^="section"]:nth-child(4) > div:nth-child(2) input',
-    dlg_create_alert_notifications_sound_ringtone_button='div[data-name="alerts-create-edit-dialog"] div[class^="section"]:nth-child(5) div[class^="soundSelect"] span[role="button"]:nth-child(1)',
+    dlg_create_alert_notifications_notify_on_app_checkbox='input[data-name="notify-on-app"]',
+    dlg_create_alert_notifications_show_popup_checkbox='input[data-name="show-popup"]',
+    dlg_create_alert_notifications_send_email_checkbox='input[data-name="send-email"]',
+    dlg_create_alert_notifications_webhook_checkbox='input[data-name="webhook"]',
+    dlg_create_alert_notifications_play_sound_checkbox='input[data-name="play-sound"]',
+    dlg_create_alert_notifications_email_to_sms_checkbox='input[data-name="send-email-to-sms"]',
+    dlg_create_alert_notifications_webhook_text='input[id="webhook-url"]',
+    dlg_create_alert_notifications_sound_ringtone_button='div[class^="soundSelect"] span[role="button"]:nth-child(1)',
     dlg_create_alert_notifications_sound_ringtone_options='div[data-name="popup-menu-container"] div[role="option"] div[class^="title"]',
-    dlg_create_alert_notifications_sound_duration_button='div[data-name="alerts-create-edit-dialog"] div[class^="section"]:nth-child(5) div[class^="soundSelect"] span[role="button"]:nth-child(2)',
+    dlg_create_alert_notifications_sound_duration_button='div[class^="soundSelect"] span[role="button"]:nth-child(2)',
     dlg_create_alert_notifications_sound_duration_options='div[data-name="popup-menu-container"] div[role="option"] > span >span',
     # Alert Name and Message
     dlg_create_alert_name='#alert-name',
@@ -264,6 +258,15 @@ css_selectors = dict(
 class_selectors = dict(
     form_create_alert='js-alert-form',
     rows_screener_result='tv-screener-table__result-row',
+)
+
+xpath_selectors = dict(
+    dlg_create_alert_notifications_notify_on_app_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[1]/div[1]/label',
+    dlg_create_alert_notifications_show_popup_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[2]/div[1]/label',
+    dlg_create_alert_notifications_send_email_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[3]/div[1]/label',
+    dlg_create_alert_notifications_webhook_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[4]/div[1]/label',
+    dlg_create_alert_notifications_play_sound_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[5]/div[1]/label',
+    dlg_create_alert_notifications_email_to_sms_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[6]/div[1]/label',
 )
 
 
@@ -2095,12 +2098,9 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
                 wait_and_click(browser, css)
 
         # open dialog
-        # css = 'div.layout__area--topleft div[data-role="button"]'
         css = 'button[data-name="save-load-menu"]'
         wait_and_click(browser, css)
-        # css = 'div[class^="popupMenu"] div[data-name="menu-inner"] > div:nth-child(7)'
         wait_and_click_by_text(browser, 'span', 'Export chart data…')
-        # wait_and_click(browser, css)
         time.sleep(DELAY_BREAK*2)
 
         # make sure the correct symbol is loaded
@@ -2131,7 +2131,6 @@ def export_chart_data(browser, export_data_config, symbol, tries=0):
             found = False
             for option in el_options:
                 option_tv = str(option.get_attribute("innerHTML")).strip()
-                # log.info(option_tv)
                 if (option_tv == timeformat) or ((not EXACT_CONDITIONS) and option_tv.startswith(timeformat)):
                     hover(browser, option, True)
                     found = True
@@ -2544,17 +2543,17 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                 'notify-on-app']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_notify_on_app_checkbox'])
             if is_checkbox_checked(checkbox) != notify_on_app:
-                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_notify_on_app_checkbox_clickable'])
+                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_notify_on_app_checkbox_clickable'])
             # Show popup
             show_popup = 'show_popup' in alert_config and alert_config['show_popup']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_show_popup_checkbox'])
             if is_checkbox_checked(checkbox) != show_popup:
-                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_show_popup_checkbox_clickable'])
+                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_show_popup_checkbox_clickable'])
             # Sound
             play_sound = 'sound' in alert_config and 'play' in alert_config['sound'] and alert_config['sound']['play']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_play_sound_checkbox'])
             if is_checkbox_checked(checkbox) != play_sound:
-                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_play_sound_checkbox_clickable'])
+                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_play_sound_checkbox_clickable'])
             if play_sound:
                 # set ringtone
                 wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_sound_ringtone_button'])
@@ -2580,17 +2579,17 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             send_email = 'send' in alert_config and 'email' in alert_config['send'] and alert_config['send']['email']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_send_email_checkbox'])
             if is_checkbox_checked(checkbox) != send_email:
-                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_send_email_checkbox_clickable'])
+                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_send_email_checkbox_clickable'])
             # Send Email-to-SMS
             send_email_to_sms = 'send' in alert_config and 'email-to-sms' in alert_config['send'] and alert_config['send']['email-to-sms']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_email_to_sms_checkbox'])
             if is_checkbox_checked(checkbox) != send_email_to_sms:
-                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_email_to_sms_checkbox_clickable'])
+                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_email_to_sms_checkbox_clickable'])
             # Webhook
             webhook = 'webhook' in alert_config and alert_config['webhook'] != ''
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_checkbox'])
             if is_checkbox_checked(checkbox) != webhook:
-                wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_checkbox_clickable'])
+                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_webhook_checkbox_clickable'])
             if webhook:
                 element = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_text'])
                 element.send_keys(SELECT_ALL)
