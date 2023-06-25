@@ -375,8 +375,8 @@ def get_operating_system():
     return result
 
 
-def print_dot(dots=0):
-    if dots == 100:
+def print_dot(dots=0, max_dots=100):
+    if dots == max_dots:
         print('.')
         dots = 0
     else:
