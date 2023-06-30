@@ -19,6 +19,7 @@ import math
 import numbers
 import os
 import re
+import sys
 import time
 import errno
 
@@ -83,6 +84,7 @@ VERIFY_MARKET_LISTING = True
 ACCEPT_COOKIES = False  # TODO remove DEPRECATED SETTING accept_cookies from kairos.cfg
 ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = False
 ACCEPT_ADVERTISING_COOKIES = False
+CAPTCHA_EXTENSION = False
 
 # performance
 READ_FROM_DATA_WINDOW = True
@@ -125,6 +127,8 @@ css_selectors = dict(
     input_username='input[id="id_username"]',
     input_password='input[id="id_password"]',
     btn_login_by_email='button[name="Email"]',
+    captcha='div[class^="recaptchaContainer"]',
+    input_captcha='div.recaptcha-checkbox-checkmark',
     # Study error
     study_error='div[class*="dataProblemLow"]',
     # Study loading
@@ -355,6 +359,8 @@ if config.has_option('tradingview', 'accept_advertising_cookies'):
 RESOLUTION = '1920,1080'
 if config.has_option('webdriver', 'resolution'):
     RESOLUTION = config.get('webdriver', 'resolution').strip(' ')
+if config.has_option('webdriver', 'captcha_extension'):
+    CAPTCHA_EXTENSION = config.getboolean('webdriver', 'captcha_extension')
 
 
 def close_all_popups(browser):
@@ -2770,6 +2776,110 @@ def set_expiration(browser, alert_config):
     wait_and_click(browser, css_selectors['dlg_create_alert_expiration_confirmation_button'])
 
 
+def check_captcha(browser):
+    # check for captcha
+    if element_exists(browser, css_selectors['btn_watchlist'], 2):
+        return True
+    if CAPTCHA_EXTENSION:
+        log.info("solving CAPTCHA ...")
+        checked = False
+        max_tries = 60
+        i = 0
+        # give extension 5 minutes of time to solve challenge
+        while not checked and i < max_tries:
+            checked = is_captcha_checked(browser)
+            if not checked:
+                time.sleep(5)
+                i += 1
+
+        if checked:
+            log.info("CAPTCHA extension solved challenge")
+            return True
+        else:
+            log.info("CAPTCHA extension was unable to solve challenge")
+            return solve_captcha(browser)
+
+    elif find_element(browser, css_selectors['captcha'], delay=5, except_on_timeout=False):
+        try:
+            # switch to iframe
+            WebDriverWait(browser, 10).until(
+                ec.frame_to_be_available_and_switch_to_it(
+                    (By.CSS_SELECTOR, 'div[class^="recaptchaContainer"] iframe[title="reCAPTCHA"]')))
+            WebDriverWait(browser, 20).until(
+                ec.element_to_be_clickable((By.CSS_SELECTOR, 'div.recaptcha-checkbox-checkmark')))
+            time.sleep(1)
+            wait_and_click(browser, 'span.recaptcha-checkbox')
+            browser.switch_to.default_content()
+
+            # check if accepted?
+            if is_captcha_checked(browser):
+                log.info("CAPTCHA succeeded")
+                time.sleep(DELAY_BREAK*2)
+                return True
+            else:
+                log.info("CAPTCHA returned challenge")
+                return solve_captcha(browser)
+
+        except Exception as e:
+            log.exception(e)
+
+    else:
+        log.info("No CAPTCHA detected")
+        return True
+
+
+def is_captcha_checked(browser):
+    try:
+        WebDriverWait(browser, 10).until(ec.frame_to_be_available_and_switch_to_it(
+            (By.CSS_SELECTOR, 'div[class^="recaptchaContainer"] iframe[title="reCAPTCHA"]')))
+        checked = find_element(browser, 'span.recaptcha-checkbox-checked', except_on_timeout=False)
+        browser.switch_to.default_content()
+        return checked
+    except TimeoutException:
+        pass
+    except Exception as e:
+        log.exception(e)
+
+
+def solve_captcha(browser):
+
+    if RUN_IN_BACKGROUND:
+        # send email notifying user when in headless mode
+        import mail
+        subject = "Failed to run; CAPTCHA needed"
+        text = "Kairos could not run due to CAPTCHA.\nPlease, use a captcha extension (at own risk) or follow these steps:\n\n" \
+               "1. Clear browser history (optional but recommended)\n" \
+               "2. Login to TradingView manually and provide the CAPTCHA; or add an extension that deals with CAPTCHA (see the option captcha_extension in your kairos .cfg file.\n" \
+               "3. Close the browser\n" \
+               "4. Run the command: python main.py -cls\n" \
+               "5. Run Kairos as you would normally\n\n" \
+
+        mail.send_admin_message(subject, text)
+        log.info(subject + ".\r\n" + text.replace("\n", "\r\n"))
+        destroy_browser(browser)
+        sys.exit()
+    else:
+        # prompt user to solve CAPTCHA manually
+        dots = 0
+        max_dots = 12
+        checked = is_captcha_checked(browser)
+        print("\r\nPLEASE PROVIDE CAPTCHA ...", end='')
+        while not checked and dots <= max_dots:
+            tools.print_dot(dots)
+            checked = is_captcha_checked(browser)
+
+        if dots >= max_dots:
+            print("\r\nNO CAPTCHA PROVIDED WITHIN 2 MINUTES. CLOSING DOWN.")
+            destroy_browser(browser)
+            sys.exit()
+        else:
+            print("")
+            print("")
+            time.sleep(0.1)
+            log.info("CAPTCHA provided manually")
+            return True
+
+
 def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
@@ -2857,10 +2967,34 @@ def login(browser, uid='', pwd='', retry_login=False):
         # if there are no user credentials then exit
         else:
             log.info("no credentials provided.")
-            write_console_log(browser)
+            destroy_browser(browser)
             exit(0)
 
         send_keys(input_password, Keys.ENTER)
+        # check if we aren't logged already
+        if find_element(browser, css_selectors['btn_watchlist'], delay=5, except_on_timeout=False):
+            return True
+        else:
+            # captcha succeeded
+            i = 0
+            while i < 10:
+                if check_captcha(browser):
+                    time.sleep(DELAY_BREAK)
+                    # captcha solved; click submit
+                    if element_exists(browser, 'button[class^="submitButton"]', delay=2):
+                        wait_and_click(browser, 'button[class^="submitButton"]')
+                    time.sleep(DELAY_BREAK)
+                    # first click on submit may give an "invalid token" error, so we click again in that case
+                    if element_exists(browser, 'button[class^="submitButton"]', delay=2):
+                        wait_and_click(browser, 'button[class^="submitButton"]')
+                    elif element_exists(browser, css_selectors['btn_watchlist'], 5):
+                        i = 10
+                else:
+                    log.warning("CAPTCHA failed. Unable to login.")
+                    destroy_browser(browser)
+                    exit(0)
+                i += 1
+
     except Exception as e:
         log.exception(e)
         snapshot(browser, True)
@@ -3012,7 +3146,8 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             log.info(option.strip())
             options.add_argument(option.strip())
     else:
-        options.add_argument('--disable-extensions')
+        if not CAPTCHA_EXTENSION:
+            options.add_argument('--disable-extensions')
         options.add_argument('--disable-notifications')
         options.add_argument('--noerrdialogs')
         options.add_argument('--disable-session-crashed-bubble')
@@ -3026,7 +3161,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             options.add_argument("--disable-dev-shm-usage")
         # run chrome in the background
         if run_in_background:
-            # swiching to the new headless mode
+            # switching to the new headless mode
             # https://developer.chrome.com/articles/new-headless/
             options.add_argument('--headless=new')
         # fix for https://stackoverflow.com/questions/40514022/chrome-webdriver-produces-timeout-in-selenium
