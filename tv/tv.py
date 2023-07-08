@@ -166,8 +166,8 @@ css_selectors = dict(
     dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
     dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
     inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
-    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
-    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) button',
+    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="content"] [aria-controls="alert-editor-expiration-popup"] span[class^="content"]',
+    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="content"] button[aria-controls="alert-editor-expiration-popup"]',
     dlg_create_alert_open_ended_checkbox='#unexpired-date',
     # dlg_create_alert_open_ended_checkbox_clickable='div[data-name="popup-menu-container"] div[class^="row"]:nth-child(1) input',
     dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
@@ -255,7 +255,7 @@ css_selectors = dict(
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
-    price_axis='div[class^="price-axis-currency-label-wrapper"] > div:nth-child(1) > div:nth-child(1) >  span[class^="price-axis-currency-label-text"]',
+    price_axis='div[class^="price-axis-currency-label-wrapper"] > div:nth-child(1) > div:nth-child(1) > div[class^="price-axis-currency-label-text"]',
     chart_error_message='div.active > div.chart-container-border div[class^=errorCard__message]',
 )
 
