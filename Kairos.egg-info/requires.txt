@@ -1,9 +1,9 @@
-pip
+setuptools
 pyyaml
 beautifulsoup4
-urllib3<3.0,>=1.26
 selenium
 configparser
+pip
 Pillow
 requests
 gspread
@@ -17,7 +17,7 @@ psutil
 Cython
 tqdm
 soupsieve
-coloredlogs
+selenium-stealth
 
 [:platform_system == "Darwin"]
 pyobjc-core

@@ -28,5 +28,3 @@ kairos/tools.py
 tv/__init__.py
 tv/mail.py
 tv/tv.py
-tv/tv_v259.py
-tv/tv_v280.py

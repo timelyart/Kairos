@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 2.91
+Version: 2.94
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 Home-page: https://github.com/timelyart/Kairos
 Author: timelyart
@@ -52,17 +52,17 @@ Besides this document you can also find instructional videos [here](https://www.
 
 ## Prerequisites
 * [Python 3](https://www.python.org/downloads/)
-* [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/); or [geckodriver](https://github.com/mozilla/geckodriver/) with [Firefox](https://www.mozilla.org/en-US/firefox/) (for OS X)
+* [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/) 
 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
-## Installing ##
+## Installing
 If you run Ubuntu there is a list of commands here: [Ubuntu - command line installation](#ubuntu---command-line-installation).
 ### From archive (Linux, OS X and Windows)
 _If you are running Linux / OS X then run listed commands with **sudo**_ 
 * [Install Python 3](https://www.python.org/downloads/) - [OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
-* [Install Chrome latest version](https://www.google.com/chrome/) or [geckodriver](https://github.com/mozilla/geckodriver/) (OS X)
-* [Download ChromeDriver](http://chromedriver.chromium.org/downloads) or [Firefox](https://www.mozilla.org/en-US/firefox/) (OS X)
+* On Linux and OS X you will need to install [pyvirtualdisplay](https://github.com/ponty/PyVirtualDisplay), it's dependencies and backends 
+* [Install Chrome latest version](https://www.google.com/chrome/)
 * [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
 * Open a terminal, or when on Windows an elevated command prompt
 * Update setuptools:
@@ -101,6 +101,8 @@ sudo apt-get install unzip
 sudo apt-get install python3.8
 pip install setuptools
 pip install --upgrade setuptools
+sudo apt-get install xvfb xserver-xephyr tigervnc-standalone-server x11-utils gnumeric
+python3 -m pip install pyvirtualdisplay pillow EasyProcess
 wget https://chromedriver.storage.googleapis.com/2.43/chromedriver_linux64.zip
 unzip chromedriver_linux64.zip
 sudo mv chromedriver /usr/bin/chromedriver
@@ -419,7 +421,7 @@ Feedback is invaluable. Please, take the time to give constructive feedback by o
 
 [PaulMcG](https://stackoverflow.com/users/165216/paulmcg), for his [timing module](https://stackoverflow.com/questions/1557571/how-do-i-get-time-of-a-python-programs-execution/1557906#1557906)
 
-## Author ##
+## Author
 [timelyart](https://github.com/timelyart)
 
 ## Donate
