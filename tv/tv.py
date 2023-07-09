@@ -39,6 +39,7 @@ from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.support import expected_conditions as ec
 from selenium.webdriver.support.ui import WebDriverWait
 from multiprocessing import Pool
+from selenium_stealth import stealth
 from kairos import timing
 from kairos import tools
 from kairos.tools import format_number, unicode_to_float_int, strip_to_ascii
@@ -81,7 +82,6 @@ REFRESH_INTERVAL = 3600  # Refresh the browser each hour
 ALREADY_LOGGED_IN = False
 ACCOUNT_LEVEL = False
 VERIFY_MARKET_LISTING = True
-ACCEPT_COOKIES = False  # TODO remove DEPRECATED SETTING accept_cookies from kairos.cfg
 ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = False
 ACCEPT_ADVERTISING_COOKIES = False
 CAPTCHA_EXTENSION = False
@@ -166,8 +166,8 @@ css_selectors = dict(
     dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
     dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
     inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
-    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="content"] [aria-controls="alert-editor-expiration-popup"] span[class^="content"]',
-    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="content"] button[aria-controls="alert-editor-expiration-popup"]',
+    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
+    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) button',
     dlg_create_alert_open_ended_checkbox='#unexpired-date',
     # dlg_create_alert_open_ended_checkbox_clickable='div[data-name="popup-menu-container"] div[class^="row"]:nth-child(1) input',
     dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
@@ -255,7 +255,7 @@ css_selectors = dict(
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
     active_widget_bar='div.widgetbar-page.active',
-    price_axis='div[class^="price-axis-currency-label-wrapper"] > div:nth-child(1) > div:nth-child(1) > div[class^="price-axis-currency-label-text"]',
+    price_axis='div[class="price-axis"] div[data-name="currency-unit-label-wrapper"] div[class^="price-axis-currency-label-text"]',
     chart_error_message='div.active > div.chart-container-border div[class^=errorCard__message]',
 )
 
@@ -271,6 +271,7 @@ xpath_selectors = dict(
     dlg_create_alert_notifications_webhook_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[4]/div[1]/label',
     dlg_create_alert_notifications_play_sound_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[5]/div[1]/label',
     dlg_create_alert_notifications_email_to_sms_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[6]/div[1]/label',
+    data_window_indicator='//div[@class="widgetbar-widget widgetbar-widget-datawindow"]/div[2]/div/div[2]/div/div/div[1]/span[starts-with(text(), "{}")]',
 )
 
 
@@ -284,14 +285,6 @@ level = INFO_LEVEL
 if config.has_option('logging', 'level'):
     level = config.getint('logging', 'level')
 log, colourlogs = tools.create_log(mode=mode, level=level)
-
-path_to_chromedriver = r"" + config.get('webdriver', 'path')
-if os.path.exists(path_to_chromedriver):
-    path_to_chromedriver = path_to_chromedriver.replace('.exe', '')
-else:
-    log.error("File {} does not exist".format(path_to_chromedriver))
-    log.exception(FileNotFoundError)
-    exit(0)
 
 DOWNLOAD_PATH = ''
 if config.has_option('webdriver', 'download_path'):
@@ -345,12 +338,6 @@ if config.has_option('tradingview', 'exact_conditions'):
     EXACT_CONDITIONS = config.getboolean('tradingview', 'exact_conditions')
 if config.has_option('tradingview', 'verify_market_listing'):
     VERIFY_MARKET_LISTING = config.getboolean('tradingview', 'verify_market_listing')
-if config.has_option('tradingview', 'accept_cookies'):
-    ACCEPT_COOKIES = config.getboolean('tradingview', 'accept_cookies')
-    if ACCEPT_COOKIES:
-        log.warning("DEPRECATED SETTING 'accept_cookies' in your kairos.cfg. \n"
-                    "Use `accept_performance_analytics_cookies` and `accept_advertising_cookies` instead. \n"
-                    "See latest example _kairos.cfg file at https://github.com/timelyart/Kairos/blob/master/_kairos.cfg.")
 if config.has_option('tradingview', 'accept_performance_analytics_cookies'):
     ACCEPT_PERFORMANCE_ANALYTICS_COOKIES = config.getboolean('tradingview', 'accept_performance_analytics_cookies')
 if config.has_option('tradingview', 'accept_advertising_cookies'):
@@ -551,8 +538,8 @@ def hover(browser, element, click=False, delay=DELAY_BREAK_MINI):
 
 
 def accept_cookies(browser):
-    global ACCEPT_COOKIES, ACCEPT_ADVERTISING_COOKIES, ACCEPT_PERFORMANCE_ANALYTICS_COOKIES
-    accept_all_cookies = ACCEPT_COOKIES or (ACCEPT_ADVERTISING_COOKIES and ACCEPT_PERFORMANCE_ANALYTICS_COOKIES)
+    global ACCEPT_ADVERTISING_COOKIES, ACCEPT_PERFORMANCE_ANALYTICS_COOKIES
+    accept_all_cookies = ACCEPT_ADVERTISING_COOKIES and ACCEPT_PERFORMANCE_ANALYTICS_COOKIES
     try:
         if accept_all_cookies:
             wait_and_click(browser, css_selectors['btn_accept_all_cookies'], 2)
@@ -779,10 +766,11 @@ def move_to_data_window_indicator(browser, indicator, retry_number=0):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
     # 1. find the correct indicator
-    xpath = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]'.format(indicator['name'])
+    xpath = xpath_selectors["data_window_indicator"].format(indicator['name'])
     if element_exists(browser, xpath, CHECK_IF_EXISTS_TIMEOUT, By.XPATH):
         try:
-            ActionChains(browser).move_to_element(find_element(browser, '{}/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]'.format(xpath), By.XPATH)).perform()
+            xpath = '{}/parent::*/parent::*/div/div[last()]'.format(xpath)
+            ActionChains(browser).move_to_element(find_element(browser, xpath, By.XPATH)).perform()
             return True
         except StaleElementReferenceException:
             if retry_number < max_retries:
@@ -813,14 +801,15 @@ def wait_until_data_window_indicator_is_loaded(browser, indicator, retry_number=
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
     # wait until marked value is loaded
-    xpath_check_element = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], indicator['verify_indicator_loaded'] + 1)
+    xpath = xpath_selectors["data_window_indicator"].format(indicator['name'])
+    xpath = '{}/parent::*/parent::*/div[2]/div[{}]/div[2]'.format(xpath, indicator['verify_indicator_loaded'] + 1)
     element = False
     value = 'n/a'
     i = 0
     while ((not element) or value == 'n/a') and i < 10:
         i = i + 1
         try:
-            element = find_element(browser, xpath_check_element, By.XPATH)
+            element = find_element(browser, xpath, By.XPATH)
             value = element.text
         except StaleElementReferenceException as e:
             element = False
@@ -847,16 +836,15 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
-    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[{}]/div[2]'.format(indicator['name'], index + 1)
+    xpath = xpath_selectors["data_window_indicator"].format(indicator['name'])
+    xpath = '{}/parent::*/parent::*/div[2]/div[{}]/div[2]'.format(xpath, index + 1)
     element = False
     value = ''
     i = 0
-    # while not element and value == '':
-    # while not (element and value):
     while i < max_retries and not (element and value):
         i += 1
         try:
-            element = find_element(browser, xpath_value, By.XPATH)
+            element = find_element(browser, xpath, By.XPATH)
             # handle unicode null character '∅'
             value = str(element.text).translate({0x2205: 'NaN'})
             # sometimes the element exists, holds no data and only gets populated after a scroll
@@ -869,7 +857,7 @@ def get_data_window_indicator_value(browser, indicator, index, retry_number=0):
             # continue
         except Exception as e:
             log.exception(e)
-            log.exception(xpath_value)
+            log.exception(xpath)
             element = False
             if retry_number < max_retries * 10:
                 time.sleep(0.05)
@@ -884,13 +872,14 @@ def get_data_window_indicator_value_by_text(browser, indicator, text, retry_numb
     if config.has_option('tradingview', 'indicator_values_max_retries'):
         max_retries = config.getint('tradingview', 'indicator_values_max_retries')
 
-    xpath_value = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div/div[text()="{}"]/following-sibling::div'.format(indicator['name'], text)
+    xpath = xpath_selectors["data_window_indicator"].format(indicator['name'])
+    xpath = '{}/parent::*/parent::*/div[2]/div[text()="{}"]/div[2]'.format(xpath, text)
     element = False
     value = ''
     first = True
     while not (element and value):
         try:
-            element = find_element(browser, xpath_value, By.XPATH)
+            element = find_element(browser, xpath, By.XPATH)
             if not first:
                 browser.execute_script("arguments[0].scrollIntoView(true);", element)
             first = False
@@ -917,8 +906,9 @@ def get_data_window_indicator_value_by_text(browser, indicator, text, retry_numb
 def get_data_window_indicator_values(browser, indicator, retry_number=0):
     result = []
     try:
-        xpath_values = '//div[not(contains(@class, "hidden"))]/div[@class="chart-data-window-header"]/span[starts-with(text(), "{}")][1]/parent::*/parent::*/div[@class="chart-data-window-body"]/div[last()]/parent::*/parent::*/div[@class="chart-data-window-body"]/div/div[2]'.format(indicator['name'])
-        elements = find_elements(browser, xpath_values, By.XPATH)
+        xpath = xpath_selectors["data_window_indicator"].format(indicator['name'])
+        xpath = '{}/parent::*/parent::*/div[2]/div/div[2]'.format(xpath)
+        elements = find_elements(browser, xpath, By.XPATH)
         for i in range(len(elements)):
             result.append(get_data_window_indicator_value(browser, indicator, i))
     except Exception as e:
@@ -3108,16 +3098,17 @@ def check_driver(driver):
         log.warning("browser name '{}' not found in driver".format(driver.name))
     log.info("browser version: {}".format(browser_version))
     log.info("driver version: {}".format(driver_version))
+    return driver_version
 
 
 def create_browser(run_in_background, resolution='1920,1080', download_path=None):
     global log, colourlogs
     global DOWNLOAD_PATH
 
-    capabilities = DesiredCapabilities.CHROME.copy()
     initial_setup = False
-
+    capabilities = DesiredCapabilities.CHROME.copy()
     options = webdriver.ChromeOptions()
+
     # options.add_argument("--incognito")
     if config.has_option('webdriver', 'web_browser_path'):
         web_browser_path = r"" + str(config.get('webdriver', 'web_browser_path'))
@@ -3200,41 +3191,38 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
     options.add_experimental_option('excludeSwitches', exclude_switches)
 
     browser = None
-    chromedriver_file = r"" + str(config.get('webdriver', 'path'))
-    if not os.path.exists(chromedriver_file):
-        log.error("File {} does not exist. Did setup your kairos.cfg correctly?".format(chromedriver_file))
-        raise FileNotFoundError
-    chromedriver_file.replace('.exe', '')
-
+    for capability in capabilities:
+        options.set_capability(capability, capabilities[capability])
     if OS == 'linux' and \
             config.has_option('webdriver', 'use_proxy_display') and config.getboolean('webdriver', 'use_proxy_display'):
         from pyvirtualdisplay import Display
-        display = Display(visible=False, size=(1920, 1024))
+        # visible == false -> runs over xfvb
+        # visible == true -> runs over xephyr
+        display = Display(visible=not run_in_background, size=(1920, 1024))
         display.start()
 
-    # use open Chrome browser
-    # options = webdriver.ChromeOptions()
-    # options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
-
     try:
-        # noinspection PyUnboundLocalVariable
-        log_path = r"--log-path=.\chromedriver_{}.log".format(int(WEBDRIVER_INSTANCE))
-
         # Create webdriver.remote
         # Note, we cannot serialize webdriver.Chrome
         if MULTI_THREADING:
-            browser = webdriver.Remote(command_executor=EXECUTOR, options=options, desired_capabilities=capabilities)
+            browser = webdriver.Remote(options=options)
         else:
-            browser = webdriver.Chrome(
-                executable_path=chromedriver_file,
-                options=options,
-                desired_capabilities=capabilities,
-                service_args=["--verbose", log_path])
-
-        check_driver(browser)
+            browser = webdriver.Chrome(options=options)
 
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
+        driver_version = check_driver(browser)
+        user_agent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/{} Safari/537.36'.format(driver_version)
+        stealth(browser,
+                user_agent=user_agent,
+                languages=["en-US", "en"],
+                vendor="Google Inc.",
+                platform="Win32",
+                webgl_vendor="Intel Inc.",
+                renderer="Intel Iris OpenGL Engine",
+                fix_hairline=True,
+                )
+
         if initial_setup:
             log.info("creating shared session for kairos user data directory")
             login(browser)
@@ -3243,6 +3231,7 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             ALREADY_LOGGED_IN = True
             destroy_browser(browser, False)
             return create_browser(run_in_background, resolution, download_path)
+
     except InvalidArgumentException as e:
         if e.msg.index("user data directory is already in use") >= 0:
             log.critical("your web browser's user data directory is in use. Please, close your web browser and restart Kairos.")
@@ -3256,13 +3245,13 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
         error = e.msg[index:]
 
         if "chrome" in error.lower():
-            subject = "Outdated Chromedriver"
-            text = "Could not run due to an outdated Chromedriver.\nPlease update your Chromedriver."
-            log.error("Please update Chromedriver. {}".format(error))
+            subject = "Outdated Chrome Browser"
+            text = "Could not run due to an outdated Chrome version.\nPlease update your Chrome browser."
+            log.error("Please update Chrome browser. {}".format(error))
         else:
-            subject = "Outdated Geckodriver"
-            text = "Could not run due to run due to an outdated Geckodriver.\nPlease update your Geckodriver."
-            log.error("Please update Geckodriver. {}".format(error))
+            subject = "Outdated Gecko Browser"
+            text = "Could not run due to run due to an outdated Gecko version.\nPlease update your Gecko browser."
+            log.error("Please update Gecko browser. {}".format(error))
 
         # Send email
         # noinspection PyUnresolvedReferences
@@ -3497,7 +3486,6 @@ def get_screener_markets(browser, screener_yaml):
     browser.get(url)
     el_select = find_element(browser, css_selectors['select_screener'])
     hover(browser, el_select, True)
-
     el_options = find_elements(browser, css_selectors['options_screeners'])
     found = False
     for i in range(len(el_options)):
@@ -4320,8 +4308,6 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         if not is_market_listed(browser, handle_incomplete_loading_bug):
             log.warning("{} has been delisted".format(symbol))
             return
-        else:
-            log.info("{} is listed".format(symbol))
 
         symbol_average = dict()
         symbol_average['Net Profit'] = 0
