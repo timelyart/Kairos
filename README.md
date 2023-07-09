@@ -41,7 +41,7 @@ Besides this document you can also find instructional videos [here](https://www.
 
 ## Prerequisites
 * [Python 3](https://www.python.org/downloads/)
-* [Latest version of Chrome](https://www.google.com/chrome/) 
+* [Latest version of Chrome](https://www.google.com/chrome/)
 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 

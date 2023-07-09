@@ -17,6 +17,7 @@ psutil
 Cython
 tqdm
 soupsieve
+coloredlogs
 selenium-stealth
 
 [:platform_system == "Darwin"]
@@ -24,5 +25,4 @@ pyobjc-core
 pyobjc
 
 [:platform_system == "Linux"]
-python3-Xlib
 pyvirtualdisplay

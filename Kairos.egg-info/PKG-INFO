@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 2.94
+Version: 2.96
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 Home-page: https://github.com/timelyart/Kairos
 Author: timelyart
@@ -52,7 +52,7 @@ Besides this document you can also find instructional videos [here](https://www.
 
 ## Prerequisites
 * [Python 3](https://www.python.org/downloads/)
-* [ChromeDriver](http://chromedriver.chromium.org/downloads) with [Chrome latest version](https://www.google.com/chrome/) 
+* [Latest version of Chrome](https://www.google.com/chrome/)
 
 _Note: when you install Python on Windows make sure that it's part of your PATH._
 
@@ -60,7 +60,7 @@ _Note: when you install Python on Windows make sure that it's part of your PATH.
 If you run Ubuntu there is a list of commands here: [Ubuntu - command line installation](#ubuntu---command-line-installation).
 ### From archive (Linux, OS X and Windows)
 _If you are running Linux / OS X then run listed commands with **sudo**_ 
-* [Install Python 3](https://www.python.org/downloads/) - [OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/) - [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html)
+* [Install Python 3](https://www.python.org/downloads/) ([OS X guide](https://www.macworld.co.uk/how-to/mac/python-coding-mac-3635912/); [Windows guide](https://www.ics.uci.edu/~pattis/common/handouts/pythoneclipsejava/python.html))
 * On Linux and OS X you will need to install [pyvirtualdisplay](https://github.com/ponty/PyVirtualDisplay), it's dependencies and backends 
 * [Install Chrome latest version](https://www.google.com/chrome/)
 * [Download](https://github.com/timelyart/Kairos/releases/latest) and extract the Kairos archive
@@ -98,7 +98,7 @@ echo 'deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main' | sud
 sudo apt-get update
 sudo apt-get install google-chrome-stable
 sudo apt-get install unzip
-sudo apt-get install python3.8
+sudo apt-get install python3.11
 pip install setuptools
 pip install --upgrade setuptools
 sudo apt-get install xvfb xserver-xephyr tigervnc-standalone-server x11-utils gnumeric

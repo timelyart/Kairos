@@ -19,10 +19,10 @@ psutil
 Cython
 tqdm
 soupsieve
+coloredlogs
 selenium-stealth
 # linux
-python3-Xlib # pyup: ignore
-pyvirtualdisplay # pyup: ignore
+#pyvirtualdisplay # pyup: ignore
 # macos
-pyobjc-core # pyup: ignore
-pyobjc # pyup: ignore
+#pyobjc-core # pyup: ignore
+#pyobjc # pyup: ignore
