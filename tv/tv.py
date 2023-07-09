@@ -3210,7 +3210,13 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             browser = webdriver.Remote(options=options)
         else:
             from selenium.webdriver.chrome.service import Service
-            service = Service()
+            if config.has_option('webdriver', 'path'):
+                driver_path = config.get('webdriver', 'path')
+                log.info("using {} as webdriver".format(driver_path))
+                service = Service(executable_path=driver_path)
+            else:
+                log.info('using Selenium Manager to find latest webdriver')
+                service = Service()
             browser = webdriver.Chrome(service=service, options=options)
 
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
