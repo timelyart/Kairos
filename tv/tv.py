@@ -3194,13 +3194,14 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
     browser = None
     for capability in capabilities:
         options.set_capability(capability, capabilities[capability])
-    if OS == 'linux' and \
-            config.has_option('webdriver', 'use_proxy_display') and config.getboolean('webdriver', 'use_proxy_display'):
+    if OS == 'linux' and not run_in_background and \
+            config.has_option('webdriver', 'use_proxy_display') and \
+            config.getboolean('webdriver', 'use_proxy_display'):
         from pyvirtualdisplay import Display
         global DISPLAY
         # visible == false -> runs over xfvb
         # visible == true -> runs over xephyr
-        DISPLAY = Display(visible=not run_in_background, size=(1920, 1024))
+        DISPLAY = Display(visible=True, size=(1920, 1024))
         DISPLAY.start()
 
     try:
