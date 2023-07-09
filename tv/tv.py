@@ -54,6 +54,7 @@ triggered_signals = []
 invalid = set()
 export_trades_filename = None
 
+DISPLAY = None
 EXECUTOR = 'http://192.168.0.140:4444/wd/hub'
 FILENAME = 'webdriver.instance'
 COUNTER_ALERTS = 0
@@ -3196,10 +3197,11 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
     if OS == 'linux' and \
             config.has_option('webdriver', 'use_proxy_display') and config.getboolean('webdriver', 'use_proxy_display'):
         from pyvirtualdisplay import Display
+        global DISPLAY
         # visible == false -> runs over xfvb
         # visible == true -> runs over xephyr
-        display = Display(visible=not run_in_background, size=(1920, 1024))
-        display.start()
+        DISPLAY = Display(visible=not run_in_background, size=(1920, 1024))
+        DISPLAY.start()
 
     try:
         # Create webdriver.remote
@@ -3207,7 +3209,9 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
         if MULTI_THREADING:
             browser = webdriver.Remote(options=options)
         else:
-            browser = webdriver.Chrome(options=options)
+            from selenium.webdriver.chrome.service import Service
+            service = Service()
+            browser = webdriver.Chrome(service=service, options=options)
 
         browser.implicitly_wait(WAIT_TIME_IMPLICIT)
         browser.set_page_load_timeout(PAGE_LOAD_TIMEOUT)
@@ -3302,12 +3306,19 @@ def destroy_browser(browser, close_log=True):
             write_console_log(browser)
             if close_log:
                 tools.shutdown_logging()
+
     except Exception as e:
         log.exception(e)
         snapshot(browser)
     finally:
         browser.close()
         browser.quit()
+        if OS == 'linux' and \
+                config.has_option('webdriver', 'use_proxy_display') and config.getboolean('webdriver', 'use_proxy_display'):
+            global DISPLAY
+            if DISPLAY:
+                from pyvirtualdisplay import Display
+                Display(DISPLAY).stop()
 
 
 def write_console_log(browser):

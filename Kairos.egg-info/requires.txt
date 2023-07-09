@@ -19,6 +19,7 @@ tqdm
 soupsieve
 coloredlogs
 selenium-stealth
+urllib3
 
 [:platform_system == "Darwin"]
 pyobjc-core

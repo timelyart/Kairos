@@ -21,6 +21,7 @@ tqdm
 soupsieve
 coloredlogs
 selenium-stealth
+urllib3
 # linux
 #pyvirtualdisplay # pyup: ignore
 # macos
