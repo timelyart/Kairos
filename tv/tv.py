@@ -167,10 +167,9 @@ css_selectors = dict(
     dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
     dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
     inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
-    dlg_create_alert_expiration_value='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) span[class^="content"]',
-    dlg_create_alert_expiration_button='div[data-name="alerts-create-edit-dialog"] div[class^="content"] div[class^="wrap"]:nth-child(4) button',
+    dlg_create_alert_expiration_value='fieldset[aria-label="Expiration"] span[class^="content"]',
+    dlg_create_alert_expiration_button='fieldset[aria-label="Expiration"] button',
     dlg_create_alert_open_ended_checkbox='#unexpired-date',
-    # dlg_create_alert_open_ended_checkbox_clickable='div[data-name="popup-menu-container"] div[class^="row"]:nth-child(1) input',
     dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
     dlg_create_alert_expiration_date='div[data-name^="popup-menu-container"] div[class^="picker"] input',
     dlg_create_alert_expiration_time='div[data-name^="popup-menu-container"] div[class^="time"] input',
@@ -183,9 +182,9 @@ css_selectors = dict(
     dlg_create_alert_notifications_play_sound_checkbox='input[data-name="play-sound"]',
     dlg_create_alert_notifications_email_to_sms_checkbox='input[data-name="send-email-to-sms"]',
     dlg_create_alert_notifications_webhook_text='input[id="webhook-url"]',
-    dlg_create_alert_notifications_sound_ringtone_button='div[class^="soundSelect"] span[role="button"]:nth-child(1)',
+    dlg_create_alert_notifications_sound_ringtone_button='div[class*="selectGroup"] span[role="button"]:nth-child(1)',
     dlg_create_alert_notifications_sound_ringtone_options='div[data-name="popup-menu-container"] div[role="option"] div[class^="title"]',
-    dlg_create_alert_notifications_sound_duration_button='div[class^="soundSelect"] span[role="button"]:nth-child(2)',
+    dlg_create_alert_notifications_sound_duration_button='div[class*="selectGroup"] span[role="button"]:nth-child(2)',
     dlg_create_alert_notifications_sound_duration_options='div[data-name="popup-menu-container"] div[role="option"] > span >span',
     # Alert Name and Message
     dlg_create_alert_name='#alert-name',
@@ -2649,7 +2648,8 @@ def select(browser, alert_config, current_condition, el_options, ticker_id):
             found = True
             break
     if not found:
-        log.error("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change? Exiting program ...".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
+        log.exception("Invalid condition ({}): '{}' in yaml definition '{}'. Did the title/name of the indicator/condition change? Exiting program ...".format(str(current_condition + 1), alert_config['conditions'][current_condition], alert_config['name']))
+        destroy_browser(browser, True)
         exit(0)
     return found
 
