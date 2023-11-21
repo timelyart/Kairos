@@ -196,7 +196,9 @@ css_selectors = dict(
     btn_create_alert_warning_continue_anyway='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] button[name="continue"]',
     btn_alerts='button[data-name="alerts"]',
     btn_calendar='button[data-name="calendar"]',
-    btn_data_window='button[data-name="data-window"]',
+    btn_object_tree_and_data_window='button[data-name="object_tree"]',
+    btn_data_window='button[id="data-window"]',
+    btn_data_window_active='button[id="data-window"][tabindex="0"]',
     btn_watchlist='button[data-name="base"]',
     btn_watchlist_submenu='div.widgetbar-page.active div[data-name="watchlists-button"]',
     div_watchlist_item='div[data-symbol-full]',
@@ -271,7 +273,7 @@ xpath_selectors = dict(
     dlg_create_alert_notifications_webhook_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[4]/div[1]/label',
     dlg_create_alert_notifications_play_sound_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[5]/div[1]/label',
     dlg_create_alert_notifications_email_to_sms_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[6]/div[1]/label',
-    data_window_indicator='//div[@class="widgetbar-widget widgetbar-widget-datawindow"]/div[2]/div/div[2]/div/div/div[1]/span[starts-with(text(), "{}")]',
+    data_window_indicator='//div[@class="widgetbar-widget widgetbar-widget-object_tree"]/div/div/div[2]/div/div/div/span[starts-with(text(), "{}")]',
 )
 
 
@@ -1643,7 +1645,7 @@ def process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_al
             delisted_markets.append(symbol)
     # close data window
     if element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
-        wait_and_click(browser, css_selectors['btn_data_window'])
+        wait_and_click(browser, css_selectors['btn_object_tree_and_data_window'])
 
     if len(delisted_markets) > 0:
         verb = 's are'
@@ -2530,6 +2532,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
                     pass
                 except Exception as e:
                     log.exception(e)
+                    snapshot(browser)
 
         # Notifications
         try:
@@ -2597,7 +2600,6 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             close_all_popups(browser)
         except Exception as e:
             log.exception(e)
-            time.sleep(60000)
             snapshot(browser)
             return retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, retry_number)
 
@@ -3695,8 +3697,10 @@ def open_performance_summary_tab(browser):
 
 def open_data_window_tab(browser):
     try:
-        if not element_exists(browser, 'div.widgetbar-page.active > div.widgetbar-widget.widgetbar-widget-datawindow'):
-            wait_and_click(browser, css_selectors['btn_data_window'])
+        if not element_exists(browser, 'button[id="data-window"]'):
+            wait_and_click(browser, css_selectors['btn_object_tree_and_data_window'])
+            if not element_exists(browser, css_selectors['btn_data_window_active']):
+                wait_and_click(browser, css_selectors['btn_data_window'])
     except Exception as e:
         log.exception(e)
         snapshot(browser, True)
