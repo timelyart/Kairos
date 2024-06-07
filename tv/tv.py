@@ -127,6 +127,7 @@ css_selectors = dict(
     show_email_and_username='span.js-show-email',
     input_username='input[id="id_username"]',
     input_password='input[id="id_password"]',
+    input_2fa='input[id="id_code"]',
     btn_login_by_email='button[name="Email"]',
     captcha='div[class^="recaptchaContainer"]',
     input_captcha='div.recaptcha-checkbox-checkmark',
@@ -140,12 +141,13 @@ css_selectors = dict(
     # Watchlist / ticker
     btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
     btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
-    options_watchlist='div[class^="watchlistMenu"] span[class^="title"]',
+    options_watchlist='div[data-name="watchlists-dialog"] div[id^="list-item"] div[class^="title"]',
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
     btn_input_symbol='button[id="header-toolbar-symbol-search"]',
     dlg_symbol_search_input='div[data-name="symbol-search-items-dialog"] input[data-role="search"]',
     input_symbol='div[id="header-toolbar-symbol-search"] div',
     asset='div[data-name="legend-series-item"] div[data-name="legend-source-title"]:nth-child(1)',
+    dlg_close_watchlist='div[data-name="watchlists-dialog"] button[class*="close"]',
     # Alerts
     btn_alert_menu='div[data-name="alerts-settings-button"]',
     item_clear_alerts='#overlap-manager-root div[data-name=menu-inner] div:nth-child(4)',
@@ -167,8 +169,8 @@ css_selectors = dict(
     dlg_create_alert_first_row_second_item='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(1) > div:nth-child(2) span[role="button"]',
     dlg_create_alert_second_row='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(2) div[class^="select"] span[role="button"]',
     inputs_and_selects_create_alert_3rd_row_and_above='div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) input, div[data-name="alerts-create-edit-dialog"] div[class^="content"] > div:nth-child(1) div[class^="fieldsColumn"] > div:nth-child(3) div[class^="select"] > span[role="button"]',
-    dlg_create_alert_expiration_value='fieldset[aria-label="Expiration"] span[class^="content"]',
-    dlg_create_alert_expiration_button='fieldset[aria-label="Expiration"] button',
+    dlg_create_alert_expiration_value='button[aria-controls="alert-editor-expiration-popup"] span[class^="content"]',
+    dlg_create_alert_expiration_button='button[aria-controls="alert-editor-expiration-popup"]',
     dlg_create_alert_open_ended_checkbox='#unexpired-date',
     dlg_create_alert_expiration_confirmation_button='div[data-name^="popup-menu-container"] > div >div > div > button',
     dlg_create_alert_expiration_date='div[data-name^="popup-menu-container"] div[class^="picker"] input',
@@ -195,12 +197,13 @@ css_selectors = dict(
     btn_create_alert_warning_continue_anyway_got_it='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] label[class^="checkbox"]',
     btn_create_alert_warning_continue_anyway='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] button[name="continue"]',
     btn_alerts='button[data-name="alerts"]',
-    btn_calendar='button[data-name="calendar"]',
+    btn_hotlist='button[data-name="hotlist"]',
     btn_object_tree_and_data_window='button[data-name="object_tree"]',
     btn_data_window='button[id="data-window"]',
     btn_data_window_active='button[id="data-window"][tabindex="0"]',
     btn_watchlist='button[data-name="base"]',
     btn_watchlist_submenu='div.widgetbar-page.active div[data-name="watchlists-button"]',
+    div_existing_watchlist_items='div[data-name="watchlists-dialog"] div[data-role="list-item"]',
     div_watchlist_item='div[data-symbol-full]',
     div_watchlist_item_by_symbol='div[data-symbol-full="{}"]',
     signout='div[data-name="header-user-menu-sign-out"]',
@@ -218,8 +221,8 @@ css_selectors = dict(
     input_screener_search='div.tv-screener-table__search-query.js-search-query.tv-screener-table__search-query--without-description > input',
     # Strategy Tester
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
-    tab_strategy_tester_inactive='div[data-name="backtesting"][data-active="false"]',
-    tab_strategy_tester_performance_summary='div.backtesting-select-wrapper > ul > li:nth-child(2)',
+    tab_strategy_tester_inactive='btn[data-name="backtesting"][data-active="false"]',
+    tab_strategy_tester_performance_summary='button[id="Performance Summary"][aria-selected="false"]',
     btn_strategy_dialog='.deep-history > div > div > div > div > button',
     strategy_id='#bottom-area > div.bottom-widgetbar-content.backtesting div[data-strategy-title]',
     performance_overview_net_profit='div[class^="container-"] > div:nth-child(1) > div:nth-child(2) > div:nth-child(1)',
@@ -252,7 +255,7 @@ css_selectors = dict(
     btn_indicator_dialog_ok='div[data-name="indicator-properties-dialog"] button[name="submit"]',
     active_chart_asset='div.chart-container.active div.pane-legend-line.main div.pane-legend-title__description > div',
     active_chart_interval='div[id="header-toolbar-intervals"] button[class*="isActive"] > div > div',
-    chart_container='table.chart-markup-table',
+    chart_container='div.chart-widget > div.chart-markup-table',
     # User Menu
     btn_user_menu='button.tv-header__user-menu-button--logged',
     btn_logout='button[data-name="header-user-menu-sign-out"]',
@@ -267,12 +270,6 @@ class_selectors = dict(
 )
 
 xpath_selectors = dict(
-    dlg_create_alert_notifications_notify_on_app_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[1]/div[1]/label',
-    dlg_create_alert_notifications_show_popup_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[2]/div[1]/label',
-    dlg_create_alert_notifications_send_email_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[3]/div[1]/label',
-    dlg_create_alert_notifications_webhook_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[4]/div[1]/label',
-    dlg_create_alert_notifications_play_sound_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[5]/div[1]/label',
-    dlg_create_alert_notifications_email_to_sms_checkbox_clickable='//*[@data-name="alerts-create-edit-dialog"]/form/div[1]/div/div[6]/div[1]/label',
     data_window_indicator='//div[@class="widgetbar-widget widgetbar-widget-object_tree"]/div/div/div[2]/div/div/div/span[starts-with(text(), "{}")]',
 )
 
@@ -1180,7 +1177,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         for handle in browser.window_handles[1:]:
             browser.switch_to.window(handle)
 
-        wait_and_click(browser, css_selectors['btn_calendar'], 30)
+        wait_and_click(browser, css_selectors['btn_hotlist'], 30)
         wait_and_click(browser, css_selectors['btn_watchlist'])
         time.sleep(DELAY_WATCHLIST)
 
@@ -1275,8 +1272,11 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                 else:
                     log.info("{}: {} markets found (and {} delisted)".format(watchlist, len(symbols), len(delisted)))
 
-        # close the watchlist menu to save some loading time
-        wait_and_click(browser, css_selectors['btn_watchlist'])
+        # close the watchlist menu dialog
+        try:
+            wait_and_click(browser, css_selectors['dlg_close_watchlist'])
+        except Exception as e:
+            log.debug(e)
         # accept cookies (if any)
         accept_cookies(browser)
 
@@ -2541,18 +2541,24 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             notify_on_app = 'send' in alert_config and 'notify-on-app' in alert_config['send'] and alert_config['send'][
                 'notify-on-app']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_notify_on_app_checkbox'])
-            if is_checkbox_checked(checkbox) != notify_on_app:
-                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_notify_on_app_checkbox_clickable'])
+            if is_checkbox_checked(browser, checkbox) != notify_on_app:
+                next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+                next_sibling.click()
+
             # Show popup
             show_popup = 'show_popup' in alert_config and alert_config['show_popup']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_show_popup_checkbox'])
-            if is_checkbox_checked(checkbox) != show_popup:
-                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_show_popup_checkbox_clickable'])
+            if is_checkbox_checked(browser, checkbox) != show_popup:
+                next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+                next_sibling.click()
+
             # Sound
             play_sound = 'sound' in alert_config and 'play' in alert_config['sound'] and alert_config['sound']['play']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_play_sound_checkbox'])
-            if is_checkbox_checked(checkbox) != play_sound:
-                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_play_sound_checkbox_clickable'])
+            if is_checkbox_checked(browser, checkbox) != play_sound:
+                next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+                next_sibling.click()
+
             if play_sound:
                 # set ringtone
                 wait_and_click(alert_dialog, css_selectors['dlg_create_alert_notifications_sound_ringtone_button'])
@@ -2577,22 +2583,32 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
             # Send Email
             send_email = 'send' in alert_config and 'email' in alert_config['send'] and alert_config['send']['email']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_send_email_checkbox'])
-            if is_checkbox_checked(checkbox) != send_email:
-                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_send_email_checkbox_clickable'])
+            if is_checkbox_checked(browser, checkbox) != send_email:
+                next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+                next_sibling.click()
+
             # Send Email-to-SMS
             send_email_to_sms = 'send' in alert_config and 'email-to-sms' in alert_config['send'] and alert_config['send']['email-to-sms']
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_email_to_sms_checkbox'])
-            if is_checkbox_checked(checkbox) != send_email_to_sms:
-                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_email_to_sms_checkbox_clickable'])
+            if is_checkbox_checked(browser, checkbox) != send_email_to_sms:
+                next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+                next_sibling.click()
+
             # Webhook
-            webhook = 'webhook' in alert_config and alert_config['webhook'] != ''
+            webhook = 'webhook' in alert_config and alert_config['webhook'].replace(' ', '') != ''
             checkbox = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_checkbox'])
-            if is_checkbox_checked(checkbox) != webhook:
-                wait_and_click_by_xpath(alert_dialog, xpath_selectors['dlg_create_alert_notifications_webhook_checkbox_clickable'])
+            if is_checkbox_checked(browser, checkbox) != webhook:
+                next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+                next_sibling.click()
             if webhook:
-                element = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_text'])
-                element.send_keys(SELECT_ALL)
-                set_value(browser, element, alert_config['webhook'])
+                try:
+                    element = find_element(alert_dialog, css_selectors['dlg_create_alert_notifications_webhook_text'])
+                    element.send_keys(SELECT_ALL)
+                    set_value(browser, element, alert_config['webhook'])
+                except ElementNotInteractableException:
+                    log.warning('Unable to set webhook. Do you have 2fa enabled?')
+                except Exception as e:
+                    log.exception(e)
 
         except ElementClickInterceptedException as e:
             # close dialogs
@@ -2703,10 +2719,22 @@ def retry(browser, alert_config, timeframe, interval, symbol, screenshot_url, re
         return False
 
 
-def is_checkbox_checked(checkbox):
+def is_checkbox_checked(browser, checkbox):
+    """
+    Checks whether a checkbox input is checked. Unfortunately, TV regularly changes how these work.
+    Currently, the value is derived whether the next sibling contains 'checked' for its class attribute.
+    :param browser: The driver
+    :param checkbox: The checkbox element
+    :return:
+    """
     checked = False
     try:
-        checked = checkbox.get_attribute('checked') == 'true'
+        # get the next sibling that actually holds the value
+        next_sibling = browser.execute_script("return arguments[0].nextSibling;", checkbox)
+        css_class = str(next_sibling.get_attribute('class'))
+        checked = css_class.find('checked') >= 0
+    except Exception as e:
+        log.exception(e)
     finally:
         return checked
 
@@ -2787,6 +2815,7 @@ def check_captcha(browser):
 
         if checked:
             log.info("CAPTCHA extension solved challenge")
+            time.sleep(2)
             return True
         else:
             log.info("CAPTCHA extension was unable to solve challenge")
@@ -2979,7 +3008,7 @@ def login(browser, uid='', pwd='', retry_login=False):
                     time.sleep(DELAY_BREAK)
                     # first click on submit may give an "invalid token" error, so we click again in that case
                     if element_exists(browser, 'button[class^="submitButton"]', delay=2):
-                        wait_and_click(browser, 'button[class^="submitButton"]')
+                            wait_and_click(browser, 'button[class^="submitButton"]', )
                     elif element_exists(browser, css_selectors['btn_watchlist'], 5):
                         i = 10
                 else:
@@ -3472,9 +3501,9 @@ def run(file, export_signals_immediately, multi_threading=False):
 
 
 def clean_alerts(browser, selector=css_selectors['item_clear_alerts']):
-    # make sure we are opening the alert menu by closing/opening the calendar menu first
+    # make sure we are opening the alert menu by closing/opening the hotlist menu first
     try:
-        wait_and_click(browser, css_selectors['btn_calendar'])
+        wait_and_click(browser, css_selectors['btn_hotlist'])
         wait_and_click(browser, css_selectors['btn_alerts'])
         wait_and_click(browser, css_selectors['btn_alert_menu'])
     except Exception as e:
@@ -3504,9 +3533,10 @@ def get_screener_markets(browser, screener_yaml):
     close_all_popups(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
+    time.sleep(DELAY_SCREENSHOT)
     el_select = find_element(browser, css_selectors['select_screener'])
     hover(browser, el_select, True)
-    el_options = find_elements(browser, css_selectors['options_screeners'])
+    el_options = find_elements(browser, css_selectors['options_screeners'], delay=30)
     found = False
     for i in range(len(el_options)):
         option = el_options[i]
@@ -3570,8 +3600,8 @@ def update_watchlist(browser, name, markets):
         if not find_element(browser, css_selectors['btn_watchlist_submenu'], except_on_timeout=False):
             wait_and_click(browser, css_selectors['btn_watchlist'])
             time.sleep(DELAY_BREAK)
-        wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
-        time.sleep(DELAY_BREAK)
+        # remove any watchlists of the same name
+        remove_watchlists(browser, name)
 
         # create new watchlist
         wait_and_click_by_text(browser, 'span', 'Create new list')
@@ -3585,7 +3615,7 @@ def update_watchlist(browser, name, markets):
         # open 'Add symbol' dialogue
         wait_and_click(browser, 'div[data-name="add-symbol-button"]')
         # make sure we are searching all markets
-        wait_and_click_by_xpath(browser, '//*[normalize-space(text()) = "All"]/parent::span')
+        wait_and_click(browser, '#id_symbol-search-tabs_tablist > button[tabindex="0"]')
 
         # add the markets to the watchlist
         for market in markets:
@@ -3629,10 +3659,8 @@ def update_watchlist(browser, name, markets):
             """
 
         # close the 'Add symbol' dialogue
-        wait_and_click(browser, 'div[data-name="watchlist-symbol-search-dialog"] span[data-name="close"][data-role="button"]')
+        wait_and_click(browser, 'div[data-name="watchlist-symbol-search-dialog"] button[data-name="close"]')
 
-        # remove double watchlist
-        remove_watchlists(browser, name)
         return True
     except Exception as e:
         log.exception(e)
@@ -3643,13 +3671,12 @@ def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
     wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
     time.sleep(DELAY_BREAK)
-    css_options = 'div[class^="watchlistMenu"] div[class^="item"]:not(div[class*="active"])'
-    el_options = find_elements(browser, css_options)
+    el_options = find_elements(browser, css_selectors['div_existing_watchlist_items'])
     time.sleep(DELAY_BREAK)
     i = 0
     while i < len(el_options):
         try:
-            element = find_element(el_options[i], 'span[class^="title"]', except_on_timeout=False)
+            element = find_element(el_options[i], 'div[class^="title"]', except_on_timeout=False)
             if element and element.get_attribute('textContent').strip() == name:
                 hover(browser, el_options[i], delay=1)
                 wait_and_click(el_options[i], 'span[data-name="remove-button"]')
@@ -3662,7 +3689,7 @@ def remove_watchlists(browser, name):
             # open the watchlists menu again and update the options to prevent 'element is stale' error
             wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
             time.sleep(DELAY_BREAK)
-            el_options = find_elements(browser, css_options)
+            el_options = find_elements(browser, css_selectors['div_existing_watchlist_items'])
             time.sleep(DELAY_BREAK)
             i = 0
         except Exception as e:
@@ -3752,7 +3779,7 @@ def get_dialog_input_title(element):
     return strip_to_ascii(result).strip('<>:; ').lower().replace(' ', '_')
 
 
-def get_dialog_input_value(elements):
+def get_dialog_input_value(browser, elements):
     values = {}
 
     for element in elements:
@@ -3763,7 +3790,7 @@ def get_dialog_input_value(elements):
             continue
         # checkboxes
         elif element.get_attribute('type') == "checkbox":
-            if is_checkbox_checked(element):
+            if is_checkbox_checked(browser, element):
                 value = 'yes'
             else:
                 value = 'no'
@@ -3813,7 +3840,7 @@ def get_indicator_dialog_values(browser, tries=0):
                 # If title is empty, ignore this row
                 if title:
                     value_cells = get_indicator_dialog_elements(browser, title)
-                    value = get_dialog_input_value(value_cells)
+                    value = get_dialog_input_value(browser, value_cells)
                     if value is not None:
                         result[title] = value
 
@@ -4344,6 +4371,13 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
         symbol_average['Avg # Bars In Trade'] = 0
         symbol_average['Counter'] = 0
 
+        # get the quotes
+        # css = 'div.price-axis div.apply-common-tooltip:nth-child(1) div[class^="price-axis-currency-label-text"]'
+        # quote_elements = find_elements(browser, css, except_on_timeout=False)
+        # quotes = []
+        # for element in quote_elements:
+        #     quotes.append(element.text)
+
         for chart_index in range(number_of_charts):
             # move to the correct chart
             charts = find_elements(browser, css_selectors["chart_container"])
@@ -4430,49 +4464,34 @@ def back_test_strategy_symbol(browser, inputs, properties, symbol, strategy_conf
 
             # Export the list of trades for the current symbol
             export_file_name = None
+            timeframe = interval.replace("'", "").replace(" ", "_")
             if 'export_trades' in strategy_config and strategy_config['export_trades'] and ACCOUNT_LEVEL == 'Premium':
                 # rename the file because TradingView always uses the same filename when exporting trades from one strategy regardless of the symbol.
-                timeframe = interval.replace("'", "").replace(" ", "_")
+                exchange, ticker = symbol.replace('.', '_').split(':', 1)
 
-                # Get the quote from the Properties tab. This is the only reliable way to get the quote.
-                wait_and_click_by_xpath(browser, '//button[contains(text(), "Properties")]')
-                # Do NOT throw an exception if the element is not found, most likely we have an undetected error...
-                quote_elements = find_elements(browser, '//button[@aria-controls="id_Symbol-info"]//span[contains(text(), "Currency")]//following::span', By.XPATH, except_on_timeout=False)
+                # export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
+                export_file_name = "{}-{}-{}-{}_{}.csv".format(exchange, ticker, timeframe, strategy_config['name'], variant_number)
+                if number_of_variants == 1:
+                    export_file_name = "{}-{}-{}-{}.csv".format(exchange, ticker, timeframe, strategy_config['name'])
 
-                if quote_elements and quote_elements[0].text:
-                    quote = quote_elements[0].text[:-1]  # remove the trailing comma
-
-                    exchange, base = symbol.split(':', 1)
-                    match = re.search(exchange + ':(.*)' + quote + '$', symbol)
-                    if match:
-                        # extract the base from the ticker, e.g. BTCUSD into BTC
-                        base = match.group(1)
-                    else:
-                        # if none found, use the base+quote, e.g. BTCPERP
-                        log.warning("unable to determine base from {} with quote {}. Using {} as base instead.".format(symbol, quote, base))
-
-                    export_file_name = "{}-{}_{}-{}-{}_{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'], variant_number)
-                    if number_of_variants == 1:
-                        export_file_name = "{}-{}_{}-{}-{}.csv".format(exchange, base, quote, timeframe, strategy_config['name'])
-
-                    # export trades
-                    filename = export_list_of_trades(browser, export_trades_filename)
-                    if not export_trades_filename:
-                        export_trades_filename = filename
-                        log.info('default export filename = {}'.format(export_trades_filename))
-                    time.sleep(DELAY_BREAK)
-                    if filename:
-                        export_file_name = rename_exported_trades_file(filename, export_file_name)
-                        log.debug("list of trades exported to {}".format(export_file_name))
-                        # make sure that no file exists with the original download filename
-                        if os.path.exists(filename):
-                            os.remove(filename)
-                    else:
-                        log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
-
+                # export trades
+                filename = export_list_of_trades(browser, export_trades_filename)
+                if not export_trades_filename:
+                    export_trades_filename = filename
+                    log.debug('default export filename = {}'.format(export_trades_filename))
+                time.sleep(DELAY_BREAK)
+                if filename:
+                    export_file_name = rename_exported_trades_file(filename, export_file_name)
+                    log.debug("list of trades exported to {}".format(export_file_name))
+                    # make sure that no file exists with the original download filename
+                    if os.path.exists(filename):
+                        os.remove(filename)
                 else:
-                    snapshot(browser)
-                    raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
+                    log.error("failed to export the list of trades for {} with timeframe {} and strategy variant {}".format(symbol, timeframe, variant_number))
+
+            else:
+                snapshot(browser)
+                raise Exception("failed to export the list of trades for {} with timeframe {} and strategy variant {}: could not find the currency".format(symbol, timeframe, variant_number))
 
             ############################################################
             # DO NOT ADD INTERACTIONS WITH SELENIUM BELOW THIS COMMENT #
@@ -4727,7 +4746,7 @@ def set_indicator_dialog_element(browser, element, value, tries=0):
             if element.get_attribute("type") == "checkbox":
                 if type(value) is not bool:
                     value = str(value).lower() == 'yes'
-                if is_checkbox_checked(element) != value:
+                if is_checkbox_checked(browser, element) != value:
                     next_sibling = browser.execute_script("return arguments[0].nextElementSibling", element)
                     next_sibling.click()
             else:
@@ -5056,15 +5075,15 @@ def export_list_of_trades(browser, default_filename=None):
         raise TypeError("default_filename must be a non-empty string")
 
     try:        
-        # Check if the List of Trades is already open, if it isn't open it right now
-        active_tab = find_elements(browser, '//*[contains(@class, "activeTab")]', By.XPATH)        
-        if len(active_tab) > 0 and active_tab[0].text != "List of Trades":
-            wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
+        # # Check if the List of Trades is already open, if it isn't open it right now
+        # active_tab = find_elements(browser, '//*[contains(@class, "activeTab")]', By.XPATH)
+        # if len(active_tab) > 0 and active_tab[0].text != "List of Trades":
+        #     wait_and_click_by_xpath(browser, '//button[contains(text(), "List of Trades")]')
+
+        # Click the export trades button
+        wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
 
         if default_filename:
-            # Click the export trades button
-            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
-
             # The default filename changes when the clock strikes midnight
             current_date = datetime.datetime.now().strftime("%Y-%m-%d")
             default_filename = "{}_{}.csv".format(default_filename.rsplit('_', 1)[0], current_date)
@@ -5073,8 +5092,6 @@ def export_list_of_trades(browser, default_filename=None):
                 retries += 1
                 time.sleep(DELAY_DOWNLOAD_FILE)  # Give the download time to finish
         else:
-            # Click the export trades button
-            wait_and_click_by_xpath(browser, '//*[@id="bottom-area"]/div/div/div/div[1]//button[3]')
 
             while default_filename is None and retries < max_retries:
                 retries += 1
