@@ -1043,7 +1043,7 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
             if 'type' in indicator['trigger']:
                 comparison = indicator['trigger']['type']
             if 'left-hand-side' in indicator['trigger']:
-                if 'index' in indicator['trigger']['left-hand-side'] and type(indicator['trigger']['left-hand-side']['index']) == int:
+                if 'index' in indicator['trigger']['left-hand-side'] and isinstance(indicator['trigger']['left-hand-side']['index'], int):
                     ignore = []
                     if 'ignore' in indicator['trigger']['left-hand-side'] and isinstance(indicator['trigger']['left-hand-side']['ignore'], list):
                         ignore = indicator['trigger']['left-hand-side']['ignore']
@@ -1061,7 +1061,7 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
                 if lhs == '' and 'value' in indicator['trigger']['left-hand-side'] and indicator['trigger']['left-hand-side']['value'] != '':
                     lhs = indicator['trigger']['left-hand-side']['value']
             if 'right-hand-side' in indicator['trigger']:
-                if 'index' in indicator['trigger']['right-hand-side'] and type(indicator['trigger']['right-hand-side']['index']) == int:
+                if 'index' in indicator['trigger']['right-hand-side'] and isinstance(indicator['trigger']['right-hand-side']['index'], int):
                     ignore = []
                     if 'ignore' in indicator['trigger']['right-hand-side'] and isinstance(indicator['trigger']['right-hand-side']['ignore'], list):
                         ignore = indicator['trigger']['right-hand-side']['ignore']
@@ -1083,7 +1083,8 @@ def is_indicator_triggered(browser, indicator, values, previous_symbol_values):
                 lhs = unicode_to_float_int(lhs)
                 rhs = unicode_to_float_int(rhs)
 
-                if type(lhs) != type(rhs):
+                # if type(lhs) != type(rhs):
+                if lhs.__class__ != rhs.__class__:
                     log.warning("trying again. Unable to compare {} of {} with {} of {}".format(repr(lhs), repr(type(lhs)), repr(rhs), repr(type(rhs))))
                     if values:
                         values = get_data_window_indicator_values(browser, indicator)
@@ -1243,7 +1244,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                                     valid_ticker = last_element_symbol
                             else:
                                 # assume market got delisted
-                                if not(last_element_symbol in delisted):
+                                if not (last_element_symbol in delisted):
                                     delisted.append(last_element_symbol)
                                     log.debug("{} has been delisted".format(last_element_symbol))
                             if len(symbols) >= config.getint('tradingview', 'max_symbols_per_watchlist'):
@@ -3008,7 +3009,7 @@ def login(browser, uid='', pwd='', retry_login=False):
                     time.sleep(DELAY_BREAK)
                     # first click on submit may give an "invalid token" error, so we click again in that case
                     if element_exists(browser, 'button[class^="submitButton"]', delay=2):
-                            wait_and_click(browser, 'button[class^="submitButton"]', )
+                        wait_and_click(browser, 'button[class^="submitButton"]', )
                     elif element_exists(browser, css_selectors['btn_watchlist'], 5):
                         i = 10
                 else:
@@ -3387,9 +3388,9 @@ def run(file, export_signals_immediately, multi_threading=False):
         if len(file) > 1:
             head, tail = os.path.split(r""+file)
             save_as = tail
-            file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), file)
+            file = r"" + str(os.path.join(config.get('tradingview', 'settings_dir'), file))
         else:
-            file = r"" + os.path.join(config.get('tradingview', 'settings_dir'), config.get('tradingview', 'settings'))
+            file = r"" + str(os.path.join(config.get('tradingview', 'settings_dir'), config.get('tradingview', 'settings')))
         if not os.path.exists(file):
             log.error("File {} does not exist. Did you setup your kairos.cfg and yaml file correctly?".format(str(file)))
             raise FileNotFoundError
