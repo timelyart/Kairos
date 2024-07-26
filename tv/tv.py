@@ -139,7 +139,7 @@ css_selectors = dict(
     btn_timeframe='#header-toolbar-intervals > button > div',
     options_timeframe='div[data-role="menuitem"] > span > span',
     # Watchlist / ticker
-    btn_watchlist_menu='body > div.js-rootresizer__contents > div.layout__area--right > div > div.widgetbar-tabs > div > div:nth-child(1) > div > div > div:nth-child(1)',
+    btn_watchlist_menu='button[data-name="base"]',
     btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
     options_watchlist='div[data-name="watchlists-dialog"] div[id^="list-item"] div[class^="title"]',
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
@@ -1190,6 +1190,8 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             watchlist = chart['watchlists'][i]
             # open list of watchlists element
             log.debug("collecting symbols from watchlist {}".format(watchlist))
+            if not element_exists(browser, css_selectors['btn_watchlist_menu_menu']):
+                wait_and_click(browser, css_selectors['btn_watchlist_menu'])
             wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
 
             # load watchlist
@@ -1572,12 +1574,6 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
                             result = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts, handle_incomplete_loading_bug)
                             counter_alerts = result[0]
                             total_alerts = result[1]
-                            # if len(result) == 4:
-                            #     [counter_alerts, total_alerts] = result
-                            # elif len(result) == 4:
-                            #     [counter_alerts, total_alerts, last_indicator_name, previous_symbol_values] = result
-                            # [counter_alerts, total_alerts] = process_symbols(browser, chart, symbols, timeframe, counter_alerts, total_alerts)
-                        # pickle.dump(browser, 'webdriver.instance')
                     except KeyError:
                         log.error(watchlist + " doesn't exist")
                         break
