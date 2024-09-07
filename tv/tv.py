@@ -22,7 +22,7 @@ import re
 import sys
 import time
 import errno
-
+import chromedriver_autoinstaller
 import dill
 import numpy
 
@@ -197,7 +197,6 @@ css_selectors = dict(
     btn_create_alert_warning_continue_anyway_got_it='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] label[class^="checkbox"]',
     btn_create_alert_warning_continue_anyway='div[data-name="alerts-trigger-warning-dialog-pine-repainting"] button[name="continue"]',
     btn_alerts='button[data-name="alerts"]',
-    btn_hotlist='button[data-name="hotlist"]',
     btn_object_tree_and_data_window='button[data-name="object_tree"]',
     btn_data_window='button[id="data-window"]',
     btn_data_window_active='button[id="data-window"][tabindex="0"]',
@@ -1178,7 +1177,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
         for handle in browser.window_handles[1:]:
             browser.switch_to.window(handle)
 
-        wait_and_click(browser, css_selectors['btn_hotlist'], 30)
+        wait_and_click(browser, css_selectors['btn_alerts'], 30)
         wait_and_click(browser, css_selectors['btn_watchlist'])
         time.sleep(DELAY_WATCHLIST)
 
@@ -2407,7 +2406,7 @@ def create_alert(browser, alert_config, timeframe, interval, symbol, screenshot_
         # 1st row, 2nd condition (if applicable)
         if len(alert_config['conditions']) > 1:
             css_1st_row_right = css_selectors['exists_dlg_create_alert_first_row_second_item']
-            if element_exists(alert_dialog, css_1st_row_right, 0.5):
+            if element_exists(browser, css_1st_row_right, 0.5):
                 current_condition += 1
                 wait_and_click(alert_dialog, css_selectors['dlg_create_alert_first_row_second_item'])
                 el_options = find_elements(browser, css_selectors['dlg_create_alert_options'])
@@ -3240,8 +3239,11 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
         else:
             from selenium.webdriver.chrome.service import Service
             if config.has_option('webdriver', 'path'):
-                driver_path = config.get('webdriver', 'path')
+                from pathlib import Path
+                driver_path = Path(r'{}'.format(config.get('webdriver', 'path')))
                 log.info("using {} as webdriver".format(driver_path))
+                if config.has_option('webdriver', 'auto_update') and config.getboolean('webdriver', 'auto_update'):
+                    driver_path = chromedriver_autoinstaller.install(path=r'{}'.format(driver_path.parent))  # automatically get latest chromedriver
                 service = Service(executable_path=driver_path)
             else:
                 log.info('using Selenium Manager to find latest webdriver')
@@ -3500,7 +3502,7 @@ def run(file, export_signals_immediately, multi_threading=False):
 def clean_alerts(browser, selector=css_selectors['item_clear_alerts']):
     # make sure we are opening the alert menu by closing/opening the hotlist menu first
     try:
-        wait_and_click(browser, css_selectors['btn_hotlist'])
+        wait_and_click(browser, css_selectors['btn_watchlist'])
         wait_and_click(browser, css_selectors['btn_alerts'])
         wait_and_click(browser, css_selectors['btn_alert_menu'])
     except Exception as e:
