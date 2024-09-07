@@ -20,6 +20,7 @@ soupsieve
 coloredlogs
 selenium-stealth
 urllib3
+chromedriver_autoinstaller
 
 [:platform_system == "Darwin"]
 pyobjc-core

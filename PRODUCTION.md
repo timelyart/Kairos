@@ -36,7 +36,7 @@ To generate the C code do the following:
 4. Rename setup.py to cython.py
 5. Rename _setup.py to setup.py
 
-## Install dependencies 
+## Install dependencies
 Install dependencies: 
 
 `python setup.py install`

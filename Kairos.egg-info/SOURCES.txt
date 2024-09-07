@@ -18,7 +18,6 @@ Kairos.egg-info/dependency_links.txt
 Kairos.egg-info/requires.txt
 Kairos.egg-info/top_level.txt
 img/300_Bitcoin_QR_code.png
-img/300_Dash_QR_code.png
 img/300_Ethereum_QR_code.png
 kairos/__init__.py
 kairos/debug.py

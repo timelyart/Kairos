@@ -1,6 +1,6 @@
 Metadata-Version: 2.1
 Name: Kairos
-Version: 2.97
+Version: 2.98
 Summary: Kairos aims to help you save time by automating repetitive tasks on TradingView such as refreshing alerts and creating new ones.
 Home-page: https://github.com/timelyart/Kairos
 Author: timelyart
@@ -8,6 +8,32 @@ Author-email: timelyart@protonmail.com
 License: GPL-3; End-User License Agreement: https://www.eulatemplate.com/live.php?token=zduUYsiBp0PFzzX0UANHUodYVMifuNRp
 Requires-Python: >=3.10
 License-File: LICENSE.md
+Requires-Dist: setuptools
+Requires-Dist: pyyaml
+Requires-Dist: beautifulsoup4
+Requires-Dist: selenium
+Requires-Dist: configparser
+Requires-Dist: pip
+Requires-Dist: Pillow
+Requires-Dist: requests
+Requires-Dist: gspread
+Requires-Dist: google-api-python-client
+Requires-Dist: oauth2client
+Requires-Dist: pymongo
+Requires-Dist: dill
+Requires-Dist: numpy
+Requires-Dist: fastnumbers
+Requires-Dist: psutil
+Requires-Dist: Cython
+Requires-Dist: tqdm
+Requires-Dist: soupsieve
+Requires-Dist: coloredlogs
+Requires-Dist: selenium-stealth
+Requires-Dist: urllib3
+Requires-Dist: chromedriver_autoinstaller
+Requires-Dist: pyvirtualdisplay; platform_system == "Linux"
+Requires-Dist: pyobjc-core; platform_system == "Darwin"
+Requires-Dist: pyobjc; platform_system == "Darwin"
 
 ![GitHub Release Date](https://img.shields.io/github/release-date/timelyart/kairos?style=for-the-badge)
 ![](https://img.shields.io/github/license/timelyart/kairos?style=for-the-badge)
@@ -1143,7 +1169,7 @@ To generate the C code do the following:
 4. Rename setup.py to cython.py
 5. Rename _setup.py to setup.py
 
-## Install dependencies 
+## Install dependencies
 Install dependencies: 
 
 `python setup.py install`
@@ -1166,8 +1192,8 @@ I'd love to have your help improving this project, and you are more than welcome
 Alternatively, you can donate using the options below.   
 
 ## Bitcoin ##
-![bitcoin QR code](img/Bitcoin_QR_Code.png)
+![bitcoin QR code](img/300_Bitcoin_QR_code.png)
 #### 3PSfxCvDbGC5Bu9s5SGgYZAoNQFBzmMuPf ####
 ## Ethereum ##
-![ether QR code](img/Ethereum_QR_Code.png)
+![ether QR code](img/300_Ethereum_QR_code.png)
 #### 0x86fbe730b6c39BA5afE06DD2B56A92250b49067B ####

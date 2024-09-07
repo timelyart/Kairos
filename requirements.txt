@@ -22,6 +22,7 @@ soupsieve
 coloredlogs
 selenium-stealth
 urllib3
+chromedriver_autoinstaller
 # linux
 #pyvirtualdisplay # pyup: ignore
 # macos
