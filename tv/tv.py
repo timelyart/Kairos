@@ -1196,6 +1196,7 @@ def open_chart(browser, chart, save_as, counter_alerts, total_alerts):
             if not element_exists(browser, css_selectors['btn_watchlist_menu_menu']):
                 wait_and_click(browser, css_selectors['btn_watchlist_menu'])
             wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
+            wait_and_click_by_text(browser, 'span', 'Open list')
 
             # load watchlist
             watchlist_exists = False
