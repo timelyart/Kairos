@@ -141,6 +141,7 @@ css_selectors = dict(
     # Watchlist / ticker
     btn_watchlist_menu='button[data-name="base"]',
     btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
+    open_watchlist_submenu='div[data-name="active-watchlist-menu"]',
     options_watchlist='div[data-name="watchlists-dialog"] div[id^="list-item"] div[class^="title"]',
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
     btn_input_symbol='button[id="header-toolbar-symbol-search"]',
@@ -211,13 +212,16 @@ css_selectors = dict(
     btn_image_url='div[data-name="open-image-in-new-tab"]',
     img_chart='img[class="tv-snapshot-image"]',
     btn_watchlist_sort_symbol='div.widgetbar-widget-watchlist span[data-column-type="short_name"]',
+    btn_close_watchlists_dialog='button[data-name="close"]',
     # SCREENERS
     btn_filters='tv-screener-toolbar__button--filters',
     select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
                     'div.tv-screener-dialog__filter-field-content.tv-screener-dialog__filter-field-content--select.js-filter-field-_content > div > span',
-    select_screener='div.tv-screener-toolbar__button.tv-screener-toolbar__button--with-options.tv-screener-toolbar__button--arrow-down.tv-screener-toolbar__button--with-state.apply-common-tooltip.common-tooltip-fixed.js-filter-sets.tv-dropdown-behavior__button',
-    options_screeners='div.tv-screener-popup__item--presets > div.tv-dropdown-behavior__item',
+    select_screener='div[data-name="screener-filter-sets"] span',
+    options_screeners='div.tv-screener-popup div.tv-dropdown-behavior__item div.tv-screener-popup__item',
     input_screener_search='div.tv-screener-table__search-query.js-search-query.tv-screener-table__search-query--without-description > input',
+    screener_table_ticker_name_column='div.tv-screener-sticky-header-wrapper th[data-field="name"] div.js-head-title',
+    screener_table_sort_element='div[data-field="name"] span.tv-screener-table__sort--asc',
     # Strategy Tester
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='btn[data-name="backtesting"][data-active="false"]',
@@ -2898,6 +2902,21 @@ def solve_captcha(browser):
             return True
 
 
+def close_widget_pane(browser):
+    # close the widget pane if it is open
+    try:
+        if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
+            # close the menu/widget pane
+            wait_and_click(browser, css_selectors['btn_alerts'])
+            # check if we closed one pane but opened the alert's pane instead
+            if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False,
+                            visible=True):
+                # close the alerts pane
+                wait_and_click(browser, css_selectors['btn_alerts'])
+    except Exception as e:
+        log.exception(e)
+
+
 def login(browser, uid='', pwd='', retry_login=False):
     global TV_UID
     global TV_PWD
@@ -3017,17 +3036,7 @@ def login(browser, uid='', pwd='', retry_login=False):
         log.exception(e)
         snapshot(browser, True)
 
-    # close the widget pane if it is open
-    try:
-        if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
-            # close the menu/widget pane
-            wait_and_click(browser, css_selectors['btn_alerts'])
-            # check if we closed one pane but opened the alert's pane instead
-            if find_element(browser, css_selectors['active_widget_bar'], delay=2, except_on_timeout=False, visible=True):
-                # close the alerts pane
-                wait_and_click(browser, css_selectors['btn_alerts'])
-    except Exception as e:
-        log.exception(e)
+    close_widget_pane(browser)
 
     try:
         wait_and_click(browser, css_selectors['account'], 5)
@@ -3241,9 +3250,9 @@ def create_browser(run_in_background, resolution='1920,1080', download_path=None
             if config.has_option('webdriver', 'path'):
                 from pathlib import Path
                 driver_path = Path(r'{}'.format(config.get('webdriver', 'path')))
-                log.info("using {} as webdriver".format(driver_path))
                 if config.has_option('webdriver', 'auto_update') and config.getboolean('webdriver', 'auto_update'):
                     driver_path = chromedriver_autoinstaller.install(path=r'{}'.format(driver_path.parent))  # automatically get latest chromedriver
+                log.info("using {} as webdriver".format(driver_path))
                 service = Service(executable_path=driver_path)
             else:
                 log.info('using Selenium Manager to find latest webdriver')
@@ -3530,11 +3539,14 @@ def get_screener_markets(browser, screener_yaml):
     markets = []
 
     close_all_popups(browser)
+    close_widget_pane(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
     time.sleep(DELAY_SCREENSHOT)
-    el_select = find_element(browser, css_selectors['select_screener'])
-    hover(browser, el_select, True)
+    # el_select = find_element(browser, css_selectors['select_screener'])
+    # hover(browser, el_select, True)
+    wait_and_click(browser, css_selectors['select_screener'], delay=30)
+
     el_options = find_elements(browser, css_selectors['options_screeners'], delay=30)
     found = False
     for i in range(len(el_options)):
@@ -3557,6 +3569,13 @@ def get_screener_markets(browser, screener_yaml):
         search_box = find_element(browser, css_selectors['input_screener_search'])
         set_value(browser, search_box, screener_yaml['search'], True)
         time.sleep(DELAY_SCREENER_SEARCH)
+
+    # sort tickers by name
+    if not find_element(browser, css_selectors['screener_table_sort_element'], except_on_timeout=False, delay=1):
+        wait_and_click(browser, css_selectors['screener_table_ticker_name_column'])
+        if not find_element(browser, css_selectors['screener_table_sort_element'], except_on_timeout=False, delay=CHECK_IF_EXISTS_TIMEOUT):
+            wait_and_click(browser, css_selectors['screener_table_ticker_name_column'])
+            time.sleep(DELAY_SCREENER_SEARCH)
 
     el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
     total_found = 0
@@ -3603,6 +3622,8 @@ def update_watchlist(browser, name, markets):
         remove_watchlists(browser, name)
 
         # create new watchlist
+        if not find_element(browser, css_selectors['open_watchlist_submenu'], except_on_timeout=False, visible=True):
+            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
         wait_and_click_by_text(browser, 'span', 'Create new list')
 
         # set watchlist name
@@ -3668,8 +3689,13 @@ def update_watchlist(browser, name, markets):
 
 def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
-    wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+    if not find_element(browser, css_selectors['open_watchlist_submenu'], except_on_timeout=False, visible=True, ):
+        wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+    # Open dialog ith existing watchlists
+    wait_and_click_by_text(browser, 'span', 'Open list')
     time.sleep(DELAY_BREAK)
+
+    # Extract existing watchlists
     el_options = find_elements(browser, css_selectors['div_existing_watchlist_items'])
     time.sleep(DELAY_BREAK)
     i = 0
@@ -3695,6 +3721,9 @@ def remove_watchlists(browser, name):
             log.exception(e)
             snapshot(browser)
         i = i + 1
+
+    # close dialog
+    wait_and_click(browser, css_selectors['btn_close_watchlists_dialog'])
 
 
 def open_performance_summary_tab(browser):
