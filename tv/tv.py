@@ -140,7 +140,7 @@ css_selectors = dict(
     options_timeframe='div[data-role="menuitem"] > span > span',
     # Watchlist / ticker
     btn_watchlist_menu='button[data-name="base"]',
-    btn_watchlist_menu_menu='div[data-name="watchlists-button"]',
+    btn_watchlist_menu_menu='button[data-name="watchlists-button"]',
     open_watchlist_submenu='div[data-name="active-watchlist-menu"]',
     options_watchlist='div[data-name="watchlists-dialog"] div[id^="list-item"] div[class^="title"]',
     input_watchlist_add_symbol='div[data-name="add-symbol-button"] > span',
