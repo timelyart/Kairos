@@ -202,7 +202,6 @@ css_selectors = dict(
     btn_data_window='button[id="data-window"]',
     btn_data_window_active='button[id="data-window"][tabindex="0"]',
     btn_watchlist='button[data-name="base"]',
-    btn_watchlist_submenu='div.widgetbar-page.active div[data-name="watchlists-button"]',
     div_existing_watchlist_items='div[data-name="watchlists-dialog"] div[data-role="list-item"]',
     div_watchlist_item='div[data-symbol-full]',
     div_watchlist_item_by_symbol='div[data-symbol-full="{}"]',
@@ -416,7 +415,7 @@ def refresh(browser):
     # Close alerts, banners and pop-ups
     close_all_popups(browser)
     # Close the watchlist menu if it is open
-    if find_element(browser, css_selectors['btn_watchlist_submenu'], By.CSS_SELECTOR, False, False, 0.5):
+    if find_element(browser, css_selectors['btn_watchlist_menu_menu'], By.CSS_SELECTOR, False, False, 0.5):
         wait_and_click(browser, css_selectors['btn_watchlist'])
 
 
@@ -3616,7 +3615,7 @@ def get_screener_markets(browser, screener_yaml):
 def update_watchlist(browser, name, markets):
     log.info("creating/updating watchlist ...".format(name))
     try:
-        if not find_element(browser, css_selectors['btn_watchlist_submenu'], except_on_timeout=False):
+        if not find_element(browser, css_selectors['btn_watchlist_menu_menu'], except_on_timeout=False):
             wait_and_click(browser, css_selectors['btn_watchlist'])
             time.sleep(DELAY_BREAK)
         # remove any watchlists of the same name
@@ -3624,7 +3623,7 @@ def update_watchlist(browser, name, markets):
 
         # create new watchlist
         if not find_element(browser, css_selectors['open_watchlist_submenu'], except_on_timeout=False, visible=True):
-            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+            wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
         wait_and_click_by_text(browser, 'span', 'Create new list')
 
         # set watchlist name
@@ -3691,7 +3690,7 @@ def update_watchlist(browser, name, markets):
 def remove_watchlists(browser, name):
     # After a watchlist is imported, TV opens it. Since we cannot delete a watchlist while opened, we can safely assume that any watchlist of the same name that can be deleted is old and should be deleted
     if not find_element(browser, css_selectors['open_watchlist_submenu'], except_on_timeout=False, visible=True, ):
-        wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+        wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
     # Open dialog ith existing watchlists
     wait_and_click_by_text(browser, 'span', 'Open list')
     time.sleep(DELAY_BREAK)
@@ -3713,7 +3712,7 @@ def remove_watchlists(browser, name):
                 log.debug('watchlist {} removed'.format(name))
         except StaleElementReferenceException:
             # open the watchlists menu again and update the options to prevent 'element is stale' error
-            wait_and_click(browser, css_selectors['btn_watchlist_submenu'])
+            wait_and_click(browser, css_selectors['btn_watchlist_menu_menu'])
             time.sleep(DELAY_BREAK)
             el_options = find_elements(browser, css_selectors['div_existing_watchlist_items'])
             time.sleep(DELAY_BREAK)
@@ -4609,7 +4608,7 @@ def retry_back_test_strategy_symbol(browser, inputs, properties, symbol, strateg
                 # Switching to Alert
                 close_alerts(browser)
                 # Close the watchlist menu if it is open
-                if find_element(browser, css_selectors['btn_watchlist_submenu'], By.CSS_SELECTOR, False, False, 0.5):
+                if find_element(browser, css_selectors['btn_watchlist_menu_menu'], By.CSS_SELECTOR, False, False, 0.5):
                     wait_and_click(browser, css_selectors['btn_watchlist_menu'])
                 first_symbol = True
             else:
