@@ -212,15 +212,24 @@ css_selectors = dict(
     img_chart='img[class="tv-snapshot-image"]',
     btn_watchlist_sort_symbol='div.widgetbar-widget-watchlist span[data-column-type="short_name"]',
     btn_close_watchlists_dialog='button[data-name="close"]',
-    # SCREENERS
-    btn_filters='tv-screener-toolbar__button--filters',
-    select_exchange='div.tv-screener-dialog__filter-field.js-filter-field.js-filter-field-exchange.tv-screener-dialog__filter-field--cat1.js-wrap.tv-screener-dialog__filter-field--active > '
-                    'div.tv-screener-dialog__filter-field-content.tv-screener-dialog__filter-field-content--select.js-filter-field-_content > div > span',
+    # SCREENERS (CRYPTO)
     select_screener='div[data-name="screener-filter-sets"] span',
     options_screeners='div.tv-screener-popup div.tv-dropdown-behavior__item div.tv-screener-popup__item',
     input_screener_search='div.tv-screener-table__search-query.js-search-query.tv-screener-table__search-query--without-description > input',
     screener_table_ticker_name_column='div.tv-screener-sticky-header-wrapper th[data-field="name"] div.js-head-title',
     screener_table_sort_element='div[data-field="name"] span.tv-screener-table__sort--asc',
+    screener_total_matches='div.tv-screener-table__field-value--total',
+    # SCREENERS (STOCKS)
+    select_stock_screener='div[data-name="screener-topbar-screen-title"] > div > h1',
+    options_stock_screeners='div[data-name="popup-menu-container"] > div > div > div[class^="item"] > span[class^="labelRow"] > span[class^="label"] > div[class^="label"] > div[class^="title"] > div[class^="title"]',
+    btn_stock_screener_search='button[class^="searchButton"]',
+    btn_stock_screener_close_search='span[title="Clear and close"]',
+    input_stock_screener_search='input[placeholder="Search"]',
+    btn_stock_sorting_options='button[class^="searchButton"] + div > div ',
+    options_stock_sorting='div[data-name="popup-menu-container"] > div > div > div[class^="item"]',
+    stock_screener_table_row='tr.listRow',
+    stock_screener_table_sort_element='button[aria-label="Change sort"]',
+    stock_screener_total_matches='button[aria-label="Change sort"] + span',
     # Strategy Tester
     tab_strategy_tester='#footer-chart-panel div[data-name=backtesting]',
     tab_strategy_tester_inactive='btn[data-name="backtesting"][data-active="false"]',
@@ -3535,18 +3544,27 @@ def clean_alerts(browser, selector=css_selectors['item_clear_alerts']):
 
 
 def get_screener_markets(browser, screener_yaml):
-    max_tries = 5
-    markets = []
-
     close_all_popups(browser)
     close_widget_pane(browser)
     url = unquote(screener_yaml['url'])
     browser.get(url)
+    crypto_screener = url.find('crypto') >= 0
     time.sleep(DELAY_SCREENSHOT)
-    # el_select = find_element(browser, css_selectors['select_screener'])
-    # hover(browser, el_select, True)
-    wait_and_click(browser, css_selectors['select_screener'], delay=30)
 
+    if crypto_screener:
+        markets = get_crypto_screener_markets(browser, screener_yaml)
+    else:
+        markets = get_stock_screener_markets(browser, screener_yaml)
+
+    log.info('extracted {} markets'.format(str(len(markets))))
+    return markets
+
+
+def get_crypto_screener_markets(browser, screener_yaml):
+    max_tries = 5
+    markets = []
+
+    wait_and_click(browser, css_selectors['select_screener'], delay=30)
     el_options = find_elements(browser, css_selectors['options_screeners'], delay=30)
     found = False
     for i in range(len(el_options)):
@@ -3572,13 +3590,13 @@ def get_screener_markets(browser, screener_yaml):
 
     # sort tickers by name
     if not find_element(browser, css_selectors['screener_table_sort_element'], except_on_timeout=False, delay=1):
-        wait_and_click(browser, css_selectors['screener_table_ticker_name_column'])
+        wait_and_click(browser, css_selectors['btn_stock_screener_close_search'])
         if not find_element(browser, css_selectors['screener_table_sort_element'], except_on_timeout=False, delay=CHECK_IF_EXISTS_TIMEOUT):
             wait_and_click(browser, css_selectors['screener_table_ticker_name_column'])
             time.sleep(DELAY_SCREENER_SEARCH)
 
-    el_total_found = find_element(browser, 'tv-screener-table__field-value--total', By.CLASS_NAME)
     total_found = 0
+    el_total_found = find_element(browser, css_selectors['screener_total_matches'])
     try:
         match = re.search(r"(\d+)", el_total_found.text)
         total_found = int(match.group(1))
@@ -3608,7 +3626,78 @@ def get_screener_markets(browser, screener_yaml):
         markets = list(sorted(set(markets)))
         i += 1
 
-    log.info('extracted {} markets'.format(str(len(markets))))
+    return markets
+
+
+def get_stock_screener_markets(browser, screener_yaml):
+    max_tries = 5
+    markets = []
+
+    wait_and_click(browser, css_selectors['select_stock_screener'], delay=30)
+    el_options = find_elements(browser, css_selectors['options_stock_screeners'], delay=30)
+    found = False
+    for i in range(len(el_options)):
+        option = el_options[i]
+        try:
+            log.debug(option.text)
+            if str(option.text) == screener_yaml['name']:
+                option.click()
+                found = True
+                break
+        except StaleElementReferenceException:
+            el_options = find_elements(browser, css_selectors['options_stock_screeners'])
+        i += 1
+
+    if not found:
+        log.warning("screener '{}' doesn't exist.".format(screener_yaml['name']))
+        return False
+
+    # sort tickers by name
+    if element_exists(browser, css_selectors['btn_stock_screener_close_search'], delay=3): # close search
+        wait_and_click(browser, css_selectors['btn_stock_screener_close_search'])
+    wait_and_click(browser, css_selectors['btn_stock_sorting_options'])
+    # time.sleep(DELAY_BREAK*2)
+    options = find_elements(browser, css_selectors['options_stock_sorting'])
+    options[0].click()
+    time.sleep(DELAY_SCREENER_SEARCH)
+
+    # search after sort, as sorting will reset the search bar
+    if 'search' in screener_yaml and screener_yaml['search'] != '':
+        wait_and_click(browser, css_selectors['btn_stock_screener_search'])
+        search_box = find_element(browser, css_selectors['input_stock_screener_search'])
+        set_value(browser, search_box, screener_yaml['search'], True)
+        time.sleep(DELAY_SCREENER_SEARCH)
+
+    total_found = 0
+    el_total_found = find_element(browser, css_selectors['stock_screener_total_matches'])
+    try:
+        total_found = int(el_total_found.get_attribute('data-matches'))
+    except StaleElementReferenceException:
+        pass
+    log.debug("found {} markets".format(total_found, screener_yaml['name']))
+
+    i = 0
+    while len(markets) < total_found and i < max_tries:
+        rows = find_elements(browser, css_selectors['stock_screener_table_row'], By.CSS_SELECTOR,True, False, 30)
+        j = 0
+        while j < len(rows):
+            try:
+                market = rows[j].get_attribute('data-rowkey')
+                action = ActionChains(browser)
+                action.move_to_element_with_offset(rows[j], 5, 5)
+                action.perform()
+            except StaleElementReferenceException:
+                WebDriverWait(browser, 5).until(
+                    ec.presence_of_element_located((By.CSS_SELECTOR, css_selectors['stock_screener_table_row'])))
+                # try again
+                browser.execute_script("window.scrollTo(0, document.body.scrollHeight);")
+                rows = find_elements(browser, css_selectors['stock_screener_table_row'])
+                market = rows[j].get_attribute('data-symbol')
+            markets.append(market)
+            j += 1
+        markets = list(sorted(set(markets)))
+        i += 1
+
     return markets
 
 
@@ -3635,7 +3724,8 @@ def update_watchlist(browser, name, markets):
         # open 'Add symbol' dialogue
         wait_and_click(browser, 'div[data-name="add-symbol-button"]')
         # make sure we are searching all markets
-        wait_and_click(browser, '#id_symbol-search-tabs_tablist > button[tabindex="0"]')
+        options = find_elements(browser, '#id_symbol-search-tabs_tablist > button')
+        options[0].click()
 
         # add the markets to the watchlist
         for market in markets:
