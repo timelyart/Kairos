@@ -5,6 +5,7 @@
 
 [![Updates](https://pyup.io/repos/github/timelyart/Kairos/shield.svg)](https://pyup.io/repos/github/timelyart/Kairos/)
 [![Python 3](https://pyup.io/repos/github/timelyart/Kairos/python-3-shield.svg)](https://pyup.io/repos/github/timelyart/Kairos/)
+[![CodeQL](https://github.com/timelyart/Kairos/actions/workflows/github-code-scanning/codeql/badge.svg)](https://github.com/timelyart/Kairos/actions/workflows/github-code-scanning/codeql)
 
 # Kairos
 Web automation tool using Python, Selenium and Chrome's Web Driver.
